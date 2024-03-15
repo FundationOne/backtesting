@@ -65,10 +65,10 @@ def monthly_dca_strategy(btc_data, starting_investment):
         
         # Check if a new month has started
         if current_date.month != previous_date.month:
-            btc_owned += monthly_investment / btc_data['Price'][i]
+            btc_owned += monthly_investment / btc_data['Price'].iloc[i]
         
         # Update portfolio value for the current day
-        portfolio_value.iloc[i] = btc_owned * btc_data['Price'][i]
+        portfolio_value.iloc[i] = btc_owned * btc_data['Price'].iloc[i]
     
     portfolio_value.iloc[0] = 0  # Start with a 0 investment
     portfolio_value.ffill(inplace=True)  # Forward fill the portfolio value for days without transactions
@@ -189,7 +189,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", placeholder="Buying Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", placeholder="Buying Rule"), width=8),
                                             dbc.Col(rule_generation_trigger_button, width=3),
                                         ]
                                     ),
@@ -200,7 +200,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-selling-rule", placeholder="Selling Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="btc_owned > 0 and price > 60000", placeholder="Selling Rule"), width=8),
                                             dbc.Col(rule_generation_trigger_button, width=3),  # Reused button
                                         ]
                                     ),

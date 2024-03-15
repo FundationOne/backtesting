@@ -43,28 +43,12 @@ btc_owned: The amount of Bitcoin currently owned.
 price: The current price of Bitcoin.
 """
 
-# OpenAI API key input
-openai_api_key_input = dbc.Row([
-    dcc.Store(id='api_key_store', storage_type='session'),  # Stores the API key in the session storage
-    dbc.Label("OpenAI API Key", html_for="input-openai-api-key", width=12),
-    dbc.Col([
-        dcc.Input(id="input-openai-api-key", type="text", placeholder="Enter your OpenAI API key")
-    ], width=12)
-])
-
 # Natural language input for rule generation
-rule_generation_input = dbc.Row([
-    dbc.Label("Generate Rule", html_for="input-generate-rule", width=12),
-    dbc.Col([
-        dcc.Input(id="input-generate-rule", type="text", value="", placeholder="Enter natural language instruction")
-    ], width=12)
-])
-
 rule_generation_trigger_button = dbc.Button(
     "Generate Rule",
     id="generate-rule-button",
     n_clicks=0,
-    style={"padding": "10px 0px"}
+    style={"padding": "10px 5px"}
 )
 
 # The modal which will be reused for both buy and sell rule inputs
@@ -146,24 +130,3 @@ def register_callbacks(app):
             # Handle exceptions raised by the OpenAI API call
             print(f"An error occurred: {e}")
             return no_update, no_update
-        
-    @app.callback(
-        Output('api_key_store', 'data'),
-        [Input("input-openai-api-key", "value")],
-        prevent_initial_call=True
-    )
-    def update_cached_api_key(new_api_key):
-        if new_api_key:
-            return {'api_key': new_api_key}  # Update session storage
-        return no_update
-    
-    @app.callback(
-        Output("input-openai-api-key", "value"),
-        [Input('api_key_store', 'data')],
-        prevent_initial_call=True
-    )
-    def get_initial_api_key(data):
-        if data and 'api_key' in data:
-            return data['api_key']
-        return ''
-

@@ -1,3 +1,7 @@
+.display-logo {
+    text-align: center;
+}
+
 /* Adjust the width of input fields */
 input, textarea, .dbc input, .dbc textarea {
     width: 100%; /* Full width */

@@ -4,13 +4,14 @@ from dash import dcc, html, Input, Output
 
 from backtesting_sim import layout as l1, register_callbacks as rc1
 from portfolio_sim import layout as l2, register_callbacks as rc2
-from gpt_functionality import openai_api_key_input as l_gpt, register_callbacks as rc_gpt
+from gpt_functionality import register_callbacks as rc_gpt
+from openai_key_functionality import openai_api_key_input as l_openai_key, register_callbacks as rc_openai_key
 
 # Choose a theme closer to Apple's design aesthetic, like LUX or FLATLY
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX], suppress_callback_exceptions=True)
 sidebar = html.Div(
     [
-        html.H2('MONEX', className='display-4'),
+        html.H2('APE•X', className='display-logo'),
         html.Hr(),
         html.P(
             "Try out your portfolio and backtesting strategies", className="lead"
@@ -24,10 +25,12 @@ sidebar = html.Div(
             vertical=True,
             pills=True,
         ),
-        l_gpt
+        html.Div(l_openai_key, style={'position': 'absolute', 'bottom': '10px'})  # Fixes the input at the bottom
+
     ],
     style={
         'position': 'fixed',
+        'height':'100vh',
         'top': 0,
         'left': 0,
         'bottom': 0,
@@ -51,6 +54,7 @@ def render_page_content(pathname):
         return l2
 
 # Register all tab callbacks
+rc_openai_key(app)
 rc_gpt(app)
 rc2(app)
 rc1(app)
