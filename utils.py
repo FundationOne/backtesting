@@ -2,6 +2,7 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 from scipy.signal import find_peaks
+import dateparser
 
 # Assuming the halving dates are known
 halving_dates = [
@@ -18,6 +19,10 @@ def days_since_last_halving(date):
     return None
 
 def power_law(data, start_date, end_date):
+    # Parse the expressions into datetime objects
+    start_date_dt = dateparser.parse(start_date)
+    end_date_dt = dateparser.parse(end_date)
+    
     start_index = data.index.get_loc(start_date)
     end_index = data.index.get_loc(end_date)
     
@@ -50,6 +55,14 @@ def power_law(data, start_date, end_date):
     return coefficients[0]  # Return the power law exponent
 
 def price_power_law_relation(data, start_date, end_date):
+    # Parse the expressions into datetime objects
+    start_date_dt = dateparser.parse(start_date)
+    end_date_dt = dateparser.parse(end_date)
+
+    # Convert datetime objects back to strings
+    start_date = start_date_dt.strftime('%Y-%m-%d') if start_date_dt else None
+    end_date = end_date_dt.strftime('%Y-%m-%d') if end_date_dt else None
+
     power_law_exponent = power_law(data, start_date, end_date)
     start_index = data.index.get_loc(start_date)
     end_index = data.index.get_loc(end_date)

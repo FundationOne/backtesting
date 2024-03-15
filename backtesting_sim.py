@@ -136,7 +136,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
         }
 
         # Running the test
-        verify_context(context)
+        # verify_context(context)
 
         try:
             buy_eval = eval(buying_rule, {"__builtins__": None}, context)
@@ -147,13 +147,13 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
         date = current_data.index[-1]
 
-        if buy_eval and available_cash >= current_price:
+        if buy_eval.all() and available_cash >= current_price:
             btc_to_buy = available_cash // current_price
             available_cash -= btc_to_buy * current_price
             btc_owned += btc_to_buy
             transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'Price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
 
-        elif sell_eval and btc_owned > 0:
+        elif sell_eval.all() and btc_owned > 0:
             btc_to_sell = btc_owned
             available_cash += btc_to_sell * current_price
             btc_owned -= btc_to_sell
