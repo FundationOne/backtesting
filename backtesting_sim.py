@@ -6,6 +6,7 @@ import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
 from utils import *
+from test_expressions import verify_context
 
 from gpt_functionality import create_rule_generation_button,  rule_generation_modal
 
@@ -98,37 +99,44 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
         # Prepare the context
         context = {
-            'last_highest': lambda col: ta.utils.max_since_start(current_data[col]),
-            'last_lowest': lambda col: ta.utils.min_since_start(current_data[col]),
-            'moving_average': lambda col, window=3: ta.trend.sma(current_data[col], window=window).iloc[-1],
+            'last_highest': lambda col: current_data[col].cummax().iloc[-1],
+            'last_lowest': lambda col: current_data[col].cummin().iloc[-1],
+            'moving_average': lambda col, window=3: ta.trend.sma_indicator(current_data[col], window=window).iloc[-1],
             'current': lambda col: current_data[col].iloc[-1],
             'available_cash': available_cash,
             'btc_owned': btc_owned,
             'price': current_price,
-            'rsi': lambda window=14: ta.momentum.rsi(current_data['Price'].values, window=window),
-            'macd': lambda fast=12, slow=26, signal=9: ta.trend.macd(current_data['Price'].values, fast=fast, slow=slow, signal=signal),
-            'bollinger_bands': lambda window=20, num_std=2: ta.volatility.bollinger_bands(current_data['Price'].values, window=window, std=num_std),
-            'ema': lambda window=20: ta.trend.ema_indicator(current_data['Price'].values, window=window),
-            'stochastic_oscillator': lambda k_window=14, d_window=3: ta.momentum.stoch(current_data['High'].values, current_data['Low'].values, current_data['Price'].values, k_window=k_window, d_window=d_window),
-            'average_true_range': lambda window=14: ta.volatility.average_true_range(current_data['High'].values, current_data['Low'].values, current_data['Price'].values, window=window),
-            'on_balance_volume': lambda: ta.volume.on_balance_volume(current_data['Price'].values, current_data['Vol.'].values),
-            'momentum': lambda window=14: ta.momentum.momentum(current_data['Price'].values, window=window),
+            'rsi': lambda window=14: ta.momentum.stochrsi(current_data['Price'], window=window),
+            'macd': lambda fast=12, slow=26, signal=9: ta.trend.macd_diff(current_data['Price'], window_slow=slow, window_fast=fast, window_sign=signal),
+            'bollinger_bands': lambda window=20, num_std=2: ta.volatility.BollingerBands(current_data['Price'], window=window, window_dev=num_std),
+            'ema': lambda window=20: ta.trend.ema_indicator(current_data['Price'], window=window),
+            'stochastic_oscillator': lambda k_window=14, d_window=3: ta.momentum.stoch(current_data['High'], current_data['Low'], current_data['Price'], window=k_window, smooth_window=d_window),
+            'average_true_range': lambda window=14: ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range(),
+            'on_balance_volume': lambda: ta.volume.on_balance_volume(current_data['Price'], current_data['Vol.']),
+            'momentum': lambda window=14: ta.momentum.roc(current_data['Price'], window=window),
             'roi': lambda entry_price, exit_price: (exit_price - entry_price) / entry_price * 100,
             'stop_loss': lambda entry_price, percentage=10: entry_price - entry_price * (percentage / 100),
             'take_profit': lambda entry_price, percentage=20: entry_price + entry_price * (percentage / 100),
             'percent_change': lambda periods=1: current_data['Price'].pct_change(periods=periods).iloc[-1],
-            'volatility': lambda window=20: ta.volatility.average_true_range(current_data['High'].values, current_data['Low'].values, current_data['Price'].values, window=window).mean(),
-            'atr_percent': lambda window=14: ta.volatility.average_true_range_percent(current_data['High'].values, current_data['Low'].values, current_data['Price'].values, window=window).iloc[-1],
-            'ichimoku_cloud': lambda conversion_window=9, base_window=26, lagging_window=52: ta.trend.ichimoku_cloud(current_data['High'].values, current_data['Low'].values, conversion_window=conversion_window, base_window=base_window, lagging_window=lagging_window),
-            'parabolic_sar': lambda af=0.02, max_af=0.2: ta.trend.psar(current_data['High'].values, current_data['Low'].values, current_data['Price'].values, af=af, max_af=max_af),
-            'support_resistance': lambda window=20: ta.resistance_support(current_data['Price'].values, window=window),
-            'volume_spike': lambda window=20, threshold=2: ta.volume.volume_spike_detection(current_data['Vol.'].values, window=window, threshold=threshold),
-            'price_pattern': lambda pattern='double_top': ta.pattern.find_pattern(current_data['Price'].values, pattern=pattern),
-            'fibonacci_retracement': lambda start, end: ta.fibonacci.fibonacci_retracement(current_data['Price'].values, start, end),
+            'volatility': lambda window=20: ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range().mean(),
+            'atr_percent': lambda window=14: (ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range() / current_data['Price'] * 100).iloc[-1],
+            'ichimoku_cloud': lambda conversion_window=9, base_window=26, lagging_window=52: ta.trend.IchimokuIndicator(current_data['High'], current_data['Low'], window1=conversion_window, window2=base_window, window3=lagging_window),
+            'parabolic_sar': lambda af=0.02, max_af=0.2: ta.trend.PSARIndicator(current_data['High'], current_data['Low'], current_data['Price'], step=af, max_step=max_af).psar(),
+            'find_support_resistance': lambda window=20: find_support_resistance(btc_data['Price'], window),
+            'volume_spike_detection': lambda window=20, threshold=2: volume_spike_detection(btc_data['Vol.'], window, threshold),
+            'find_head_and_shoulders': lambda window=20: find_head_and_shoulders(btc_data['Price'], window),
+            'find_inverse_head_and_shoulders': lambda window=20: find_inverse_head_and_shoulders(btc_data['Price'], window),
+            'find_triple_top': lambda window=20, tolerance=0.05: find_triple_top(btc_data['Price'], window, tolerance),
+            'find_triple_bottom': lambda window=20, tolerance=0.05: find_triple_bottom(btc_data['Price'], window, tolerance),
+            'find_double_top': lambda window=20, tolerance=0.05: find_double_top(btc_data['Price'], window, tolerance),
+            'fibonacci_retracement': lambda start, end: fibonacci_retracement(start, end),
             'days_since_last_halving': lambda: days_since_last_halving(current_data.index[-1]),
-            'power_law': lambda start_date, end_date: power_law(current_data, start_date, end_date),
-            'price_power_law_relation': lambda start_date, end_date: price_power_law_relation(current_data, start_date, end_date)
+            'power_law': lambda start_date, end_date: power_law(btc_data, start_date, end_date),
+            'price_power_law_relation': lambda start_date, end_date: price_power_law_relation(btc_data, start_date, end_date)
         }
+
+        # Running the test
+        verify_context(context)
 
         try:
             buy_eval = eval(buying_rule, {"__builtins__": None}, context)
