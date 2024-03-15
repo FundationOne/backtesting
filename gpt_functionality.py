@@ -1,6 +1,7 @@
 import dash_bootstrap_components as dbc
-from dash import dcc, no_update, html
-from dash.dependencies import Input, Output, State
+from dash import dcc, no_update, html, ctx
+from dash.dependencies import Input, Output, State, MATCH, ALL
+
 from dash.exceptions import PreventUpdate
 import openai
 import json
@@ -44,12 +45,16 @@ price: The current price of Bitcoin.
 """
 
 # Natural language input for rule generation
-rule_generation_trigger_button = dbc.Button(
-    "Generate Rule",
-    id="generate-rule-button",
-    n_clicks=0,
-    style={"padding": "10px 5px"}
-)
+def create_rule_generation_button(index):
+    return dbc.Button(
+        "Generate Rule",
+        id={
+            'type': 'generate-rule-button',  # Constant type for all buttons of this kind
+            'index': index  # Unique index for each button
+        },
+        n_clicks=0,
+        style={"padding": "10px 5px"}
+    )
 
 # The modal which will be reused for both buy and sell rule inputs
 rule_generation_modal = dbc.Modal(
@@ -62,8 +67,9 @@ rule_generation_modal = dbc.Modal(
                 placeholder="Enter natural language instruction"
             )
         ),
-        dbc.ModalFooter(
-            dbc.Button("Close", id="close-modal-button", className="ml-auto")
+        dbc.ModalFooter([
+            dbc.Button("Generate Rule", id="apply-modal-button", className="ml-auto"),
+            dbc.Button("Close", id="close-modal-button", className="ml-auto")]
         ),
     ],
     id="rule-generation-modal",
@@ -75,22 +81,35 @@ def register_callbacks(app):
     # Callbacks to open and close the modal
     @app.callback(
         Output("rule-generation-modal", "is_open"),
-        [Input("generate-rule-button", "n_clicks"), Input("close-modal-button", "n_clicks")],
-        [State("rule-generation-modal", "is_open")],
+        [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
+        Input("close-modal-button", "n_clicks"),
+        Input("apply-modal-button", "n_clicks")],
+        [State("rule-generation-modal", "is_open")]
     )
-    def toggle_modal(n1, n2, is_open):
-        if n1 or n2:
-            return not is_open
-        return is_open
+    def toggle_modal(*args):
+        button_clicks, _, _, is_modal_open = args
+        
+        # Check if any button was clicked. Assumes button_clicks is a list of click counts.
+        if any(click > 0 for click in button_clicks):
+            return not is_modal_open
+        
+        # If no buttons were clicked, return the current state of the modal.
+        return is_modal_open
 
     @app.callback(
         [Output('input-buying-rule', 'value'),
         Output('input-selling-rule', 'value')],
-        [Input('input-generate-rule', 'value'),
+        Input('apply-modal-button', 'n_clicks'),
+        [State('input-generate-rule', 'value'),
         State('input-openai-api-key', 'value')]
     )
-    def generate_rules(rule_instruction, openai_api_key):
-        if not rule_instruction or not openai_api_key:
+    def generate_rules(apply_rule_trigger, rule_instruction, openai_api_key):
+        if not rule_instruction:
+            print("Invalid prompt entered.")
+            raise PreventUpdate
+            
+        if not openai_api_key:
+            print("OpenAI Key is missing.")
             raise PreventUpdate
 
         messages = [

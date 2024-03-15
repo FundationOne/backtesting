@@ -7,7 +7,7 @@ from dash.exceptions import PreventUpdate
 import ta
 from utils import *
 
-from gpt_functionality import rule_generation_trigger_button,  rule_generation_modal
+from gpt_functionality import create_rule_generation_button,  rule_generation_modal
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
@@ -190,7 +190,7 @@ layout = dbc.Container(
                                     dbc.Row(
                                         [
                                             dbc.Col(dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", placeholder="Buying Rule"), width=8),
-                                            dbc.Col(rule_generation_trigger_button, width=3),
+                                            dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
                                     dbc.Row(
@@ -201,7 +201,7 @@ layout = dbc.Container(
                                     dbc.Row(
                                         [
                                             dbc.Col(dcc.Textarea(id="input-selling-rule", value="btc_owned > 0 and price > 60000", placeholder="Selling Rule"), width=8),
-                                            dbc.Col(rule_generation_trigger_button, width=3),  # Reused button
+                                            dbc.Col(create_rule_generation_button(2), width=3),  # Reused button
                                         ]
                                     ),
                                     rule_generation_modal,
