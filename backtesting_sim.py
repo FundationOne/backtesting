@@ -76,6 +76,9 @@ def monthly_dca_strategy(btc_data, starting_investment):
     return portfolio_value
 # Function to execute trading strategy
 def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule):
+    if pd.to_datetime(start_date) not in btc_data.index:
+        raise ValueError("Start date is out of the dataset's date range.")
+
     # Filter the data to start from the given start date
     btc_data = btc_data[start_date:]
     

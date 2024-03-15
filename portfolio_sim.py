@@ -4,7 +4,6 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
-import pandas as pd
 
 def simulate_portfolio(current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate=0.25, tax_method='FIFO'):
     # Initialize DataFrame

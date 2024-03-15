@@ -6,43 +6,6 @@ import openai
 import json
 import os
 
-# Define the cache directory and file path
-cache_dir = os.path.join(os.path.expanduser("~"), ".cache")
-cache_file = os.path.join(cache_dir, "openai_api_key.txt")
-
-# Function to update or verify the OpenAI API key in the cache
-def update_or_verify_api_key(api_key, cache_file):
-    if api_key:
-        try:
-            with open(cache_file, "r") as f:
-                current_api_key = f.read().strip()
-            if current_api_key != api_key:
-                with open(cache_file, "w") as f:
-                    f.write(api_key)
-        except FileNotFoundError:
-            with open(cache_file, "w") as f:
-                f.write(api_key)
-    openai.api_key = api_key
-
-def get_initial_api_key(cache_dir, cache_file):    
-    # Ensure the cache directory exists
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-    
-    # Attempt to read the API key from the cache file
-    initial_api_key = ""
-    if os.path.exists(cache_file):
-        with open(cache_file, "r") as file:
-            initial_api_key = file.read().strip()
-    
-    return initial_api_key
-
-# Use the function to initialize the API key
-initial_api_key = get_initial_api_key(cache_dir, cache_file)
-
-# Upon starting the app, ensure the API key is correctly set in the cache
-update_or_verify_api_key(initial_api_key, cache_file)
-
 context_description = """
 The context includes the following functions:
 
@@ -82,9 +45,10 @@ price: The current price of Bitcoin.
 
 # OpenAI API key input
 openai_api_key_input = dbc.Row([
+    dcc.Store(id='api_key_store', storage_type='session'),  # Stores the API key in the session storage
     dbc.Label("OpenAI API Key", html_for="input-openai-api-key", width=12),
     dbc.Col([
-        dcc.Input(id="input-openai-api-key", value=initial_api_key, type="text", placeholder="Enter your OpenAI API key")
+        dcc.Input(id="input-openai-api-key", type="text", placeholder="Enter your OpenAI API key")
     ], width=12)
 ])
 
@@ -126,9 +90,9 @@ rule_generation_modal = dbc.Modal(
 def register_callbacks(app):
     # Callbacks to open and close the modal
     @app.callback(
-        Output("modal-rule-generation", "is_open"),
-        [Input("trigger-button", "n_clicks"), Input("close-modal", "n_clicks")],
-        [State("modal-rule-generation", "is_open")],
+        Output("rule-generation-modal", "is_open"),
+        [Input("generate-rule-button", "n_clicks"), Input("close-modal-button", "n_clicks")],
+        [State("rule-generation-modal", "is_open")],
     )
     def toggle_modal(n1, n2, is_open):
         if n1 or n2:
@@ -183,11 +147,23 @@ def register_callbacks(app):
             print(f"An error occurred: {e}")
             return no_update, no_update
         
-    # Define a callback to update the cached API key
     @app.callback(
-        Output("input-openai-api-key", "value"),
-        [Input("input-openai-api-key", "value")]
+        Output('api_key_store', 'data'),
+        [Input("input-openai-api-key", "value")],
+        prevent_initial_call=True
     )
     def update_cached_api_key(new_api_key):
-        update_or_verify_api_key(new_api_key, cache_file)
-        return new_api_key
+        if new_api_key:
+            return {'api_key': new_api_key}  # Update session storage
+        return no_update
+    
+    @app.callback(
+        Output("input-openai-api-key", "value"),
+        [Input('api_key_store', 'data')],
+        prevent_initial_call=True
+    )
+    def get_initial_api_key(data):
+        if data and 'api_key' in data:
+            return data['api_key']
+        return ''
+
