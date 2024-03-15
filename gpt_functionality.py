@@ -1,5 +1,5 @@
 import dash_bootstrap_components as dbc
-from dash import dcc, no_update
+from dash import dcc, no_update, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 import openai
@@ -82,27 +82,59 @@ price: The current price of Bitcoin.
 
 # OpenAI API key input
 openai_api_key_input = dbc.Row([
-    dbc.Label("OpenAI API Key", html_for="input-openai-api-key", width=3),
+    dbc.Label("OpenAI API Key", html_for="input-openai-api-key", width=12),
     dbc.Col([
-        dcc.Input(id="input-openai-api-key", value=initial_api_key, type="text", placeholder="Enter your OpenAI API key", className="mb-3")
-    ], width=9)
+        dcc.Input(id="input-openai-api-key", value=initial_api_key, type="text", placeholder="Enter your OpenAI API key")
+    ], width=12)
 ])
 
 # Natural language input for rule generation
 rule_generation_input = dbc.Row([
-    dbc.Label("Generate Rule", html_for="input-generate-rule", width=3),
+    dbc.Label("Generate Rule", html_for="input-generate-rule", width=12),
     dbc.Col([
-        dcc.Input(id="input-generate-rule", type="text", value="", placeholder="Enter natural language instruction", className="mb-3")
-    ], width=9)
+        dcc.Input(id="input-generate-rule", type="text", value="", placeholder="Enter natural language instruction")
+    ], width=12)
 ])
 
-# GPT layout
-layout = dbc.Container([
-    openai_api_key_input,
-    rule_generation_input
-])
+rule_generation_trigger_button = dbc.Button(
+    "Generate Rule",
+    id="generate-rule-button",
+    n_clicks=0,
+    style={"padding": "10px 0px"}
+)
+
+# The modal which will be reused for both buy and sell rule inputs
+rule_generation_modal = dbc.Modal(
+    [
+        dbc.ModalHeader(dbc.ModalTitle("Generate Rule")),
+        dbc.ModalBody(
+            dcc.Input(
+                id="input-generate-rule",
+                type="text",
+                placeholder="Enter natural language instruction"
+            )
+        ),
+        dbc.ModalFooter(
+            dbc.Button("Close", id="close-modal-button", className="ml-auto")
+        ),
+    ],
+    id="rule-generation-modal",
+    is_open=False,
+)
+
 
 def register_callbacks(app):
+    # Callbacks to open and close the modal
+    @app.callback(
+        Output("modal-rule-generation", "is_open"),
+        [Input("trigger-button", "n_clicks"), Input("close-modal", "n_clicks")],
+        [State("modal-rule-generation", "is_open")],
+    )
+    def toggle_modal(n1, n2, is_open):
+        if n1 or n2:
+            return not is_open
+        return is_open
+
     @app.callback(
         [Output('input-buying-rule', 'value'),
         Output('input-selling-rule', 'value')],

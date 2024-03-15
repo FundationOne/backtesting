@@ -1,0 +1,37 @@
+/* Style for date picker input */
+.DateInput_input {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    display: inline-block; /* Aligns the input for inline usage */
+    width: calc(100% - 20px); /* Adjusts width considering padding */
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Centering the date picker container */
+.DateRangePicker,
+.SingleDatePicker,
+.SingleDatePickerInput {
+    display: block;
+    margin: 0 auto;
+    width: 90%;
+    max-width: 500px; /* Maximum width of inputs to maintain aesthetics */
+}
+
+/* Style for date picker when it has focus */
+.DateInput_input__focused {
+    border: 2px solid #007aff;
+    box-shadow: 0 0 3px #007aff;
+}
+
+/* Correct the position of the calendar icon if needed */
+.DateInput_button {
+    position: absolute;
+    right: 10px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}

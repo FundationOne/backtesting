@@ -7,6 +7,7 @@ from dash.exceptions import PreventUpdate
 import ta
 from utils import *
 
+from gpt_functionality import rule_generation_trigger_button,  rule_generation_modal
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
@@ -151,69 +152,100 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
     return transactions_df, portfolio_value_over_time
 
-# Backtesting tab layout
-layout = dbc.Container([
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader(html.H3("Backtesting Parameters")),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Label("Starting Investment", html_for="input-starting-investment", width=6),
-                        dbc.Col([
-                            dcc.Input(id="input-starting-investment", type="number", value=10000, className="mb-3")
-                        ], width=6)
-                    ]),
-                    dbc.Row([
-                        dbc.Label("Starting Date", html_for="input-starting-date", width=6),
-                        dbc.Col([
-                            dcc.DatePickerSingle(id="input-starting-date", date='2020-01-01', className="mb-3")
-                        ], width=6)
-                    ]),
-                    dbc.Row([
-                        dbc.Label("Buying Rule (Python code)", html_for="input-buying-rule", width=6),
-                        dbc.Col([
-                            dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", className="mb-3")
-                        ], width=6)
-                    ]),
-                    dbc.Row([
-                        dbc.Label("Selling Rule (Python code)", html_for="input-selling-rule", width=6),
-                        dbc.Col([
-                            dcc.Textarea(id="input-selling-rule", value="btc_owned > 0 and price > 60000", className="mb-3")
-                        ], width=6)
-                    ])
-                ])
-            ])
-        ], sm=12, md=4),
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader(
-                    dbc.Row([
-                        dbc.Col(html.H3("Backtesting Results"), width=8),
-                        dbc.Col(dbc.RadioItems(
-                                    options=[
-                                        {"label": "Log Scale", "value": "log"},
-                                        {"label": "Normal Scale", "value": "linear"}
-                                    ],
-                                    value="log",  # Default selection
-                                    id="scale-toggle",
-                                    inline=True,
-                                    className="float-end"  # Aligns RadioItems to the right
-                                ), width=4, align="center"),
-                    ], className="align-items-center")  # Ensures tight fit and vertical alignment
+layout = dbc.Container(
+    [
+        dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            # dbc.CardHeader(html.H3("Backtesting Parameters")),
+                            dbc.CardBody([
+                                    dbc.Row(
+                                        [
+                                            dbc.Label("Starting Investment", html_for="input-starting-investment", width=12),
+                                            dbc.Col(
+                                                dcc.Input(id="input-starting-investment", type="number", value=10000),
+                                                width=12,
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Label("Starting Date", html_for="input-starting-date", width=12),
+                                            dbc.Col(
+                                                dcc.DatePickerSingle(id="input-starting-date", date='2020-01-01'),
+                                                width=12,
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(dbc.Label("Buying Rule (Python expression)"), width=12),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", placeholder="Buying Rule"), width=8),
+                                            dbc.Col(rule_generation_trigger_button, width=3),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(dbc.Label("Selling Rule (Python expression)"), width=12),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(dcc.Textarea(id="input-selling-rule", placeholder="Selling Rule"), width=8),
+                                            dbc.Col(rule_generation_trigger_button, width=3),  # Reused button
+                                        ]
+                                    ),
+                                    rule_generation_modal,
+                                    dbc.Row(
+                                        [
+                                            dbc.Label("", html_for="scale-toggle", width=12),
+                                            dbc.Col(
+                                                dbc.RadioItems(
+                                                    options=[
+                                                        {"label": "Log Scale", "value": "log"},
+                                                        {"label": "Normal Scale", "value": "linear"},
+                                                    ],
+                                                    value="log",
+                                                    id="scale-toggle"
+                                                ),
+                                                width=12, align="center",
+                                            ),
+                                        ]
+                                    ),
+                                ]
+                            ),
+                        ]
+                    ),
+                    sm=12, md=4
                 ),
-                dbc.CardBody([
-                    dcc.Graph(id='backtesting-graph'),
-                    dash_table.DataTable(
-                        id='backtesting-table',
-                        style_table={'height': '400px', 'overflowY': 'auto'},
-                        style_cell={'textAlign': 'left'}
-                    )
-                ])
-            ])
-        ], sm=12, md=8)
-    ])
-])
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    dcc.Graph(id='backtesting-graph'),
+                                    dash_table.DataTable(
+                                        id='backtesting-table',
+                                        style_table={'height': '400px', 'overflowY': 'auto'},
+                                        style_cell={'textAlign': 'left'},
+                                    )
+                                ]
+                            ),
+                        ]
+                    ),
+                    sm=12, md=8
+                ),
+            ]
+        )
+    ],
+    fluid=True,
+)
 
 def register_callbacks(app):
     @app.callback(

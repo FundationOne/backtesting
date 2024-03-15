@@ -64,43 +64,42 @@ layout = dbc.Container([
                 dbc.CardHeader(html.H3("Input Parameters")),
                 dbc.CardBody([
                     dbc.Row([
-                        dbc.Label("Starting Investment", html_for="input-current-value", width=6),
+                        dbc.Label("Starting Investment", html_for="input-current-value", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-current-value", type="number", value=default_current_value, className="mb-3")
-                        ], width=6)
+                            dcc.Input(id="input-current-value", type="number", value=default_current_value)
+                        ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Annual Growth Rate %", html_for="input-annual-growth-rate", width=6),
+                        dbc.Label("Annual Growth Rate %", html_for="input-annual-growth-rate", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-annual-growth-rate", type="number", value=default_annual_growth_rate, className="mb-3")
-                        ], width=6)
+                            dcc.Input(id="input-annual-growth-rate", type="number", value=default_annual_growth_rate)
+                        ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Annual Withdrawal", html_for="input-annual-withdrawal", width=6),
+                        dbc.Label("Annual Withdrawal", html_for="input-annual-withdrawal", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal, className="mb-3")
-                        ], width=6)
+                            dcc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal)
+                        ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Years to Simulate", html_for="input-years-to-simulate", width=6),
+                        dbc.Label("Years to Simulate", html_for="input-years-to-simulate", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-years-to-simulate", type="number", value=default_years_to_simulate, className="mb-3")
-                        ], width=6)
+                            dcc.Input(id="input-years-to-simulate", type="number", value=default_years_to_simulate)
+                        ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Capital Gains Tax Rate %", html_for="input-tax-rate", width=6),
+                        dbc.Label("Capital Gains Tax Rate %", html_for="input-tax-rate", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-tax-rate", type="number", value=25, className="mb-3")  # Default tax rate 25%
-                        ], width=6)
+                            dcc.Input(id="input-tax-rate", type="number", value=25)  # Default tax rate 25%
+                        ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Taxation Method", html_for="input-tax-method", width=6),
+                        dbc.Label("Taxation Method", html_for="input-tax-method", width=12),
                         dbc.Col([
                             dcc.Dropdown(id="input-tax-method",
                                         options=[{'label': 'FIFO', 'value': 'FIFO'}],
-                                        value=default_tax_method,
-                                        className="mb-3")
-                        ], width=6)
+                                        value=default_tax_method)
+                        ], width=12)
                     ])
                 ])
             ])

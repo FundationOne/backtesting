@@ -1,0 +1,72 @@
+/* Adjust the width of input fields */
+input, textarea, .dbc input, .dbc textarea {
+    width: 100%; /* Full width */
+    box-sizing: border-box; /* Include padding and border in the element's width */
+}
+
+/* Style the cards to contain the elements */
+.dbc-card {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    border: 1px solid #dcdcdc;
+    border-radius: 0.5rem;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        position: relative;
+    }
+
+    .content {
+        margin-left: 0;
+    }
+}
+/* Ensure all text inside the containers is centered */
+.dbc-row, .dbc-col {
+    text-align: center;
+}
+
+/* Style for input fields */
+input, textarea {
+    border: 1px solid #ccc; /* Light grey border */
+    border-radius: 4px; /* Rounded corners */
+    margin: 0 auto; /* Centering if block */
+    padding: 10px; /* Padding inside the input */
+    width: 90%; /* Width of the inputs - could be less/more depending on preference */
+    max-width: 500px; /* Maximum width of inputs to maintain aesthetics */
+    display: block; /* Makes the input a block element */
+    box-sizing: border-box; /* Includes padding and border in the element's width */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; /* System fonts */
+    font-size: 16px; /* Adequate font size for readability */
+}
+#scale-toggle, .dash-dropdown {
+    margin: 0 auto; /* Centering if block */
+    padding: 10px; /* Padding inside the input */
+    max-width: 500px; /* Maximum width of inputs to maintain aesthetics */    
+    padding-top: 0px;
+}
+
+/* Style for labels to match the input aesthetics */
+label {
+    display: block; /* Makes the label a block element */
+    margin-bottom: 0px !important;
+    padding-bottom: 3px !important;
+    font-weight: bold; /* Bold font for labels */
+    text-align: left; /* Aligns the label text to the left */
+    margin-left: 5%; /* Aligns the label with the input field */
+    margin-top: 15px;
+}
+
+/* Enhance the focus on input fields */
+input:focus, textarea:focus {
+    outline: none; /* Removes the default focus outline */
+    border: 2px solid #007aff; /* Apple blue border for focus */
+    box-shadow: 0 0 3px #007aff; /* Glow effect on focus */
+}
+
+/* Add space between the rows of your form */
+.dbc-row {
+    margin-bottom: 1.5rem;
+}

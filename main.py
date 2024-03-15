@@ -4,44 +4,56 @@ from dash import dcc, html, Input, Output
 
 from backtesting_sim import layout as l1, register_callbacks as rc1
 from portfolio_sim import layout as l2, register_callbacks as rc2
-from gpt_functionality import layout as l_gpt, register_callbacks as rc_gpt
+from gpt_functionality import openai_api_key_input as l_gpt, register_callbacks as rc_gpt
 
 # Choose a theme closer to Apple's design aesthetic, like LUX or FLATLY
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-app.config.suppress_callback_exceptions = True
-
-# Main layout
-app.layout = dbc.Container(
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX], suppress_callback_exceptions=True)
+sidebar = html.Div(
     [
-        html.Div(l_gpt, style={'padding': '20px'}),  # Add padding for layout separation
-        dcc.Tabs(
-            id="tabs", 
-            children=[
-                dcc.Tab(label='Backtesting', value='tab-1', style={'fontWeight': 'bold'}),
-                dcc.Tab(label='Investment Portfolio', value='tab-2', style={'fontWeight': 'bold'}),
-            ],
-            style={'fontFamily': 'Sans-serif'}  # Cleaner typography
+        html.H2('MONEX', className='display-4'),
+        html.Hr(),
+        html.P(
+            "Try out your portfolio and backtesting strategies", className="lead"
         ),
-        html.Div(id='tabs-content', style={'padding': '20px'})  # Add padding around content
+        dbc.Nav(
+            [
+                dbc.NavLink("Backtesting", href="/backtesting", active="exact"),
+                dbc.NavLink("Investment Portfolio", href="/portfolio", active="exact"),
+                # Add more links as needed
+            ],
+            vertical=True,
+            pills=True,
+        ),
+        l_gpt
     ],
-    fluid=True,  # Use the entire width
-    style={'padding': '20px'}  # Padding around the container for better spacing
+    style={
+        'position': 'fixed',
+        'top': 0,
+        'left': 0,
+        'bottom': 0,
+        'width': '21%',
+        'padding': '20px',
+        'backgroundColor': '#f8f9fa'
+    },
 )
 
+content = html.Div(id="page-content", style={'marginLeft': '20%'})
+
+app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
+
 # Main callback
-@app.callback(Output('tabs-content', 'children'),
-              [Input('tabs', 'value')])
-def render_content(tab):
-    if tab == 'tab-1':
+@app.callback(Output('page-content', 'children'),
+              [Input('url', 'pathname')])
+def render_page_content(pathname):
+    if pathname == "/backtesting":
         return l1
-    elif tab == 'tab-2':
+    elif pathname == "/portfolio":
         return l2
 
 # Register all tab callbacks
+rc_gpt(app)
 rc2(app)
 rc1(app)
-rc_gpt(app)
-
 # Run
 if __name__ == '__main__':
     app.run_server(debug=True)
