@@ -3,7 +3,7 @@ from dash import dcc, no_update, html, ctx
 from dash.dependencies import Input, Output, State, MATCH, ALL
 
 from dash.exceptions import PreventUpdate
-import openai
+from openai import OpenAI
 import json
 import os
 
@@ -118,7 +118,8 @@ def register_callbacks(app):
         ]
 
         try:
-            response = openai.chat.completions.create(
+            client = OpenAI(api_key=openai_api_key)
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=messages,
                 max_tokens=200,
