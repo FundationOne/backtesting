@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 from scipy.signal import find_peaks
 import warnings
-from powerlaw import Fit
+import re
 
 # Assuming the halving dates are known
 halving_dates = [
@@ -78,10 +78,15 @@ def rolling_power_law_price_windowed(data, window_size=365):
     
     return predicted_prices
 
-def extract_columns_from_expression(rule):
-    # This simple function assumes column names are wrapped in single quotes
-    # and extracts them by finding text within quotes.
-    return [part.strip("'") for part in rule.split() if "'" in part]
+def extract_columns_from_expression(rules):
+    # This function uses regular expressions to find all instances of text within parentheses and single quotes
+    pattern = re.compile(r"\('([^']+)'\)")  # Looks for "('...')"
+    column_names = set()
+    for rule in rules:
+        matches = pattern.findall(rule)
+        for match in matches:
+            column_names.add(match)
+    return column_names
 
 def find_support(data, window=20):
     """

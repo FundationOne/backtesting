@@ -307,9 +307,9 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
 
         # Dynamically add traces mentioned in buy and sell rules
-        columns_to_plot = set(extract_columns_from_expression(buying_rule) + extract_columns_from_expression(selling_rule))
+        columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
         for column in columns_to_plot:
-            if column in btc_data.columns:
+            if column in btc_data.columns and column != 'price':
                 fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly'))
 
         # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price'], mode='lines', name='BTC Power Law', visible='legendonly'))
