@@ -146,10 +146,10 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
         }
 
         try:
-            buy_eval = eval(buying_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
-            sell_eval = eval(selling_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
-            # buy_eval = eval(buying_rule, context)
-            # sell_eval = eval(selling_rule, context)
+            # buy_eval = eval(buying_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
+            # sell_eval = eval(selling_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
+            buy_eval = eval(buying_rule, context)
+            sell_eval = eval(selling_rule, context)
         except Exception as e:
             # print(context['historic']('price'))
             # print(context['current']('price'))
