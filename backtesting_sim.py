@@ -138,7 +138,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             'portfolio_value_over_time': portfolio_value_over_time,
             'available_cash': available_cash,
             'btc_owned': btc_owned,
-            'date': date
+            'current_date': date,
+            'current_index': i
         }
 
         try:
@@ -198,7 +199,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="all(current('price') < historic('power_law_price')[-365:])", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="current('price') < current('power_law_price')", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
@@ -209,7 +210,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="current('price') > current('sma_14')", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="current('price') > current('sma_20_week')", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(2), width=3),  # Reused button
                                         ]
                                     ),

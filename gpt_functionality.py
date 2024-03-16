@@ -16,7 +16,8 @@ The context includes the following functions:
 - btc_owned: The amount of Bitcoin currently owned.
 - current_portfolio_value: How much is the current portfolio worth.
 - portfolio_value_over_time: A vector of the portfolio value up to today
-- date: the current date as 'YYYY-MM-DD'
+- current_date: the current date as 'YYYY-MM-DD'
+- current_index: the index of the current date in the historic data
 """
 # Natural language input for rule generation
 def create_rule_generation_button(index):

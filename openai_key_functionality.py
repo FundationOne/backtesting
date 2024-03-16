@@ -25,11 +25,10 @@ def register_callbacks(app):
     
     @app.callback(
         Output('input-openai-api-key', 'value'),
-        Input('label-for-api-key', 'children'),  # Using the label as a trigger
+        Input('url', 'pathname'),  # Use 'url' as a mutable dependency
         State('api_key_store', 'data')
     )
     def initialize_api_key_input(_trigger, data):
         if data and 'api_key' in data:
             return data['api_key']
-        # Return an empty string to ensure the callback doesn't fail if no data is found
         return ''
