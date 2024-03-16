@@ -133,7 +133,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
         # Prepare the context
         context = {
-            'historic': lambda col: btc_data[col],
+            'historic': lambda col: btc_data.get(col, []),
             'current': lambda col: current_data[col].iloc[-1],
             'current_portfolio_value': current_portfolio_value,
             'portfolio_value_over_time': portfolio_value_over_time,
@@ -147,6 +147,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             buy_eval = eval(buying_rule, {"__builtins__": None}, context)
             sell_eval = eval(selling_rule, {"__builtins__": None}, context)
         except Exception as e:
+            # print(context['historic']('price'))
+            # print(context['current']('price'))
             print(f"Error evaluating rules: {e}")
             return
 
