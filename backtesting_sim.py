@@ -165,6 +165,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
     return transactions_df, portfolio_value_over_time
 
+loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
+
 layout = dbc.Container(
     [
         dbc.Row(
@@ -240,16 +242,22 @@ layout = dbc.Container(
                 dbc.Col(
                     dbc.Card(
                         [
-                            dbc.CardBody(
-                                [
-                                    dcc.Graph(id='backtesting-graph'),
-                                    dash_table.DataTable(
+                            dbc.CardBody([
+                                dcc.Loading(
+                                    id="loading-graph",
+                                    type="default",
+                                    children=dcc.Graph(id='backtesting-graph'),
+                                ),
+                                dcc.Loading(
+                                    id="loading-table",
+                                    type="default",
+                                    children=dash_table.DataTable(
                                         id='backtesting-table',
                                         style_table={'height': '400px', 'overflowY': 'auto'},
                                         style_cell={'textAlign': 'left'},
                                     )
-                                ]
-                            ),
+                                )
+                            ]),
                         ]
                     ),
                     sm=12, md=8
