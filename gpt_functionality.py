@@ -10,7 +10,7 @@ import os
 context_description = """
 The context includes the following functions:
 
-- current(col): Retrieves the current value of the specified column. The available columns are 'price', 'open', 'high', 'low', 'volume', 'last_highest', 'last_lowest','sma_10','sma_20','sma_50','sma_200','sma_20_week','sma_100_week', 'rsi_14', 'macd', 'bollinger_upper', 'bollinger_lower','ema_8','ema_20','ema_50','ema_200','stochastic_oscillator', 'atr', 'on_balance_volume','momentum_14', 'percent_change', 'volatility', 'atr_percent','ichimoku_a', 'ichimoku_b', 'parabolic_sar', 'support', 'resistance','volume_spike', 'days_since_last_halving','power_law_exponent','power_law_price'
+- current(col): Retrieves the current value of the specified column. The available columns are 'price', 'open', 'high', 'low', 'volume', 'last_highest', 'last_lowest','sma_10','sma_20','sma_50','sma_200','sma_20_week','sma_100_week', 'rsi_14', 'macd', 'bollinger_upper', 'bollinger_lower','ema_8','ema_20','ema_50','ema_200','stochastic_oscillator', 'atr', 'on_balance_volume','momentum_14', 'percent_change', 'volatility', 'atr_percent','ichimoku_a', 'ichimoku_b', 'parabolic_sar', 'support', 'resistance','volume_spike', 'days_since_last_halving','power_law_price', 'power_law_price_1y_window','power_law_price_4y_window'
 - historic(col): Retrieves the entire vector of values for the specified column. The available columns are same as above.
 - available_cash: The amount of cash available for buying Bitcoin.
 - btc_owned: The amount of Bitcoin currently owned.

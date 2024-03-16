@@ -69,8 +69,9 @@ def add_historical_indicators(btc_data):
     btc_data['resistance'] = find_resistance(btc_data['price'], window=20)
     btc_data['volume_spike'] = volume_spike_detection(btc_data['volume'], window=20, threshold=2)
     btc_data['days_since_last_halving'] = btc_data.index.to_series().apply(days_since_last_halving)
-    btc_data['power_law_exponent'] = rolling_power_law(btc_data)
-    btc_data['power_law_price'] = power_law_price(btc_data)
+    btc_data['power_law_price_1y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365)
+    btc_data['power_law_price_4y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365*4)
+    btc_data['power_law_price'] = rolling_power_law_price(btc_data)
 
     return btc_data
 
@@ -201,7 +202,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="current('price') < current('power_law_price')", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="current('price') < current('power_law_price_4y_window')", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
@@ -305,8 +306,17 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
 
-        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price'], mode='lines', name='BTC Power Law'))
-        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['sma_20_week'], mode='lines', name='BTC 20 Week SMA'))
+        # Dynamically add traces mentioned in buy and sell rules
+        columns_to_plot = set(extract_columns_from_expression(buying_rule) + extract_columns_from_expression(selling_rule))
+        for column in columns_to_plot:
+            if column in btc_data.columns:
+                fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly'))
+
+        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price'], mode='lines', name='BTC Power Law', visible='legendonly'))
+        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price_1y_window'], mode='lines', name='BTC Power Law 1Y Window', visible='legendonly'))
+        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price_4y_window'], mode='lines', name='BTC Power Law 4Y Window', visible='legendonly'))
+        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['sma_20_week'], mode='lines', name='BTC 20 Week SMA', visible='legendonly'))
+
         # highlight transactions if available
         if not transactions_df.empty:
             buy_transactions = transactions_df[transactions_df['Action'] == 'Buy']

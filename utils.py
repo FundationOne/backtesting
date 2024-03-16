@@ -3,6 +3,7 @@ from datetime import datetime
 import pandas as pd
 from scipy.signal import find_peaks
 import warnings
+from powerlaw import Fit
 
 # Assuming the halving dates are known
 halving_dates = [
@@ -17,42 +18,70 @@ def days_since_last_halving(date):
         if date >= halving_dates[i]:
             return (date - halving_dates[i]).days
     return None
+import numpy as np
+import pandas as pd
+from powerlaw import Fit
 
-def power_law(data, start_date, end_date):
-    # Slice data directly using parsed dates
-    sliced_data = data.loc[start_date:end_date]
-
-    if sliced_data.empty:
-        return np.nan
-
-    # Calculate log-transformed dates and prices
-    days = np.log((sliced_data.index - sliced_data.index[0]).days + 1)
-    prices = np.log((sliced_data['price'].mask(sliced_data['price'] == 0)).ffill())
-
-
-    # Compute the power law exponent
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", np.RankWarning)
+def rolling_power_law_price(btc_data):  # '7D' for weekly
+    # Initialize a series to store predicted prices
+    predicted_prices = pd.Series(index=btc_data.index, dtype=float)
+    
+    for i in range(1, len(btc_data)):  # Start from the second data point
+        # Use all data up to the current point
+        cumulative_data = btc_data.iloc[:i+1]
+        prices = cumulative_data['price'].replace(0, np.nan).ffill()
+        
+        if len(prices) < 2:
+            continue
+        
+        days = np.arange(1, len(prices) + 1)
+        log_days = np.log(days)
+        log_prices = np.log(prices)
+        
         try:
-            # Attempt to fit the polynomial and return the first coefficient
-            return np.polyfit(days, prices, 1)[0]
-        except Exception as e:
-            return np.nan
+            # Fit the log-transformed data
+            slope, intercept = np.polyfit(log_days, log_prices, 1)
+            # Calculate predicted prices for all days using the fitted model
+            predicted_log_prices = intercept + slope * log_days
+            # Convert the last predicted log price back to price
+            predicted_price = np.exp(predicted_log_prices[-1])
+            predicted_prices.iloc[i] = predicted_price
+        except np.linalg.LinAlgError:
+            predicted_prices.iloc[i] = np.nan
+    
+    return predicted_prices
 
-def rolling_power_law(btc_data):
-    power_law_exponents = np.full(len(btc_data), np.nan)
-    for i in range(len(btc_data)):
-        power_law_exponents[i] = power_law(btc_data, btc_data.index[0], btc_data.index[i])
-    return power_law_exponents
+def rolling_power_law_price_windowed(data, window_size=365):
+    # Initialize a series to store predicted prices
+    predicted_prices = pd.Series(index=data.index, dtype=float)
     
-def power_law_price(data):
-    start_price = data['price'].iloc[0]
+    for i in range(window_size - 1, len(data)):  # Adjust start index based on window size
+        # Slice data for the current window
+        window_data = data.iloc[i-window_size+1:i+1]
+        prices = window_data['price'].replace(0, np.nan).ffill()
+        
+        if len(prices) < 2:
+            continue
+        
+        days = np.arange(1, len(prices) + 1)
+        log_days = np.log(days)
+        log_prices = np.log(prices)
+        
+        try:
+            # Fit the log-transformed data
+            slope, intercept = np.polyfit(log_days, log_prices, 1)
+            # Convert back to get the price prediction for the last day in the window
+            predicted_price = np.exp(intercept + slope * log_days[-1])
+            predicted_prices.iloc[i] = predicted_price
+        except np.linalg.LinAlgError:
+            predicted_prices.iloc[i] = np.nan
     
-    # Use numpy for vectorized operations
-    days_since_start = np.arange(len(data)) + 1  # +1 to avoid log(0) for the first day
-    power_law_prices = np.exp(np.log(start_price) + data['power_law_exponent'] * np.log(days_since_start))
-    
-    return power_law_prices
+    return predicted_prices
+
+def extract_columns_from_expression(rule):
+    # This simple function assumes column names are wrapped in single quotes
+    # and extracts them by finding text within quotes.
+    return [part.strip("'") for part in rule.split() if "'" in part]
 
 def find_support(data, window=20):
     """
