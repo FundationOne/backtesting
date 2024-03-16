@@ -2,7 +2,7 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 from scipy.signal import find_peaks
-import dateparser
+import warnings
 
 # Assuming the halving dates are known
 halving_dates = [
@@ -19,25 +19,24 @@ def days_since_last_halving(date):
     return None
 
 def power_law(data, start_date, end_date):
-    # Convert index to DatetimeIndex for date operations
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-
     # Slice data directly using parsed dates
-    sliced_data = data.loc[dateparser.parse(start_date):dateparser.parse(end_date)]
+    sliced_data = data.loc[start_date:end_date]
 
     if sliced_data.empty:
         return np.nan
 
     # Calculate log-transformed dates and prices
     days = np.log((sliced_data.index - sliced_data.index[0]).days + 1)
-    prices = np.log(sliced_data['Price'].replace(to_replace=0, method='ffill'))
+    prices = np.log(sliced_data['price'].replace(to_replace=0, method='ffill'))
 
     # Compute the power law exponent
-    try:
-        return np.polyfit(days, prices, 1)[0]
-    except np.RankWarning:
-        return np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", np.RankWarning)
+        try:
+            # Attempt to fit the polynomial and return the first coefficient
+            return np.polyfit(days, prices, 1)[0]
+        except Exception as e:
+            return np.nan
 
 def rolling_power_law(btc_data):
     power_law_exponents = np.full(len(btc_data), np.nan)
@@ -46,7 +45,7 @@ def rolling_power_law(btc_data):
     return power_law_exponents
     
 def power_law_price(data):
-    start_price = data['Price'].iloc[0]
+    start_price = data['price'].iloc[0]
     
     # Use numpy for vectorized operations
     days_since_start = np.arange(len(data)) + 1  # +1 to avoid log(0) for the first day
@@ -54,35 +53,58 @@ def power_law_price(data):
     
     return power_law_prices
 
-def find_support_resistance(data, window=20):
+def find_support(data, window=20):
     """
-    Identify simple support and resistance levels based on price peaks and troughs.
+    Identify simple support levels based on price troughs.
+    
     :param data: Pandas Series of prices.
-    :param window: Number of periods to consider for finding peaks and troughs.
-    :return: A tuple of lists containing support and resistance levels.
+    :param window: Number of periods to consider for finding troughs.
+    :return: Pandas Series containing support levels, with the last support value carried forward.
     """
-    from scipy.signal import find_peaks
-
-    # Find peaks (resistance) and troughs (support) in the data
-    resistance_indices = find_peaks(data, distance=window)[0]
+    # Find troughs (support) in the data
     support_indices = find_peaks(-data, distance=window)[0]
+    support_levels = data.iloc[support_indices]
+    
+    # Create a new Series to hold support levels with forward fill
+    support_series = pd.Series(data=np.nan, index=data.index)
+    support_series.iloc[support_indices] = support_levels.values
+    support_series.ffill(inplace=True)
+    
+    return support_series
 
-    resistance_levels = data[resistance_indices].tolist()
-    support_levels = data[support_indices].tolist()
-
-    return support_levels, resistance_levels
+def find_resistance(data, window=20):
+    """
+    Identify simple resistance levels based on price peaks.
+    
+    :param data: Pandas Series of prices.
+    :param window: Number of periods to consider for finding peaks.
+    :return: Pandas Series containing resistance levels, with the last resistance value carried forward.
+    """
+    # Find peaks (resistance) in the data
+    resistance_indices = find_peaks(data, distance=window)[0]
+    resistance_levels = data.iloc[resistance_indices]
+    
+    # Create a new Series to hold resistance levels with forward fill
+    resistance_series = pd.Series(data=np.nan, index=data.index)
+    resistance_series.iloc[resistance_indices] = resistance_levels.values
+    resistance_series.ffill(inplace=True)
+    
+    return resistance_series
 
 def volume_spike_detection(volume_data, window=20, threshold=2):
     """
-    Detect volume spikes.
+    Detect volume spikes and return a binary series indicating spikes.
+    
     :param volume_data: Pandas Series of volume data.
     :param window: Rolling window size to calculate average volume.
     :param threshold: Multiplier to define what constitutes a spike (e.g., 2 times the average).
-    :return: List of indices where volume spikes were detected.
+    :return: Pandas Series with 1 indicating a spike and 0 indicating no spike.
     """
     avg_volume = volume_data.rolling(window=window).mean()
-    spikes = volume_data[volume_data > avg_volume * threshold].index.tolist()
-    return spikes
+    # Create a binary series where True (1) indicates a spike and False (0) indicates no spike
+    spikes_series = (volume_data > (avg_volume * threshold)).astype(int)
+    
+    return spikes_series
 
 def find_double_top(data, window=20, tolerance=0.05):
     """

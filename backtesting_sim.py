@@ -5,8 +5,9 @@ import pandas as pd
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
+import os
 from utils import *
-from test_expressions import verify_context
+from conf import *
 
 from gpt_functionality import create_rule_generation_button,  rule_generation_modal
 
@@ -25,7 +26,8 @@ def convert_volume(value):
     
 def fetch_historical_data(csv_file_path):
     btc_data_raw = pd.read_csv(csv_file_path, parse_dates=['Date'], index_col='Date', dtype={'Vol.': str})
-    btc_data = np.full(len(btc_data_raw), np.nan)
+    btc_data_raw.sort_index(inplace=True)
+    btc_data = pd.DataFrame(index=btc_data_raw.index)
 
     # Clean and convert data types
     btc_data['price'] = btc_data_raw['Price'].str.replace(',', '').astype(float)
@@ -33,8 +35,6 @@ def fetch_historical_data(csv_file_path):
     btc_data['high'] = btc_data_raw['High'].str.replace(',', '').astype(float)
     btc_data['low'] = btc_data_raw['Low'].str.replace(',', '').astype(float)
     btc_data['volume'] = btc_data_raw['Vol.'].apply(convert_volume)
-
-    btc_data.sort_index(inplace=True)
 
     return btc_data
 
@@ -57,7 +57,8 @@ def add_historical_indicators(btc_data):
     btc_data['ichimoku_a'] = ichimoku.ichimoku_a()
     btc_data['ichimoku_b'] = ichimoku.ichimoku_b()
     btc_data['parabolic_sar'] = ta.trend.PSARIndicator(btc_data['high'], btc_data['low'], btc_data['price']).psar()
-    btc_data['support_resistance'] = find_support_resistance(btc_data['price'], window=20)
+    btc_data['support'] = find_support(btc_data['price'], window=20)
+    btc_data['resistance'] = find_resistance(btc_data['price'], window=20)
     btc_data['volume_spike'] = volume_spike_detection(btc_data['volume'], window=20, threshold=2)
     btc_data['days_since_last_halving'] = btc_data.index.to_series().apply(days_since_last_halving)
     btc_data['power_law_exponent'] = rolling_power_law(btc_data)
@@ -126,18 +127,11 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             'historic': lambda col: btc_data[col],
             'current': lambda col: current_data[col].iloc[-1],
             'current_portfolio_value': current_portfolio_value,
+            'portfolio_value_over_time': portfolio_value_over_time,
             'available_cash': available_cash,
-            'btc_owned': btc_owned
-            # 'find_head_and_shoulders': lambda window=20: find_head_and_shoulders(btc_data['price'], window),
-            # 'find_inverse_head_and_shoulders': lambda window=20: find_inverse_head_and_shoulders(btc_data['price'], window),
-            # 'find_triple_top': lambda window=20, tolerance=0.05: find_triple_top(btc_data['price'], window, tolerance),
-            # 'find_triple_bottom': lambda window=20, tolerance=0.05: find_triple_bottom(btc_data['price'], window, tolerance),
-            # 'find_double_top': lambda window=20, tolerance=0.05: find_double_top(btc_data['price'], window, tolerance),
-            # 'fibonacci_retracement': lambda start, end: fibonacci_retracement(start, end),
+            'btc_owned': btc_owned,
+            'date': date
         }
-
-        # Running the test
-        # verify_context(context)
 
         try:
             buy_eval = eval(buying_rule, {"__builtins__": None}, context)
@@ -145,8 +139,6 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
         except Exception as e:
             print(f"Error evaluating rules: {e}")
             continue
-
-        date = current_data.index[-1]
 
         if buy_eval.all() and available_cash >= current_price:
             btc_to_buy = available_cash // current_price
@@ -273,9 +265,16 @@ def register_callbacks(app):
     def update_backtesting(starting_investment, start_date, buying_rule, selling_rule, scale):
         if None in [starting_investment, start_date, buying_rule, selling_rule]:
             raise PreventUpdate
+        
+        if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
+            btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
+            btc_data = add_historical_indicators(btc_data)
+            btc_data.to_csv(PREPROC_FILENAME)
+            print(f"Data saved to {PREPROC_FILENAME}.")
+        else:
+            btc_data = pd.read_csv(PREPROC_FILENAME, index_col=0)
+            print(f"Data loaded from {PREPROC_FILENAME}.")
 
-        btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
-        btc_data = add_historical_indicators(btc_data)
         transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule)
 
         # Calculate strategies

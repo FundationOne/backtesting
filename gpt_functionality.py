@@ -10,42 +10,13 @@ import os
 context_description = """
 The context includes the following functions:
 
-- last_highest(col): Returns the highest value of the specified column since the start of the data.
-- last_lowest(col): Returns the lowest value of the specified column since the start of the data.
-- moving_average(col, window=3): Calculates the simple moving average of the specified column over the given window size.
-- current(col): Retrieves the current value of the specified column. Columns include Price, High, Low, Vol., and Change %, and are case-sensitive.
-- rsi(window=14): Computes the Relative Strength Index (RSI) for the specified window size.
-- macd(fast=12, slow=26, signal=9): Calculates the Moving Average Convergence Divergence (MACD) value and its signal line with the given parameters.
-- bollinger_bands(window=20, num_std=2): Determines the upper and lower Bollinger Bands for the specified window size and standard deviation count.
-- ema(window=20): Calculates the Exponential Moving Average (EMA) for the specified window size.
-- stochastic_oscillator(k_window=14, d_window=3): Computes the Stochastic Oscillator values (%K and %D) using the given window sizes.
-- average_true_range(window=14): Calculates the Average True Range (ATR) over the specified window size.
-- on_balance_volume(): Calculates the On-Balance Volume (OBV).
-- momentum(window=14): Computes the Momentum indicator for the specified window size.
-- roi(entry_price, exit_price): Calculates the Return on Investment (ROI) between the entry and exit prices.
-- stop_loss(entry_price, percentage=10): Determines the stop-loss price given an entry price and a percentage.
-- take_profit(entry_price, percentage=20): Determines the take-profit price given an entry price and a percentage.
-- percent_change(periods=1): Calculates the percentage change in price over the specified number of periods.
-- volatility(window=20): Calculates the volatility of the price data over the specified window size.
-- atr_percent(window=14): Calculates the Average True Range Percent (ATR%) over the given window size.
-- ichimoku_cloud(conversion_window=9, base_window=26, lagging_window=52): Computes the Ichimoku Cloud indicator with the given parameters.
-- parabolic_sar(af=0.02, max_af=0.2): Calculates the Parabolic SAR (Stop and Reverse) for the given acceleration factor and maximum AF.
-- find_support_resistance(data, window=20): Identifies potential support and resistance levels using price peaks and troughs.
-- volume_spike_detection(volume_data, window=20, threshold=2): Detects significant volume spikes based on the given window size and threshold.
-- find_head_and_shoulders(data, window=20): Identifies Head and Shoulders patterns within the given window size.
-- find_inverse_head_and_shoulders(data, window=20): Identifies Inverse Head and Shoulders patterns within the given window size.
-- find_triple_top(data, window=20, tolerance=0.05): Detects Triple Top reversal patterns based on the given tolerance.
-- find_triple_bottom(data, window=20, tolerance=0.05): Detects Triple Bottom reversal patterns based on the given tolerance.
-- find_double_top(data, window=20, tolerance=0.05): Identifies Double Top patterns within the specified tolerance.
-- fibonacci_retracement(start, end): Calculates Fibonacci retracement levels between specified start and end points.
-- days_since_last_halving(): Returns the number of days since the last Bitcoin halving event.
-- power_law(start_date, end_date): Returns the power law exponent for the given date range.
-- price_power_law_relation(start_date, end_date): Returns the ratio of the actual prices to the power law prices for the given date range.
-
-Other variables:
+- current(col): Retrieves the current value of the specified column. The available columns are price, volume
+- historical(col): Retrieves the entire vector of values for the specified column. The available columns are same as above.
 - available_cash: The amount of cash available for buying Bitcoin.
 - btc_owned: The amount of Bitcoin currently owned.
-- price: The current price of Bitcoin.
+- current_portfolio_value: How much is the current portfolio worth.
+- portfolio_value_over_time: A vector of the portfolio value up to today
+- date: the current date as 'YYYY-MM-DD'
 """
 # Natural language input for rule generation
 def create_rule_generation_button(index):
@@ -104,7 +75,8 @@ def register_callbacks(app):
         Output('input-selling-rule', 'value')],
         Input('apply-modal-button', 'n_clicks'),
         [State('input-generate-rule', 'value'),
-        State('input-openai-api-key', 'value')]
+        State('input-openai-api-key', 'value')],
+        prevent_initial_call=True
     )
     def generate_rules(apply_rule_trigger, rule_instruction, openai_api_key):
         if not rule_instruction:
