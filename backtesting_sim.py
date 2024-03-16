@@ -2,6 +2,7 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
 import pandas as pd
+import numpy as np
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
@@ -133,19 +134,22 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
         # Prepare the context
         context = {
-            'historic': lambda col: btc_data.get(col, []),
+            'historic': lambda col: current_data.get(col, []),#all up to today
             'current': lambda col: current_data[col].iloc[-1],
             'current_portfolio_value': current_portfolio_value,
             'portfolio_value_over_time': portfolio_value_over_time,
             'available_cash': available_cash,
             'btc_owned': btc_owned,
             'current_date': date.strftime('%Y-%m-%d'),
-            'current_index': i
+            'current_index': i,
+            'np':np
         }
 
         try:
-            buy_eval = eval(buying_rule, {"__builtins__": {'min': min, 'min': max, 'min': all, 'min': any}}, context)
-            sell_eval = eval(selling_rule, {"__builtins__": {'min': min, 'min': max, 'min': all, 'min': any}}, context)
+            buy_eval = eval(buying_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any, 'np': np}}, context)
+            sell_eval = eval(selling_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any, 'np': np}}, context)
+            # buy_eval = eval(buying_rule, context)
+            # sell_eval = eval(selling_rule, context)
         except Exception as e:
             # print(context['historic']('price'))
             # print(context['current']('price'))
