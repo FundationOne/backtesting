@@ -139,7 +139,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             'portfolio_value_over_time': portfolio_value_over_time,
             'available_cash': available_cash,
             'btc_owned': btc_owned,
-            'current_date': date,
+            'current_date': date.strftime('%Y-%m-%d'),
             'current_index': i
         }
 
@@ -150,13 +150,13 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             print(f"Error evaluating rules: {e}")
             return
 
-        if buy_eval.all() and available_cash >= current_price:
+        if buy_eval and available_cash >= current_price:
             btc_to_buy = available_cash // current_price
             available_cash -= btc_to_buy * current_price
             btc_owned += btc_to_buy
             transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
 
-        elif sell_eval.all() and btc_owned > 0:
+        elif sell_eval and btc_owned > 0:
             btc_to_sell = btc_owned
             available_cash += btc_to_sell * current_price
             btc_owned -= btc_to_sell
