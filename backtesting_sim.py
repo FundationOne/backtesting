@@ -41,11 +41,19 @@ def fetch_historical_data(csv_file_path):
 def add_historical_indicators(btc_data):
     btc_data['last_highest'] = btc_data['price'].cummax()
     btc_data['last_lowest'] = btc_data['price'].cummin()
-    btc_data['sma_3'] = ta.trend.sma_indicator(btc_data['price'], window=3)
+    btc_data['sma_10'] = ta.trend.sma_indicator(btc_data['price'], window=10)
+    btc_data['sma_20'] = ta.trend.sma_indicator(btc_data['price'], window=20)
+    btc_data['sma_50'] = ta.trend.sma_indicator(btc_data['price'], window=50)
+    btc_data['sma_200'] = ta.trend.sma_indicator(btc_data['price'], window=200)
+    btc_data['sma_20_week'] = ta.trend.sma_indicator(btc_data['price'], window=140)
+    btc_data['sma_100_week'] = ta.trend.sma_indicator(btc_data['price'], window=700)
     btc_data['rsi_14'] = ta.momentum.rsi(btc_data['price'], window=14)
     btc_data['macd'] = ta.trend.macd_diff(btc_data['price'])
     btc_data['bollinger_upper'], btc_data['bollinger_lower'] = ta.volatility.bollinger_hband(btc_data['price']), ta.volatility.bollinger_lband(btc_data['price'])
+    btc_data['ema_8'] = ta.trend.ema_indicator(btc_data['price'], window=8)
     btc_data['ema_20'] = ta.trend.ema_indicator(btc_data['price'], window=20)
+    btc_data['ema_50'] = ta.trend.ema_indicator(btc_data['price'], window=50)
+    btc_data['ema_200'] = ta.trend.ema_indicator(btc_data['price'], window=200)
     btc_data['stochastic_oscillator'] = ta.momentum.stoch(btc_data['high'], btc_data['low'], btc_data['price'], window=14, smooth_window=3)
     btc_data['atr'] = ta.volatility.average_true_range(btc_data['high'], btc_data['low'], btc_data['price'], window=14)
     btc_data['on_balance_volume'] = ta.volume.on_balance_volume(btc_data['price'], btc_data['volume'])
@@ -138,7 +146,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             sell_eval = eval(selling_rule, {"__builtins__": None}, context)
         except Exception as e:
             print(f"Error evaluating rules: {e}")
-            continue
+            return
 
         if buy_eval.all() and available_cash >= current_price:
             btc_to_buy = available_cash // current_price
@@ -190,7 +198,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="all(current('price') < historic('power_law_price')[-365:])", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
@@ -201,7 +209,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="price_power_law_relation('2023-12-04', '2024-03-04') < 1", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="current('price') > current('sma_14')", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(2), width=3),  # Reused button
                                         ]
                                     ),
@@ -272,7 +280,7 @@ def register_callbacks(app):
             btc_data.to_csv(PREPROC_FILENAME)
             print(f"Data saved to {PREPROC_FILENAME}.")
         else:
-            btc_data = pd.read_csv(PREPROC_FILENAME, index_col=0)
+            btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
             print(f"Data loaded from {PREPROC_FILENAME}.")
 
         transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule)
@@ -288,6 +296,8 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
 
+        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price'], mode='lines', name='BTC Power Law'))
+        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['sma_20_week'], mode='lines', name='BTC 20 Week SMA'))
         # highlight transactions if available
         if not transactions_df.empty:
             buy_transactions = transactions_df[transactions_df['Action'] == 'Buy']

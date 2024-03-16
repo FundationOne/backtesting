@@ -27,7 +27,8 @@ def power_law(data, start_date, end_date):
 
     # Calculate log-transformed dates and prices
     days = np.log((sliced_data.index - sliced_data.index[0]).days + 1)
-    prices = np.log(sliced_data['price'].replace(to_replace=0, method='ffill'))
+    prices = np.log((sliced_data['price'].mask(sliced_data['price'] == 0)).ffill())
+
 
     # Compute the power law exponent
     with warnings.catch_warnings():

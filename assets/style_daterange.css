@@ -9,6 +9,7 @@
     width: calc(100% - 20px); /* Adjusts width considering padding */
     box-sizing: border-box;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 400;
 }
 
 /* Centering the date picker container */
