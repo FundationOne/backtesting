@@ -19,57 +19,40 @@ def days_since_last_halving(date):
     return None
 
 def power_law(data, start_date, end_date):
-    # Parse the expressions into datetime objects
-    start_date_dt = dateparser.parse(start_date)
-    end_date_dt = dateparser.parse(end_date)
-    
-    start_index = data.index.get_loc(start_date)
-    end_index = data.index.get_loc(end_date)
-    
-    # Ensure dates are in sequential order
-    if start_index > end_index:
-        start_index, end_index = end_index, start_index
-    
-    # Calculate the number of days since the start_date for each date
-    dates = np.array([(data.index[i] - data.index[start_index]).days for i in range(start_index, end_index + 1)])
-    
-    # Adjusting dates to avoid taking log of zero
-    dates += 1  # This ensures there are no zero values in 'dates'
-    
-    prices = data['Price'].values[start_index:end_index + 1]
-    
-    # Ensuring there are no non-positive values in prices before taking the log
-    prices = np.where(prices <= 0, np.nan, prices)
-    
+    # Convert index to DatetimeIndex for date operations
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+
+    # Slice data directly using parsed dates
+    sliced_data = data.loc[dateparser.parse(start_date):dateparser.parse(end_date)]
+
+    if sliced_data.empty:
+        return np.nan
+
+    # Calculate log-transformed dates and prices
+    days = np.log((sliced_data.index - sliced_data.index[0]).days + 1)
+    prices = np.log(sliced_data['Price'].replace(to_replace=0, method='ffill'))
+
+    # Compute the power law exponent
     try:
-        coefficients = np.polyfit(np.log(dates), np.log(prices), 1, w=~np.isnan(prices))
+        return np.polyfit(days, prices, 1)[0]
     except np.RankWarning:
-        print("Polyfit may be poorly conditioned")
         return np.nan
 
-    # Handling cases where coefficients calculation might fail
-    if np.isnan(coefficients).any():
-        print("Error in calculating power law coefficients.")
-        return np.nan
+def rolling_power_law(btc_data):
+    power_law_exponents = np.full(len(btc_data), np.nan)
+    for i in range(len(btc_data)):
+        power_law_exponents[i] = power_law(btc_data, btc_data.index[0], btc_data.index[i])
+    return power_law_exponents
     
-    return coefficients[0]  # Return the power law exponent
-
-def price_power_law_relation(data, start_date, end_date):
-    # Parse the expressions into datetime objects
-    start_date_dt = dateparser.parse(start_date)
-    end_date_dt = dateparser.parse(end_date)
-
-    # Convert datetime objects back to strings
-    start_date = start_date_dt.strftime('%Y-%m-%d') if start_date_dt else None
-    end_date = end_date_dt.strftime('%Y-%m-%d') if end_date_dt else None
-
-    power_law_exponent = power_law(data, start_date, end_date)
-    start_index = data.index.get_loc(start_date)
-    end_index = data.index.get_loc(end_date)
-    dates = np.array([(data.index[i] - data.index[start_index]).days for i in range(start_index, end_index + 1)])
-    prices = data['Price'].values[start_index:end_index + 1]
-    power_law_prices = np.exp(np.log(prices[0]) + power_law_exponent * np.log(dates))
-    return prices / power_law_prices
+def power_law_price(data):
+    start_price = data['Price'].iloc[0]
+    
+    # Use numpy for vectorized operations
+    days_since_start = np.arange(len(data)) + 1  # +1 to avoid log(0) for the first day
+    power_law_prices = np.exp(np.log(start_price) + data['power_law_exponent'] * np.log(days_since_start))
+    
+    return power_law_prices
 
 def find_support_resistance(data, window=20):
     """

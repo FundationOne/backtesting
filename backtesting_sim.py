@@ -24,28 +24,52 @@ def convert_volume(value):
 
     
 def fetch_historical_data(csv_file_path):
-    btc_data = pd.read_csv(csv_file_path, parse_dates=['Date'], index_col='Date', dtype={'Vol.': str})
-    
+    btc_data_raw = pd.read_csv(csv_file_path, parse_dates=['Date'], index_col='Date', dtype={'Vol.': str})
+    btc_data = np.full(len(btc_data_raw), np.nan)
+
     # Clean and convert data types
-    btc_data['Price'] = btc_data['Price'].str.replace(',', '').astype(float)
-    btc_data['Open'] = btc_data['Open'].str.replace(',', '').astype(float)
-    btc_data['High'] = btc_data['High'].str.replace(',', '').astype(float)
-    btc_data['Low'] = btc_data['Low'].str.replace(',', '').astype(float)
-    
-    # Convert 'Vol.' to a numeric representation (assuming 'K' stands for thousands)
-    btc_data['Vol.'] = btc_data['Vol.'].apply(convert_volume)
-    
-    # Convert 'Change %' to a float after removing the '%' sign
-    btc_data['Change %'] = btc_data['Change %'].str.rstrip('%').astype(float) / 100
+    btc_data['price'] = btc_data_raw['Price'].str.replace(',', '').astype(float)
+    btc_data['open'] = btc_data_raw['Open'].str.replace(',', '').astype(float)
+    btc_data['high'] = btc_data_raw['High'].str.replace(',', '').astype(float)
+    btc_data['low'] = btc_data_raw['Low'].str.replace(',', '').astype(float)
+    btc_data['volume'] = btc_data_raw['Vol.'].apply(convert_volume)
+
     btc_data.sort_index(inplace=True)
+
+    return btc_data
+
+def add_historical_indicators(btc_data):
+    btc_data['last_highest'] = btc_data['price'].cummax()
+    btc_data['last_lowest'] = btc_data['price'].cummin()
+    btc_data['sma_3'] = ta.trend.sma_indicator(btc_data['price'], window=3)
+    btc_data['rsi_14'] = ta.momentum.rsi(btc_data['price'], window=14)
+    btc_data['macd'] = ta.trend.macd_diff(btc_data['price'])
+    btc_data['bollinger_upper'], btc_data['bollinger_lower'] = ta.volatility.bollinger_hband(btc_data['price']), ta.volatility.bollinger_lband(btc_data['price'])
+    btc_data['ema_20'] = ta.trend.ema_indicator(btc_data['price'], window=20)
+    btc_data['stochastic_oscillator'] = ta.momentum.stoch(btc_data['high'], btc_data['low'], btc_data['price'], window=14, smooth_window=3)
+    btc_data['atr'] = ta.volatility.average_true_range(btc_data['high'], btc_data['low'], btc_data['price'], window=14)
+    btc_data['on_balance_volume'] = ta.volume.on_balance_volume(btc_data['price'], btc_data['volume'])
+    btc_data['momentum_14'] = ta.momentum.roc(btc_data['price'], window=14)
+    btc_data['percent_change'] = btc_data['price'].pct_change()
+    btc_data['volatility'] = btc_data['atr'] / btc_data['price'] * 100
+    btc_data['atr_percent'] = (ta.volatility.AverageTrueRange(btc_data['high'], btc_data['low'], btc_data['price']).average_true_range() / btc_data['price']) * 100
+    ichimoku = ta.trend.IchimokuIndicator(btc_data['high'], btc_data['low'])
+    btc_data['ichimoku_a'] = ichimoku.ichimoku_a()
+    btc_data['ichimoku_b'] = ichimoku.ichimoku_b()
+    btc_data['parabolic_sar'] = ta.trend.PSARIndicator(btc_data['high'], btc_data['low'], btc_data['price']).psar()
+    btc_data['support_resistance'] = find_support_resistance(btc_data['price'], window=20)
+    btc_data['volume_spike'] = volume_spike_detection(btc_data['volume'], window=20, threshold=2)
+    btc_data['days_since_last_halving'] = btc_data.index.to_series().apply(days_since_last_halving)
+    btc_data['power_law_exponent'] = rolling_power_law(btc_data)
+    btc_data['power_law_price'] = power_law_price(btc_data)
 
     return btc_data
 
 def lump_sum_and_hold_strategy(btc_data, starting_investment):
     # Assuming starting investment is made on the first day of the given data
-    initial_price = btc_data['Price'].iloc[0]
+    initial_price = btc_data['price'].iloc[0]
     btc_bought = starting_investment / initial_price
-    portfolio_value = btc_bought * btc_data['Price']
+    portfolio_value = btc_bought * btc_data['price']
     return portfolio_value
 
 def monthly_dca_strategy(btc_data, starting_investment):
@@ -66,10 +90,10 @@ def monthly_dca_strategy(btc_data, starting_investment):
         
         # Check if a new month has started
         if current_date.month != previous_date.month:
-            btc_owned += monthly_investment / btc_data['Price'].iloc[i]
+            btc_owned += monthly_investment / btc_data['price'].iloc[i]
         
         # Update portfolio value for the current day
-        portfolio_value.iloc[i] = btc_owned * btc_data['Price'].iloc[i]
+        portfolio_value.iloc[i] = btc_owned * btc_data['price'].iloc[i]
     
     portfolio_value.iloc[0] = 0  # Start with a 0 investment
     portfolio_value.ffill(inplace=True)  # Forward fill the portfolio value for days without transactions
@@ -82,7 +106,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
     # Filter the data to start from the given start date
     btc_data = btc_data[start_date:]
-    
+
     available_cash = starting_investment
     btc_owned = 0
     transactions = []
@@ -90,7 +114,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
     for i in range(len(btc_data)):
         current_data = btc_data.iloc[:i+1]
-        current_price = current_data['Price'].iloc[-1]
+        current_price = current_data['price'].iloc[-1]
         date = current_data.index[-1]
 
         # Calculate current portfolio value (BTC holdings + cash)
@@ -99,40 +123,17 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
         # Prepare the context
         context = {
-            'last_highest': lambda col: current_data[col].cummax().iloc[-1],
-            'last_lowest': lambda col: current_data[col].cummin().iloc[-1],
-            'moving_average': lambda col, window=3: ta.trend.sma_indicator(current_data[col], window=window).iloc[-1],
+            'historic': lambda col: btc_data[col],
             'current': lambda col: current_data[col].iloc[-1],
+            'current_portfolio_value': current_portfolio_value,
             'available_cash': available_cash,
-            'btc_owned': btc_owned,
-            'price': current_price,
-            'rsi': lambda window=14: ta.momentum.stochrsi(current_data['Price'], window=window),
-            'macd': lambda fast=12, slow=26, signal=9: ta.trend.macd_diff(current_data['Price'], window_slow=slow, window_fast=fast, window_sign=signal),
-            'bollinger_bands': lambda window=20, num_std=2: ta.volatility.BollingerBands(current_data['Price'], window=window, window_dev=num_std),
-            'ema': lambda window=20: ta.trend.ema_indicator(current_data['Price'], window=window),
-            'stochastic_oscillator': lambda k_window=14, d_window=3: ta.momentum.stoch(current_data['High'], current_data['Low'], current_data['Price'], window=k_window, smooth_window=d_window),
-            'average_true_range': lambda window=14: ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range(),
-            'on_balance_volume': lambda: ta.volume.on_balance_volume(current_data['Price'], current_data['Vol.']),
-            'momentum': lambda window=14: ta.momentum.roc(current_data['Price'], window=window),
-            'roi': lambda entry_price, exit_price: (exit_price - entry_price) / entry_price * 100,
-            'stop_loss': lambda entry_price, percentage=10: entry_price - entry_price * (percentage / 100),
-            'take_profit': lambda entry_price, percentage=20: entry_price + entry_price * (percentage / 100),
-            'percent_change': lambda periods=1: current_data['Price'].pct_change(periods=periods).iloc[-1],
-            'volatility': lambda window=20: ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range().mean(),
-            'atr_percent': lambda window=14: (ta.volatility.AverageTrueRange(current_data['High'], current_data['Low'], current_data['Price'], window=window).average_true_range() / current_data['Price'] * 100).iloc[-1],
-            'ichimoku_cloud': lambda conversion_window=9, base_window=26, lagging_window=52: ta.trend.IchimokuIndicator(current_data['High'], current_data['Low'], window1=conversion_window, window2=base_window, window3=lagging_window),
-            'parabolic_sar': lambda af=0.02, max_af=0.2: ta.trend.PSARIndicator(current_data['High'], current_data['Low'], current_data['Price'], step=af, max_step=max_af).psar(),
-            'find_support_resistance': lambda window=20: find_support_resistance(btc_data['Price'], window),
-            'volume_spike_detection': lambda window=20, threshold=2: volume_spike_detection(btc_data['Vol.'], window, threshold),
-            'find_head_and_shoulders': lambda window=20: find_head_and_shoulders(btc_data['Price'], window),
-            'find_inverse_head_and_shoulders': lambda window=20: find_inverse_head_and_shoulders(btc_data['Price'], window),
-            'find_triple_top': lambda window=20, tolerance=0.05: find_triple_top(btc_data['Price'], window, tolerance),
-            'find_triple_bottom': lambda window=20, tolerance=0.05: find_triple_bottom(btc_data['Price'], window, tolerance),
-            'find_double_top': lambda window=20, tolerance=0.05: find_double_top(btc_data['Price'], window, tolerance),
-            'fibonacci_retracement': lambda start, end: fibonacci_retracement(start, end),
-            'days_since_last_halving': lambda: days_since_last_halving(current_data.index[-1]),
-            'power_law': lambda start_date, end_date: power_law(btc_data, start_date, end_date),
-            'price_power_law_relation': lambda start_date, end_date: price_power_law_relation(btc_data, start_date, end_date)
+            'btc_owned': btc_owned
+            # 'find_head_and_shoulders': lambda window=20: find_head_and_shoulders(btc_data['price'], window),
+            # 'find_inverse_head_and_shoulders': lambda window=20: find_inverse_head_and_shoulders(btc_data['price'], window),
+            # 'find_triple_top': lambda window=20, tolerance=0.05: find_triple_top(btc_data['price'], window, tolerance),
+            # 'find_triple_bottom': lambda window=20, tolerance=0.05: find_triple_bottom(btc_data['price'], window, tolerance),
+            # 'find_double_top': lambda window=20, tolerance=0.05: find_double_top(btc_data['price'], window, tolerance),
+            # 'fibonacci_retracement': lambda start, end: fibonacci_retracement(start, end),
         }
 
         # Running the test
@@ -151,13 +152,13 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             btc_to_buy = available_cash // current_price
             available_cash -= btc_to_buy * current_price
             btc_owned += btc_to_buy
-            transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'Price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
+            transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
 
         elif sell_eval.all() and btc_owned > 0:
             btc_to_sell = btc_owned
             available_cash += btc_to_sell * current_price
             btc_owned -= btc_to_sell
-            transactions.append({'Date': date, 'Action': 'Sell', 'BTC': btc_to_sell, 'Price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
+            transactions.append({'Date': date, 'Action': 'Sell', 'BTC': btc_to_sell, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
 
     transactions_df = pd.DataFrame(transactions)
 
@@ -197,7 +198,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", placeholder="Buying Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="available_cash > 1000 and price < 50000", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
@@ -208,7 +209,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="btc_owned > 0 and price > 60000", placeholder="Selling Rule"), width=8),
+                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="price_power_law_relation('2023-12-04', '2024-03-04') < 1", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
                                             dbc.Col(create_rule_generation_button(2), width=3),  # Reused button
                                         ]
                                     ),
@@ -274,6 +275,7 @@ def register_callbacks(app):
             raise PreventUpdate
 
         btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
+        btc_data = add_historical_indicators(btc_data)
         transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule)
 
         # Calculate strategies
@@ -282,19 +284,19 @@ def register_callbacks(app):
 
         # Plotting
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['Price'], mode='lines', name='BTC Price'))
+        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['price'], mode='lines', name='BTC price'))
         fig.add_trace(go.Scatter(x=lump_sum_portfolio.index, y=lump_sum_portfolio, mode='lines', name='Lump Sum & Hold Portfolio'))
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
 
-        # Highlight transactions if available
+        # highlight transactions if available
         if not transactions_df.empty:
             buy_transactions = transactions_df[transactions_df['Action'] == 'Buy']
             sell_transactions = transactions_df[transactions_df['Action'] == 'Sell']
             if not buy_transactions.empty:
-                fig.add_trace(go.Scatter(x=buy_transactions['Date'], y=buy_transactions['Price'], mode='markers', name='Buy', marker=dict(color='green', size=10)))
+                fig.add_trace(go.Scatter(x=buy_transactions['Date'], y=buy_transactions['price'], mode='markers', name='Buy', marker=dict(color='green', size=10)))
             if not sell_transactions.empty:
-                fig.add_trace(go.Scatter(x=sell_transactions['Date'], y=sell_transactions['Price'], mode='markers', name='Sell', marker=dict(color='red', size=10)))
+                fig.add_trace(go.Scatter(x=sell_transactions['Date'], y=sell_transactions['price'], mode='markers', name='Sell', marker=dict(color='red', size=10)))
 
         # Update the layout
         fig.update_layout(title='Backtesting Results Over Time', xaxis_title='Date', yaxis_title='Portfolio Value', legend_title='Strategy', transition_duration=500)
