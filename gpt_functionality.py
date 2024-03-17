@@ -12,6 +12,7 @@ The context includes the following functions:
 
 - current(col): Retrieves the current value of the specified column. The available columns are 'price', 'open', 'high', 'low', 'volume', 'last_highest', 'last_lowest','sma_10','sma_20','sma_50','sma_200','sma_20_week','sma_100_week', 'rsi_14', 'macd', 'bollinger_upper', 'bollinger_lower','ema_8','ema_20','ema_50','ema_200','stochastic_oscillator', 'atr', 'on_balance_volume','momentum_14', 'percent_change', 'volatility', 'atr_percent','ichimoku_a', 'ichimoku_b', 'parabolic_sar', 'support', 'resistance','volume_spike', 'days_since_last_halving','power_law_price', 'power_law_price_1y_window','power_law_price_4y_window'
 - historic(col): Retrieves the entire vector of values for the specified column. The available columns are same as above.
+- n_days_ago(col, n): Retrieves the value of the specified column n days ago. The available columns are same as above.
 
 It also includes these variables:
 - available_cash: The amount of cash available for buying Bitcoin.
@@ -85,7 +86,7 @@ def generate_rule(rule_instruction, openai_api_key):
 
     messages = [
         {"role": "system", "content": f"Here is the eval context that you can use: {context_description}"},
-        {"role": "user", "content": f"Natural language instruction: {rule_instruction}\n\nGenerate a Python expression for the trading rule and specify whether it is a buying or selling rule. Return your response in a JSON format. Use double quotes for strings. The JSON format should be exactly as follows: {{\"rule\": \"python_expression\", \"type\": \"buy\" or \"sell\"}}. Ensure proper JSON formatting to avoid parsing errors. \nMax date is 2024-03-04. \nIf you aggregate data, make sure to call functions like .all() and .min() on the Series or array of values within the DataFrame, for example historic('price').min(). Avoid syntax like min(historic('price')) since this causes errors."}
+        {"role": "user", "content": f"Natural language instruction: {rule_instruction}\n\nGenerate a Python expression for the trading rule and specify whether it is a buying or selling rule. Return your response in a JSON format. Use double quotes for strings. The JSON format should be exactly as follows: {{\"rule\": \"python_expression\", \"type\": \"buy\" or \"sell\"}}. Ensure proper JSON formatting to avoid parsing errors. \nMax date is 2024-03-04. \nIf you aggregate data, make sure to call functions like .all() and .min() on the Series or array of values within the DataFrame, for example historic('price').min(). Avoid syntax like min(historic('price')) since this causes errors. You can use numpy as np, and pandas as pd."}
     ]
 
     try:

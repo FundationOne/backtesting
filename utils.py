@@ -80,7 +80,7 @@ def rolling_power_law_price_windowed(data, window_size=365):
 
 def extract_columns_from_expression(rules):
     # This function uses regular expressions to find all instances of text within parentheses and single quotes
-    pattern = re.compile(r"\('([^']+)'\)")  # Looks for "('...')"
+    pattern = re.compile(r"\('([^']+)'")  # Looks for "('...'"
     column_names = set()
     for rule in (r for r in rules if r): 
         matches = pattern.findall(rule)

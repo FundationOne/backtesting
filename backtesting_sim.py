@@ -144,13 +144,15 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
         context = {
             'historic': lambda col: current_data.get(col, []),#all up to today
             'current': lambda col: current_data[col].iloc[-1],
+            'n_days_ago': lambda col, n: current_data[col].iloc[-n-1],
             'current_portfolio_value': current_portfolio_value,
             'portfolio_value_over_time': portfolio_value_over_time,
             'available_cash': available_cash,
             'btc_owned': btc_owned,
             'current_date': date.strftime('%Y-%m-%d'),
             'current_index': i,
-            'np':np
+            'np':np,
+            'pd':pd
         }
 
         buy_eval = False
@@ -165,12 +167,18 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
                 sell_eval = eval(selling_rule, context)
 
         except TypeError as te:
-            print(f"Type Error evaluating rules: {te}")
+            if not sell_eval:
+                print(f"Rule is invalid. Type Error evaluating rules: {te} >>> {selling_rule}")
+            if not buy_eval:
+                print(f"Rule is invalid. Type Error evaluating rules: {te} >>> {buying_rule}")
             return
         except Exception as e:
             # print(context['historic']('price'))
             # print(context['current']('price'))
-            print(f"Error evaluating rules: {e}")
+            if not sell_eval:
+                print(f"Sell Rule could not be applied to this day: {e} >>> {selling_rule}")
+            if not buy_eval:
+                print(f"Buy Rule could not be applied to this day: {e} >>> {buying_rule}")
             continue
 
         if buy_eval and available_cash >= current_price:
@@ -215,6 +223,29 @@ def create_rule_input(rule_type, rule_values, rule_expression):
         style={"display": "flex", "alignItems": "center"}
     )
 
+def get_rules_from_input(children):
+    rules = {
+        "buying-rule": [],
+        "selling-rule": []
+    }
+
+    for child in children:
+        textarea = child['props']['children'][1]  # Textarea is the second child
+        textarea_props = textarea['props']
+        rule_type = textarea_props['id']['type']
+        rule_value = textarea_props['value'].strip()
+
+        # Append rule_value to the appropriate list based on rule_type
+        if rule_type == "buy-rule" and rule_value:
+            rules["buying-rule"].append(rule_value)
+        elif rule_type == "sell-rule" and rule_value:
+             rules["selling-rule"].append(rule_value)
+
+    buying_rule = " or ".join(rules["buying-rule"])
+    selling_rule = " or ".join(rules["selling-rule"])
+
+    return buying_rule, selling_rule
+
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
 predefined_rules = ["current('price') < current('power_law_price_4y_window')"]
 
@@ -231,7 +262,7 @@ layout = dbc.Container(
                                         [
                                             dbc.Label("Starting Investment", html_for="input-starting-investment", width=12),
                                             dbc.Col(
-                                                dcc.Input(id="input-starting-investment", type="number", value=10000),
+                                                dcc.Input(id="input-starting-investment", type="number", value=1000),
                                                 width=12,
                                             ),
                                         ]
@@ -247,7 +278,7 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dbc.Label("Buy/Sell Rule (Python expression)"), width=8),
+                                            dbc.Col(dbc.Label("Buy/Sell Rules\n(Python Expressions)"), width=8),
                                             dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
                                             rule_generation_modal
                                         ]
@@ -276,6 +307,13 @@ layout = dbc.Container(
                                             ),
                                         ]
                                     ),
+                                    dbc.Row(
+                                        dbc.Col(
+                                            dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
+                                            width={"size": 6, "offset": 3},
+                                        ),
+                                        className="mb-3",
+                                    )
                                 ]
                             ),
                         ], style={"border":"unset"}
@@ -316,19 +354,18 @@ def register_callbacks(app):
         [Output('backtesting-table', 'data'),
          Output('backtesting-table', 'columns'),
          Output('backtesting-graph', 'figure')],
-        [Input('input-starting-investment', 'value'),
-         Input('input-starting-date', 'date'),
-         Input({"type": "buying-rule", "index": ALL}, "value"),
-        #  Input({"type": "selling-rule", "index": ALL}, "value"),
-         Input('scale-toggle', 'value')]
+        [Input('update-backtesting-button', 'n_clicks')],  # Updated trigger
+        [State('input-starting-investment', 'value'),
+        State('input-starting-date', 'date'),
+        State("trading-rules-container", "children"),
+        State('scale-toggle', 'value')]
     )
-    def update_backtesting(starting_investment, start_date, buying_rules, scale):
-        if None in [starting_investment, start_date, buying_rules]:
+    def update_backtesting(n_clicks, starting_investment, start_date, children, scale):
+        if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
-        buying_rule = " or ".join(rule for rule in buying_rules if rule)
-        selling_rule = []#" or ".join(rule for rule in selling_rules if rule)
-        
+        buying_rule, selling_rule = get_rules_from_input(children)
+
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
             btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
             btc_data = add_historical_indicators(btc_data)
