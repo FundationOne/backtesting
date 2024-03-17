@@ -60,7 +60,7 @@ layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader(html.H3("Input Parameters")),
+                # dbc.CardHeader(html.H3("Input Parameters")),
                 dbc.CardBody([
                     dbc.Row([
                         dbc.Label("Starting Investment", html_for="input-current-value", width=12),
@@ -101,11 +101,11 @@ layout = dbc.Container([
                         ], width=12)
                     ])
                 ])
-            ])
+            ], style={"border":"unset"})
         ], sm=12, md=4),
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader(html.H3("Investment Portfolio Over " + str(default_years_to_simulate) + " Years")),
+                # dbc.CardHeader(html.H3("Investment Portfolio Over " + str(default_years_to_simulate) + " Years")),
                 dbc.CardBody([
                     dcc.Graph(id='investment-graph'),
                     dash_table.DataTable(
