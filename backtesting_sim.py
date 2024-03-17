@@ -1,12 +1,13 @@
 import dash_bootstrap_components as dbc
-from dash import dcc, html, dash_table
-from dash.dependencies import Input, Output, State
+from dash import dcc, html, dash_table, ctx
+from dash.dependencies import Input, Output, State, ALL
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
 import os
+import json
 from utils import *
 from conf import *
 
@@ -123,7 +124,10 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
     btc_owned = 0
     transactions = []
     portfolio_value_over_time = pd.Series(index=btc_data.index, dtype=float)
-
+    
+    if not buying_rule and not selling_rule:
+        return pd.DataFrame(transactions), portfolio_value_over_time
+    
     for i in range(len(btc_data)):
         current_data = btc_data.iloc[:i+1]
         current_price = current_data['price'].iloc[-1]
@@ -146,11 +150,20 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             'np':np
         }
 
+        buy_eval = False
+        sell_eval = False
+        
         try:
             # buy_eval = eval(buying_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
             # sell_eval = eval(selling_rule, {"__builtins__": {'min': min, 'max': max, 'all': all, 'any': any}}, context)
-            buy_eval = eval(buying_rule, context)
-            sell_eval = eval(selling_rule, context)
+            if buying_rule:
+                buy_eval = eval(buying_rule, context)
+            if selling_rule:
+                sell_eval = eval(selling_rule, context)
+
+        except TypeError as te:
+            print(f"Type Error evaluating rules: {te}")
+            return
         except Exception as e:
             # print(context['historic']('price'))
             # print(context['current']('price'))
@@ -174,6 +187,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
     return transactions_df, portfolio_value_over_time
 
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
+buying_rules = ["current('price') < current('power_law_price_4y_window')"]
+selling_rules = ["current('price') > current('sma_20_week')"]
 
 layout = dbc.Container(
     [
@@ -213,6 +228,41 @@ layout = dbc.Container(
                                             dbc.Col(create_rule_generation_button(1), width=3),
                                         ]
                                     ),
+
+                                    html.Div(
+                                        id="buying-rules-container",
+                                        children=[
+                                            dbc.ListGroup(
+                                                [
+                                                    dbc.ListGroupItem(
+                                                        [
+                                                            dcc.Input(
+                                                                id={"type": "buying-rule", "index": i},
+                                                                value=rule,
+                                                                style={"width": "100%"},
+                                                            ),
+                                                            html.Button(
+                                                                "-",
+                                                                id={"type": "remove-buying-rule", "index": i},
+                                                                n_clicks=0,
+                                                            ),
+                                                        ],
+                                                        style={
+                                                            "display": "flex"
+                                                        },
+                                                    )
+                                                    for i, rule in enumerate(buying_rules)
+                                                ],
+                                                flush=True,
+                                            ),
+                                            html.Button(
+                                                "+",
+                                                id="add-buying-rule",
+                                                n_clicks=0,
+                                            ),
+                                        ],
+                                    ),
+
                                     dbc.Row(
                                         [
                                             dbc.Col(dbc.Label("Selling Rule (Python expression)"), width=12),
@@ -245,7 +295,7 @@ layout = dbc.Container(
                             ),
                         ]
                     ),
-                    sm=12, md=4
+                    sm=12, md=4, style={"border":"unset"}
                 ),
                 dbc.Col(
                     dbc.Card(
@@ -283,13 +333,16 @@ def register_callbacks(app):
          Output('backtesting-graph', 'figure')],
         [Input('input-starting-investment', 'value'),
          Input('input-starting-date', 'date'),
-         Input('input-buying-rule', 'value'),
-         Input('input-selling-rule', 'value'),
+         Input({"type": "buying-rule", "index": ALL}, "value"),
+        #  Input({"type": "selling-rule", "index": ALL}, "value"),
          Input('scale-toggle', 'value')]
     )
-    def update_backtesting(starting_investment, start_date, buying_rule, selling_rule, scale):
-        if None in [starting_investment, start_date, buying_rule, selling_rule]:
+    def update_backtesting(starting_investment, start_date, buying_rules, scale):
+        if None in [starting_investment, start_date, buying_rules]:
             raise PreventUpdate
+        
+        buying_rule = " or ".join(rule for rule in buying_rules if rule)
+        selling_rule = []#" or ".join(rule for rule in selling_rules if rule)
         
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
             btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
@@ -342,3 +395,89 @@ def register_callbacks(app):
         fig.update_yaxes(type=scale)
 
         return table_data, table_columns, fig
+
+
+    # Callbacks for adding/removing buying rules
+    @app.callback(
+        Output("buying-rules-container", "children"),
+        [
+            Input("add-buying-rule", "n_clicks"),
+            Input({"type": "remove-buying-rule", "index": ALL}, "n_clicks"),
+        ],
+        [
+            State("buying-rules-container", "children"),
+            State({"type": "buying-rule", "index": ALL}, "value"),
+        ],
+        prevent_initial_call=True
+    )
+    def update_buying_rules(add_click, remove_clicks, children, rule_values):
+        trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
+
+        if trigger_id == "add-buying-rule.n_clicks":
+            children.append(
+                dbc.ListGroupItem(
+                    [
+                        dcc.Input(
+                            id={"type": "buying-rule", "index": len(rule_values)},
+                            value="",
+                            style={"width": "100%"},
+                        ),
+                        html.Button(
+                            "-",
+                            id={
+                                "type": "remove-buying-rule",
+                                "index": len(rule_values),
+                            },
+                            n_clicks=0,
+                        ),
+                    ],
+                    style={"display": "flex"},
+                )
+            )
+        elif trigger_id and "remove-buying-rule" in trigger_id:
+            index = json.loads(trigger_id.split(".")[0])["index"]
+            children.pop(index)
+
+        return children
+
+    # Callbacks for adding/removing selling rules
+    @app.callback(
+        Output("selling-rules-container", "children"),
+        [
+            Input("add-selling-rule", "n_clicks"),
+            Input({"type": "remove-selling-rule", "index": ALL}, "n_clicks"),
+        ],
+        [
+            State("selling-rules-container", "children"),
+            State({"type": "selling-rule", "index": ALL}, "value"),
+        ],
+    )
+    def update_selling_rules(add_click, remove_clicks, children, rule_values):
+        trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
+
+        if trigger_id == "add-selling-rule.n_clicks":
+            children.append(
+                dbc.ListGroupItem(
+                    [
+                        dcc.Input(
+                            id={"type": "selling-rule", "index": len(rule_values)},
+                            value="",
+                            style={"width": "100%"},
+                        ),
+                        html.Button(
+                            "-",
+                            id={
+                                "type": "remove-selling-rule",
+                                "index": len(rule_values),
+                            },
+                            n_clicks=0,
+                        ),
+                    ],
+                    style={"display": "flex"},
+                )
+            )
+        elif trigger_id and "remove-selling-rule" in trigger_id:
+            index = json.loads(trigger_id.split(".")[0])["index"]
+            children.pop(index)
+
+        return children
