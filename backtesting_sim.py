@@ -44,8 +44,8 @@ def fetch_historical_data(csv_file_path):
     return btc_data
 
 def add_historical_indicators(btc_data):
-    btc_data['last_highest'] = btc_data['price'].cummax()
-    btc_data['last_lowest'] = btc_data['price'].cummin()
+    btc_data['last_highest'] = btc_data['price'].cummax().shift(1)
+    btc_data['last_lowest'] = btc_data['price'].cummin().shift(1)
     btc_data['sma_10'] = ta.trend.sma_indicator(btc_data['price'], window=10)
     btc_data['sma_20'] = ta.trend.sma_indicator(btc_data['price'], window=20)
     btc_data['sma_50'] = ta.trend.sma_indicator(btc_data['price'], window=50)
