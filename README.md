@@ -1,12 +1,15 @@
 
 # Bitcoin Backtesting App
 
-Bitcoin Backtesting App is a cutting-edge web application designed for Bitcoin investors and enthusiasts to backtest various trading strategies over historical data. Utilizing advanced analytics and the power of GPT for generating dynamic trading rules, users can simulate investment strategies to see how they would have performed in the past.
+Bitcoin Backtesting App is a web application designed for Bitcoin investors and enthusiasts to backtest various trading strategies over historical data. Utilizing advanced analytics and the power of GPT for generating dynamic trading rules, users can simulate investment strategies to see how they would have performed in the past.
 
 ## Screenshots
 
+### Bitcoin Backtesting Interface
 ![Bitcoin Backtesting Interface](screenshot.png)
-![Portfolio Simulatiom Interface](screenshot2.png)
+
+### Portfolio Simulation Interface
+![Portfolio Simulation Interface](screenshot2.png)
 
 ## Features
 
@@ -29,7 +32,7 @@ Follow these instructions to get the Bitcoin Backtesting App running on your loc
 1. **Clone the repository**:
 
 ```bash
-git clone https://yourrepositorylink.com/bitcoin_backtesting_app.git
+git clone https://github.com/FundationOne/backtesting.git
 ```
 
 2. **Navigate to the project directory**:
@@ -63,7 +66,7 @@ Navigate to `http://127.0.0.1:8050/` in your web browser to use the app.
 ## Development and Contributions
 
 - Feel free to fork the project for personal development.
-- Contributions to the project are welcome! Please refer to CONTRIBUTING.md for more details.
+- Contributions to the project are welcome! Submit your PRs.
 
 ## Built With
 
