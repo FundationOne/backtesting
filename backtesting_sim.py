@@ -9,9 +9,12 @@ import ta
 import os
 import json
 from utils import *
+
+from dash.exceptions import PreventUpdate
+from openai import OpenAI
 from conf import *
 
-from gpt_functionality import create_rule_generation_button,  rule_generation_modal
+from gpt_functionality import create_rule_generation_button,  rule_generation_modal, generate_rule
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
@@ -186,6 +189,31 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
     return transactions_df, portfolio_value_over_time
 
+
+def create_rule_input(rule_type, rule_values, rule_expression):
+    type_label = html.Div(rule_type.capitalize(), style={
+        "writingMode": "vertical-lr",
+        "marginRight": "5px",
+        "color": "#555"
+    })
+
+    input_field = dcc.Input(
+        id={"type": f"{rule_type}-rule", "index": len(rule_values)},
+        value=rule_expression,
+        style={"width": "90%"},
+    )
+
+    remove_button = dbc.Button(
+        children="➖",
+        id={"type": f"remove-rule", "index": len(rule_values)},
+        n_clicks=0,
+        style={"padding": "0.25rem 0.5rem", "border": "none", "backgroundColor": "transparent"},
+    )
+    return dbc.ListGroupItem(
+        [type_label, input_field, remove_button],
+        style={"display": "flex", "alignItems": "center"}
+    )
+
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
 buying_rules = ["current('price') < current('power_law_price_4y_window')"]
 selling_rules = ["current('price') > current('sma_20_week')"]
@@ -219,62 +247,19 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Col(dbc.Label("Buying Rule (Python expression)"), width=12),
-                                        ]
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(dcc.Textarea(id="input-buying-rule", value="current('price') < current('power_law_price_4y_window')", style={"height": "150px"}, placeholder="Buying Rule"), width=8),
-                                            dbc.Col(create_rule_generation_button(1), width=3),
+                                            dbc.Col(dbc.Label("Buy/Sell Rule (Python expression)"), width=8),
+                                            dbc.Col(create_rule_generation_button(1), width=4),
+                                            rule_generation_modal
                                         ]
                                     ),
 
                                     html.Div(
-                                        id="buying-rules-container",
+                                        id="trading-rules-container",
                                         children=[
-                                            dbc.ListGroup(
-                                                [
-                                                    dbc.ListGroupItem(
-                                                        [
-                                                            dcc.Input(
-                                                                id={"type": "buying-rule", "index": i},
-                                                                value=rule,
-                                                                style={"width": "100%"},
-                                                            ),
-                                                            html.Button(
-                                                                "-",
-                                                                id={"type": "remove-buying-rule", "index": i},
-                                                                n_clicks=0,
-                                                            ),
-                                                        ],
-                                                        style={
-                                                            "display": "flex"
-                                                        },
-                                                    )
-                                                    for i, rule in enumerate(buying_rules)
-                                                ],
-                                                flush=True,
-                                            ),
-                                            html.Button(
-                                                "+",
-                                                id="add-buying-rule",
-                                                n_clicks=0,
-                                            ),
+                                            create_rule_input("buy", range(len(buying_rules)), rule)
+                                            for i, rule in enumerate(buying_rules)
                                         ],
                                     ),
-
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(dbc.Label("Selling Rule (Python expression)"), width=12),
-                                        ]
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(dcc.Textarea(id="input-selling-rule", value="current('price') > current('sma_20_week')", style={"height": "150px"}, placeholder="Selling Rule"), width=8),
-                                            dbc.Col(create_rule_generation_button(2), width=3),  # Reused button
-                                        ]
-                                    ),
-                                    rule_generation_modal,
                                     dbc.Row(
                                         [
                                             dbc.Label("", html_for="scale-toggle", width=12),
@@ -395,89 +380,43 @@ def register_callbacks(app):
         fig.update_yaxes(type=scale)
 
         return table_data, table_columns, fig
-
-
-    # Callbacks for adding/removing buying rules
+  
     @app.callback(
-        Output("buying-rules-container", "children"),
-        [
-            Input("add-buying-rule", "n_clicks"),
-            Input({"type": "remove-buying-rule", "index": ALL}, "n_clicks"),
-        ],
-        [
-            State("buying-rules-container", "children"),
-            State({"type": "buying-rule", "index": ALL}, "value"),
-        ],
+        [Output("trading-rules-container", "children"),
+        Output("rule-generation-modal", "is_open")],
+        [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
+        Input({"type": "remove-rule", "index": ALL}, "n_clicks"),
+        Input("apply-modal-button", "n_clicks"),
+        Input("close-modal-button", "n_clicks")],
+        [State("trading-rules-container", "children"),
+        State({"type": "buying-rule", "index": ALL}, "value"),
+        State("input-generate-rule", "value"),
+        State("input-openai-api-key", "value"),
+        State("rule-generation-modal", "is_open")],
         prevent_initial_call=True
     )
-    def update_buying_rules(add_click, remove_clicks, children, rule_values):
+    def generate_rules(generate_rule_clicks, remove_clicks, apply_modal_click, close_modal_click, children, rule_values, rule_instruction, openai_api_key, is_modal_open):
         trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
+        try:
+            button_clicked = json.loads(trigger_id.split(".")[0]) if trigger_id else None
+        except Exception as e:
+            button_clicked = None
 
-        if trigger_id == "add-buying-rule.n_clicks":
-            children.append(
-                dbc.ListGroupItem(
-                    [
-                        dcc.Input(
-                            id={"type": "buying-rule", "index": len(rule_values)},
-                            value="",
-                            style={"width": "100%"},
-                        ),
-                        html.Button(
-                            "-",
-                            id={
-                                "type": "remove-buying-rule",
-                                "index": len(rule_values),
-                            },
-                            n_clicks=0,
-                        ),
-                    ],
-                    style={"display": "flex"},
-                )
-            )
-        elif trigger_id and "remove-buying-rule" in trigger_id:
+        if button_clicked and button_clicked.get("type") == "generate-rule-button":
+            return children, True  # Open the modal
+
+        elif trigger_id == "apply-modal-button.n_clicks":
+            rule_expression, rule_type = generate_rule(rule_instruction, openai_api_key)
+            children.append(create_rule_input(rule_type, rule_values, rule_expression))
+
+            return children, False  # Close the modal after adding the new rule
+
+        elif trigger_id == "close-modal-button.n_clicks":
+            return children, False  # Close the modal
+
+        elif trigger_id and "remove-rule" in trigger_id:
             index = json.loads(trigger_id.split(".")[0])["index"]
             children.pop(index)
+            return children, is_modal_open
 
-        return children
-
-    # Callbacks for adding/removing selling rules
-    @app.callback(
-        Output("selling-rules-container", "children"),
-        [
-            Input("add-selling-rule", "n_clicks"),
-            Input({"type": "remove-selling-rule", "index": ALL}, "n_clicks"),
-        ],
-        [
-            State("selling-rules-container", "children"),
-            State({"type": "selling-rule", "index": ALL}, "value"),
-        ],
-    )
-    def update_selling_rules(add_click, remove_clicks, children, rule_values):
-        trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
-
-        if trigger_id == "add-selling-rule.n_clicks":
-            children.append(
-                dbc.ListGroupItem(
-                    [
-                        dcc.Input(
-                            id={"type": "selling-rule", "index": len(rule_values)},
-                            value="",
-                            style={"width": "100%"},
-                        ),
-                        html.Button(
-                            "-",
-                            id={
-                                "type": "remove-selling-rule",
-                                "index": len(rule_values),
-                            },
-                            n_clicks=0,
-                        ),
-                    ],
-                    style={"display": "flex"},
-                )
-            )
-        elif trigger_id and "remove-selling-rule" in trigger_id:
-            index = json.loads(trigger_id.split(".")[0])["index"]
-            children.pop(index)
-
-        return children
+        return children, is_modal_open

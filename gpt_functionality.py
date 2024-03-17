@@ -24,7 +24,7 @@ It also includes these variables:
 # Natural language input for rule generation
 def create_rule_generation_button(index):
     return dbc.Button(
-        "Generate Rule",
+        "Add Rule ➕",
         id={
             'type': 'generate-rule-button',  # Constant type for all buttons of this kind
             'index': index  # Unique index for each button
@@ -57,11 +57,12 @@ rule_generation_modal = dbc.Modal(
 def register_callbacks(app):
     # Callbacks to open and close the modal
     @app.callback(
-        Output("rule-generation-modal", "is_open"),
+        Output("rule-generation-modal", "is_open", allow_duplicate=True),
         [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
         Input("close-modal-button", "n_clicks"),
         Input("apply-modal-button", "n_clicks")],
-        [State("rule-generation-modal", "is_open")]
+        [State("rule-generation-modal", "is_open")],
+        prevent_initial_call=True
     )
     def toggle_modal(*args):
         button_clicks, _, _, is_modal_open = args
@@ -73,58 +74,42 @@ def register_callbacks(app):
         # If no buttons were clicked, return the current state of the modal.
         return is_modal_open
 
-    @app.callback(
-        [Output('input-buying-rule', 'value'),
-        Output('input-selling-rule', 'value')],
-        Input('apply-modal-button', 'n_clicks'),
-        [State('input-generate-rule', 'value'),
-        State('input-openai-api-key', 'value')],
-        prevent_initial_call=True
-    )
-    def generate_rules(apply_rule_trigger, rule_instruction, openai_api_key):
-        if not rule_instruction:
-            print("Invalid prompt entered.")
-            raise PreventUpdate
-            
-        if not openai_api_key:
-            print("OpenAI Key is missing.")
-            raise PreventUpdate
+def generate_rule(rule_instruction, openai_api_key):
+    if not rule_instruction:
+        print("Invalid prompt entered.")
+        return None, False
 
-        messages = [
-            {"role": "system", "content": f"Here is the eval context that you can use: {context_description}"},
-            {"role": "user", "content": f"Natural language instruction: {rule_instruction}\n\nGenerate a Python expression for the trading rule and specify whether it is a buying or selling rule. Return your response in a JSON format. Use double quotes for strings. The JSON format should be exactly as follows: {{\"rule\": \"python_expression\", \"type\": \"buy\" or \"sell\"}}. Ensure proper JSON formatting to avoid parsing errors. \nMax date is 2024-03-04. \nIf you aggregate data, make sure to call functions like .all() and .min() on the Series or array of values within the DataFrame, for example historic('price').min(). Avoid syntax like min(historic('price')) since this causes errors."}
-        ]
+    if not openai_api_key:
+        print("OpenAI Key is missing.")
+        return None, False
 
-        try:
-            client = OpenAI(api_key=openai_api_key)
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=messages,
-                max_tokens=200,
-                n=1,
-                stop=None,
-                temperature=0.7,
-            )
+    messages = [
+        {"role": "system", "content": f"Here is the eval context that you can use: {context_description}"},
+        {"role": "user", "content": f"Natural language instruction: {rule_instruction}\n\nGenerate a Python expression for the trading rule and specify whether it is a buying or selling rule. Return your response in a JSON format. Use double quotes for strings. The JSON format should be exactly as follows: {{\"rule\": \"python_expression\", \"type\": \"buy\" or \"sell\"}}. Ensure proper JSON formatting to avoid parsing errors. \nMax date is 2024-03-04. \nIf you aggregate data, make sure to call functions like .all() and .min() on the Series or array of values within the DataFrame, for example historic('price').min(). Avoid syntax like min(historic('price')) since this causes errors."}
+    ]
 
-            if response.choices:
-                result = response.choices[0].message.content.strip()
-                try:
-                    rule_data = json.loads(result, strict=False)
-                    rule_type = rule_data.get('type', '').lower()
-                    rule_expression = rule_data.get('rule', '')
+    try:
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            max_tokens=200,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
 
-                    if rule_type == 'buy':
-                        return rule_expression, no_update
-                    elif rule_type == 'sell':
-                        return no_update, rule_expression
-                    else:
-                        return no_update, no_update
-                except json.JSONDecodeError:
-                    return no_update, no_update
-            else:
-                return no_update, no_update
-
-        except Exception as e:
-            # Handle exceptions raised by the OpenAI API call
-            print(f"An error occurred: {e}")
-            return no_update, no_update
+        if response.choices:
+            result = response.choices[0].message.content.strip()
+            try:
+                rule_data = json.loads(result, strict=False)
+                rule_type = rule_data.get('type', '').lower()
+                rule_expression = rule_data.get('rule', '')
+                return rule_expression, rule_type
+            except Exception:
+                print("Error parsing rule data")
+                return None, False
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return None, False
