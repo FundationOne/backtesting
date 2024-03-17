@@ -220,7 +220,7 @@ def create_rule_input(rule_type, rule_values, rule_expression):
     )
     return dbc.ListGroupItem(
         [type_label, input_field, remove_button],
-        style={"display": "flex", "alignItems": "center"}
+        style={"display": "flex", "alignItems": "center", "left":"-8px"}
     )
 
 def get_rules_from_input(children):
@@ -284,7 +284,7 @@ layout = dbc.Container(
                                         ]
                                     ),
 
-                                    html.Div(
+                                    dbc.Row(
                                         id="trading-rules-container",
                                         children=[
                                             create_rule_input("buy", range(len(predefined_rules)), rule)
@@ -409,7 +409,60 @@ def register_callbacks(app):
                 fig.add_trace(go.Scatter(x=sell_transactions['Date'], y=sell_transactions['price'], mode='markers', name='Sell', marker=dict(color='red', size=10)))
 
         # Update the layout
-        fig.update_layout(title='Backtesting Results Over Time', xaxis_title='Date', yaxis_title='Portfolio Value', legend_title='Strategy', transition_duration=500)
+        fig.update_layout(
+            title='Backtesting Results Over Time',
+            xaxis_title='Date',
+            yaxis_title='Portfolio Value',
+            legend_title='Strategy',
+            transition_duration=500,
+            
+            # Set plot background to white
+            plot_bgcolor='white',
+            
+            # Set paper background to white
+            paper_bgcolor='white',
+            
+            # Improve font readability
+            font=dict(
+                family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",  # A commonly used, web-safe font
+                # size=12,  # Adjust based on your preference
+                color="black"  # Ensures good readability against the white background
+            ),
+            
+            # Refine gridlines and axis lines
+            xaxis=dict(
+                showline=True,  # Show the axis line
+                showgrid=True,  # Show gridlines
+                linecolor='lightgrey',  # Color of the axis line
+                gridcolor='lightgrey',  # Color of the gridlines; light grey is gentle on the eyes
+                mirror=True  # Reflects the axis line on the opposite side as well
+            ),
+            yaxis=dict(
+                showline=True,
+                showgrid=True,
+                linecolor='lightgrey',
+                gridcolor='lightgrey',
+                mirror=True
+            ),
+            
+            # Refine the legend
+            legend=dict(
+                title_font_family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+                font=dict(
+                    family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+                    # size=10,
+                    color="black"
+                ),
+                bgcolor="white",  # Legend background color
+                bordercolor="lightgrey",  # Legend border color
+                borderwidth=1,  # Border width
+                orientation='h',  # Set legend orientation to horizontal
+                x=0.5,  # Center the legend with respect to the plot's x-axis
+                y=-0.7,  # Adjust y to position the legend below the x-axis
+                xanchor='center',  # Anchor the legend's x-position to the center
+                yanchor='bottom'  # Anchor the legend's y-position to the top
+            )
+        )
 
         table_data = transactions_df.to_dict('records')
         table_columns = [{"name": i, "id": i} for i in transactions_df.columns]

@@ -14,7 +14,7 @@ sidebar = html.Div(
         html.H2('APE•X', className='display-logo'),
         html.Hr(),
         html.P(
-            "Try out your portfolio and backtesting strategies", className="lead"
+            "Test your portfolio and backtesting strategies", className="lead"
         ),
         dbc.Nav(
             [
