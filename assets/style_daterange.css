@@ -20,6 +20,7 @@
     margin: 0 auto;
     width: 90%;
     max-width: 500px; /* Maximum width of inputs to maintain aesthetics */
+    border: unset;
 }
 
 /* Style for date picker when it has focus */

@@ -197,10 +197,11 @@ def create_rule_input(rule_type, rule_values, rule_expression):
         "color": "#555"
     })
 
-    input_field = dcc.Input(
+    input_field = dcc.Textarea(
         id={"type": f"{rule_type}-rule", "index": len(rule_values)},
         value=rule_expression,
-        style={"width": "90%"},
+        rows=2,
+        style={"width": "90%", "fontSize":"14px"},
     )
 
     remove_button = dbc.Button(
@@ -215,8 +216,7 @@ def create_rule_input(rule_type, rule_values, rule_expression):
     )
 
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
-buying_rules = ["current('price') < current('power_law_price_4y_window')"]
-selling_rules = ["current('price') > current('sma_20_week')"]
+predefined_rules = ["current('price') < current('power_law_price_4y_window')"]
 
 layout = dbc.Container(
     [
@@ -248,7 +248,7 @@ layout = dbc.Container(
                                     dbc.Row(
                                         [
                                             dbc.Col(dbc.Label("Buy/Sell Rule (Python expression)"), width=8),
-                                            dbc.Col(create_rule_generation_button(1), width=4),
+                                            dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
                                             rule_generation_modal
                                         ]
                                     ),
@@ -256,8 +256,8 @@ layout = dbc.Container(
                                     html.Div(
                                         id="trading-rules-container",
                                         children=[
-                                            create_rule_input("buy", range(len(buying_rules)), rule)
-                                            for i, rule in enumerate(buying_rules)
+                                            create_rule_input("buy", range(len(predefined_rules)), rule)
+                                            for i, rule in enumerate(predefined_rules)
                                         ],
                                     ),
                                     dbc.Row(
@@ -278,9 +278,9 @@ layout = dbc.Container(
                                     ),
                                 ]
                             ),
-                        ]
+                        ], style={"border":"unset"}
                     ),
-                    sm=12, md=4, style={"border":"unset"}
+                    sm=12, md=4
                 ),
                 dbc.Col(
                     dbc.Card(
@@ -406,6 +406,9 @@ def register_callbacks(app):
             return children, True  # Open the modal
 
         elif trigger_id == "apply-modal-button.n_clicks":
+            if not rule_instruction:
+                return children, is_modal_open
+            
             rule_expression, rule_type = generate_rule(rule_instruction, openai_api_key)
             children.append(create_rule_input(rule_type, rule_values, rule_expression))
 
@@ -415,7 +418,7 @@ def register_callbacks(app):
             return children, False  # Close the modal
 
         elif trigger_id and "remove-rule" in trigger_id:
-            index = json.loads(trigger_id.split(".")[0])["index"]
+            index = json.loads(trigger_id.split(".")[0])["index"] - 1
             children.pop(index)
             return children, is_modal_open
 

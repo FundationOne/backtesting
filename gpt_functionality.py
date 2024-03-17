@@ -24,7 +24,7 @@ It also includes these variables:
 # Natural language input for rule generation
 def create_rule_generation_button(index):
     return dbc.Button(
-        "Add Rule ➕",
+        "Add Rule",
         id={
             'type': 'generate-rule-button',  # Constant type for all buttons of this kind
             'index': index  # Unique index for each button
@@ -41,7 +41,7 @@ rule_generation_modal = dbc.Modal(
             dcc.Input(
                 id="input-generate-rule",
                 type="text",
-                placeholder="Enter natural language instruction"
+                placeholder="Enter GPT Prompt"
             )
         ),
         dbc.ModalFooter([
