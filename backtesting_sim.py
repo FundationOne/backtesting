@@ -11,7 +11,7 @@ import json
 from utils import *
 
 from dash.exceptions import PreventUpdate
-from openai import OpenAI
+from pathlib import Path
 from conf import *
 
 from gpt_functionality import create_rule_generation_button,  rule_generation_modal, generate_rule
@@ -42,6 +42,22 @@ def fetch_historical_data(csv_file_path):
     btc_data['volume'] = btc_data_raw['Vol.'].apply(convert_volume)
 
     return btc_data
+
+def fetch_onchain_indicators(csv_file_path):
+    base_dir = Path(csv_file_path)
+    data_frames = []
+
+    for file_path in base_dir.rglob('*.csv'):
+        if file_path.name == 'price.csv' or file_path.name == '30d_sma.csv' or file_path.name == '365d_sma.csv':
+            continue  # Skip these files
+        column_name = '__'.join(file_path.relative_to(base_dir).with_suffix('').parts[1:])
+        df = pd.read_csv(file_path, parse_dates=['date'])
+        df.set_index('date', inplace=True)
+        df.columns = [column_name]
+        data_frames.append(df)
+
+    full_df = pd.concat(data_frames, axis=1)
+    return full_df
 
 def add_historical_indicators(btc_data):
     btc_data['last_highest'] = btc_data['price'].cummax().shift(1)
@@ -289,7 +305,7 @@ layout = dbc.Container(
                                 dbc.Row([
                                     dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
                                     dbc.Col(
-                                        dcc.Input(id="input-starting-investment", type="number", value=1000),
+                                        dcc.Input(id="input-starting-investment", type="number", value=10000),
                                         width=12,
                                     ),
                                 ]),
@@ -335,7 +351,7 @@ layout = dbc.Container(
                         ),
                         dbc.Row(
                             [
-                                dbc.Col(dbc.Label("Buy/Sell Rules\n(Python Expressions)"), width=8),
+                                dbc.Col(dbc.Label("BUY / SELL RULES\n(Python Expressions)"), width=8),
                                 dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
                                 rule_generation_modal
                             ]
@@ -411,7 +427,12 @@ def register_callbacks(app):
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
             btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
             btc_data = add_historical_indicators(btc_data)
-            btc_data.to_csv(PREPROC_FILENAME)
+
+            #add onchain
+            onchain_data = fetch_onchain_indicators('./indicators')
+            btc_data_full = btc_data.join(onchain_data, how='left')
+
+            btc_data_full.to_csv(PREPROC_FILENAME)
             print(f"Data saved to {PREPROC_FILENAME}.")
         else:
             btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
@@ -451,6 +472,8 @@ def register_callbacks(app):
             xaxis_title='Date',
             yaxis_title='Portfolio Value',
             legend_title='Strategy',
+            height=600,
+            margin=dict(b=100),
             transition_duration=500,
             plot_bgcolor='white',
             paper_bgcolor='white',
