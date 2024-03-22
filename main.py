@@ -21,7 +21,7 @@ sidebar = html.Div(
         ),
         dbc.Nav(
             [
-                dbc.NavLink("Backtesting", href="/backtesting", active="exact"),
+                dbc.NavLink("Backtesting", href="/backtesting", active=True),
                 dbc.NavLink("Investment Portfolio", href="/portfolio", active="exact"),
                 # Add more links as needed
             ],

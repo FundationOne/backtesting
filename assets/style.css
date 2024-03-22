@@ -46,10 +46,17 @@ input, textarea {
     font-size: 16px; /* Adequate font size for readability */
 }
 #scale-toggle, .dash-dropdown {
-    margin: 0 auto; /* Centering if block */
-    padding: 10px; /* Padding inside the input */
+    margin: 0 15px; /* Centering if block */
     max-width: 500px; /* Maximum width of inputs to maintain aesthetics */    
     padding-top: 0px;
+}
+
+.Select-control {
+    height: 45px!important;
+}
+
+.Select-placeholder, .Select--single > .Select-control .Select-value {
+    padding: 6px 10px!important;
 }
 
 /* Style for labels to match the input aesthetics */
@@ -59,7 +66,7 @@ label {
     padding-bottom: 3px !important;
     font-weight: bold; /* Bold font for labels */
     text-align: left; /* Aligns the label text to the left */
-    margin-left: 5%; /* Aligns the label with the input field */
+    margin-left: 17px;
     margin-top: 15px;
 }
 
@@ -73,4 +80,13 @@ input:focus, textarea:focus {
 /* Add space between the rows of your form */
 .dbc-row {
     margin-bottom: 1.5rem;
+}
+
+.rotate {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+.rotate.open {
+    transform: rotate(180deg);
 }

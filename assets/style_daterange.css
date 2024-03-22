@@ -16,10 +16,8 @@
 .DateRangePicker,
 .SingleDatePicker,
 .SingleDatePickerInput {
-    display: block;
-    margin: 0 auto;
-    width: 90%;
-    max-width: 500px; /* Maximum width of inputs to maintain aesthetics */
+    display: flex;
+    margin: 0 8px;
     border: unset;
 }
 

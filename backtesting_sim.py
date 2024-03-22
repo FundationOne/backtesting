@@ -219,15 +219,15 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 def create_rule_input(rule_type, rule_values, rule_expression):
     type_label = html.Div(rule_type.capitalize(), style={
         "writingMode": "vertical-lr",
-        "marginRight": "5px",
+        "margin": "0px 7px",
+        "width": "20px",
         "color": "#555"
     })
 
     input_field = dcc.Textarea(
         id={"type": f"{rule_type}-rule", "index": len(rule_values)},
         value=rule_expression,
-        rows=2,
-        style={"width": "90%", "fontSize":"14px"},
+        rows=2
     )
 
     remove_button = dbc.Button(
@@ -238,7 +238,7 @@ def create_rule_input(rule_type, rule_values, rule_expression):
     )
     return dbc.ListGroupItem(
         [type_label, input_field, remove_button],
-        style={"display": "flex", "alignItems": "center", "left":"-8px"}
+        style={"display": "flex", "alignItems": "center", "left":"-8px", "maxWidth":"109%", "width":"105%"}
     )
 
 def get_rules_from_input(children):
@@ -266,95 +266,96 @@ def get_rules_from_input(children):
 
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
 predefined_rules = ["current('price') < current('power_law_price_4y_window')"]
-
 layout = dbc.Container(
     [
         dbc.Row(
             [
                 dbc.Col(
-                    dbc.Card(
-                        [
-                            # dbc.CardHeader(html.H3("Backtesting Parameters")),
+                    dbc.Card([
+                        dbc.CardHeader([
+                            html.H5("Backtesting Parameters", className="mb-0"),
+                            html.Div([
+                                dbc.Button(
+                                    html.Span("▼", id="collapse-icon"),
+                                    id="collapse-button",
+                                    className="ml-auto",
+                                    color="primary",
+                                    n_clicks=0,
+                                ),
+                            ], style={"width": "30px"}),
+                        ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
+                        dbc.Collapse(
                             dbc.CardBody([
-                                    dbc.Row(
-                                        [
-                                            dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
-                                            dbc.Col(
-                                                dcc.Input(id="input-starting-investment", type="number", value=1000),
-                                                width=12,
-                                            ),
-                                        ]
+                                dbc.Row([
+                                    dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
+                                    dbc.Col(
+                                        dcc.Input(id="input-starting-investment", type="number", value=1000),
+                                        width=12,
                                     ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Label("Trade Amount $", html_for="input-trade-amount", width=12),
-                                            dbc.Col(
-                                                dcc.Input(id="input-trade-amount", type="number", value=100),
-                                                width=12,
-                                            ),
-                                        ]
+                                ]),
+                                dbc.Row([
+                                    dbc.Label("Trade Amount $", html_for="input-trade-amount", width=12),
+                                    dbc.Col(
+                                        dcc.Input(id="input-trade-amount", type="number", value=100),
+                                        width=12,
                                     ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col([
-                                                dbc.Label("Starting Date", html_for="input-starting-date", width=12),
-                                                dcc.DatePickerSingle(id="input-starting-date", date='2018-01-01')],
-                                                width=12),
-                                        ]
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col([
-                                                dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
-                                                dcc.Input(id="input-transaction-fee", type="number", value=0.01, step=0.01)],
-                                                width=12),
-                                        ]
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=6),
-                                            dbc.Col(
-                                                dcc.Dropdown(
-                                                    id="taxation-method-dropdown",
-                                                    options=[{"label": "FIFO", "value": "FIFO"}],
-                                                    value="FIFO",
-                                                    clearable=False,
-                                                ),
-                                                width=6,
-                                            ),
-                                            dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=6),
-                                            dbc.Col(
-                                                dcc.Input(id="input-tax-amount", type="number", value=25, min=0, max=100),
-                                                width=6,
-                                            ),
-                                        ]
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(dbc.Label("Buy/Sell Rules\n(Python Expressions)"), width=8),
-                                            dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
-                                            rule_generation_modal
-                                        ]
-                                    ),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
+                                        dcc.Input(id="input-transaction-fee", type="number", value=0.01, step=0.01)
+                                    ], width=12),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Starting Date", html_for="input-starting-date", width=12),
+                                        dcc.DatePickerSingle(id="input-starting-date", date='2018-01-01')
+                                    ], width=12),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=12),
+                                        dcc.Dropdown(
+                                            id="taxation-method-dropdown",
+                                            options=[{"label": "FIFO", "value": "FIFO"}],
+                                            value="FIFO",
+                                            clearable=False
+                                        )
+                                    ], width=12),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=12),
+                                        dcc.Input(id="input-tax-amount", type="number", value=25, min=0, max=100)
+                                    ], width=12),
+                                ]),
+                            ]),
+                            id="collapse",
+                            is_open=True,
+                        ),
+                        dbc.Row(
+                            [
+                                dbc.Col(dbc.Label("Buy/Sell Rules\n(Python Expressions)"), width=8),
+                                dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
+                                rule_generation_modal
+                            ]
+                        ),
 
-                                    dbc.Row(
-                                        id="trading-rules-container",
-                                        children=[
-                                            create_rule_input("buy", range(len(predefined_rules)), rule)
-                                            for i, rule in enumerate(predefined_rules)
-                                        ],
-                                    ),
-                                    dbc.Row(
-                                        dbc.Col(
-                                            dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
-                                            width={"size": 6, "offset": 3},
-                                        ),
-                                        className="mb-3", style={"marginTop":"20px"}
-                                    )
-                                ]
+                        dbc.Row(
+                            id="trading-rules-container",
+                            children=[
+                                create_rule_input("buy", range(len(predefined_rules)), rule)
+                                for i, rule in enumerate(predefined_rules)
+                            ],
+                        ),
+                        dbc.Row(
+                            dbc.Col(
+                                dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
+                                width={"size": 6, "offset": 3},
                             ),
-                        ], style={"border":"unset"}
-                    ),
+                            className="mb-3", style={"marginTop":"20px"}
+                        )
+                    ], className="mb-3", style={"border":"unset"}),
                     sm=12, md=4
                 ),
                 dbc.Col(
@@ -552,3 +553,13 @@ def register_callbacks(app):
             return children, is_modal_open
 
         return children, is_modal_open
+        
+    @app.callback(
+        [Output("collapse", "is_open"), Output("collapse-icon", "style")],
+        [Input("collapse-button", "n_clicks")],
+        [State("collapse", "is_open")],
+    )
+    def toggle_collapse(n, is_open):
+        if n:
+            return not is_open, {"transform": "rotate(180deg)" if not is_open else "none"}
+        return is_open, {"transform": "none"}
