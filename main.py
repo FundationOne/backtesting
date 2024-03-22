@@ -6,6 +6,9 @@ from backtesting_sim import layout as l1, register_callbacks as rc1
 from portfolio_sim import layout as l2, register_callbacks as rc2
 from gpt_functionality import register_callbacks as rc_gpt
 from openai_key_functionality import openai_api_key_input as l_openai_key, register_callbacks as rc_openai_key
+from settings_functionality import settings_scale_toggle as l_settings_scale_toggle
+
+print("STARTING APP")
 
 # Choose a theme closer to Apple's design aesthetic, like LUX or FLATLY
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX], suppress_callback_exceptions=True)
@@ -25,8 +28,10 @@ sidebar = html.Div(
             vertical=True,
             pills=True,
         ),
-        html.Div(l_openai_key, style={'position': 'absolute', 'bottom': '10px'})  # Fixes the input at the bottom
-
+        html.Div(
+            [l_openai_key,
+             l_settings_scale_toggle], 
+            style={'position': 'absolute', 'bottom': '10px'})  # Fixes the input at the bottom
     ],
     style={
         'position': 'fixed',

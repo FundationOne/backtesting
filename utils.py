@@ -22,32 +22,37 @@ import numpy as np
 import pandas as pd
 from powerlaw import Fit
 
-def rolling_power_law_price(btc_data):  # '7D' for weekly
-    # Initialize a series to store predicted prices
+def rolling_power_law_price(btc_data, Ofst=0):  # '7D' for weekly
+        # Initialize a series to store predicted prices
     predicted_prices = pd.Series(index=btc_data.index, dtype=float)
     
-    for i in range(1, len(btc_data)):  # Start from the second data point
-        # Use all data up to the current point
-        cumulative_data = btc_data.iloc[:i+1]
-        prices = cumulative_data['price'].replace(0, np.nan).ffill()
+    for i in range(2, len(btc_data) + 1):  # Ensuring at least two data points for regression
+        # Current subset of data
+        current_data = btc_data.iloc[:i]
         
-        if len(prices) < 2:
-            continue
+        # Assuming days as a simple range (adjust if using actual dates or different measures)
+        days = np.arange(1, len(current_data) + 1) - Ofst
+        prices = current_data['price'].values
         
-        days = np.arange(1, len(prices) + 1)
-        log_days = np.log(days)
-        log_prices = np.log(prices)
-        
-        try:
-            # Fit the log-transformed data
+        # Log-transform for linear regression in log-log space
+        log_days = np.log(days[days > 0])  # Ensure days are positive after offset adjustment
+        log_prices = np.log(prices[-len(log_days):])  # Match the length after days filtering
+
+        if len(log_days) > 1:  # Need at least two points to fit
+            # Linear regression in log-log space to find slope (m) and intercept (log_b)
             slope, intercept = np.polyfit(log_days, log_prices, 1)
-            # Calculate predicted prices for all days using the fitted model
-            predicted_log_prices = intercept + slope * log_days
-            # Convert the last predicted log price back to price
-            predicted_price = np.exp(predicted_log_prices[-1])
-            predicted_prices.iloc[i] = predicted_price
-        except np.linalg.LinAlgError:
-            predicted_prices.iloc[i] = np.nan
+            
+            # Calculate b and m for the power law equation: y = b * x^m
+            m = slope
+            b = np.exp(intercept)
+            
+            # Predict the next value
+            next_day_log = np.log(len(current_data) + 1 - Ofst)
+            predicted_log_price = intercept + slope * next_day_log
+            predicted_price = np.exp(predicted_log_price)
+            predicted_prices.iloc[i-1] = predicted_price
+        else:
+            predicted_prices.iloc[i-1] = np.nan
     
     return predicted_prices
 

@@ -150,6 +150,19 @@ def register_callbacks(app):
         
         return fig
 
+    @app.callback(
+        [Output('investment-graph', 'figure', allow_duplicate=True)],
+        [Input('scale-toggle', 'value'),
+         State('investment-graph', 'figure')],
+         prevent_initial_call=True)
+    def update_investment_fig_scale(scale, fig_dict):
+        if scale is None:
+            raise PreventUpdate
+        
+        fig = go.Figure(fig_dict)
+        fig.update_layout(yaxis_type=scale, yaxis_autorange=True)
+
+        return [fig]
 
     # Callback to update the DataFrame and table when parameters change
     @app.callback(

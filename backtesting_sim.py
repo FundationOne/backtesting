@@ -292,27 +292,11 @@ layout = dbc.Container(
                                         ],
                                     ),
                                     dbc.Row(
-                                        [
-                                            dbc.Label("", html_for="scale-toggle", width=12),
-                                            dbc.Col(
-                                                dbc.RadioItems(
-                                                    options=[
-                                                        {"label": "Log Scale", "value": "log"},
-                                                        {"label": "Normal Scale", "value": "linear"},
-                                                    ],
-                                                    value="log",
-                                                    id="scale-toggle"
-                                                ),
-                                                width=12, align="center",
-                                            ),
-                                        ]
-                                    ),
-                                    dbc.Row(
                                         dbc.Col(
                                             dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
                                             width={"size": 6, "offset": 3},
                                         ),
-                                        className="mb-3",
+                                        className="mb-3", style={"marginTop":"20px"}
                                     )
                                 ]
                             ),
@@ -387,6 +371,13 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=lump_sum_portfolio.index, y=lump_sum_portfolio, mode='lines', name='Lump Sum & Hold Portfolio'))
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
+
+        # Update the figure layout to include a secondary y-axis
+        # fig.update_layout(yaxis2=dict(
+        #         title="Indicators",
+        #         overlaying="y",
+        #         side="right"))
+        # fig.update_layout(yaxis2=dict(range=[0, 'auto']))
 
         # Dynamically add traces mentioned in buy and sell rules
         columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
@@ -468,9 +459,22 @@ def register_callbacks(app):
         table_columns = [{"name": i, "id": i} for i in transactions_df.columns]
 
         fig.update_yaxes(type=scale)
-
         return table_data, table_columns, fig
   
+    @app.callback(
+        [Output('backtesting-graph', 'figure', allow_duplicate=True)],
+        [Input('scale-toggle', 'value'),
+         State('backtesting-graph', 'figure')],
+         prevent_initial_call=True)
+    def update_backtesting_fig_scale(scale, fig_dict):
+        if scale is None:
+            raise PreventUpdate
+        
+        fig = go.Figure(fig_dict)
+        fig.update_layout(yaxis_type=scale, yaxis_autorange=True)
+
+        return [fig]
+    
     @app.callback(
         [Output("trading-rules-container", "children"),
         Output("rule-generation-modal", "is_open")],
