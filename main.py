@@ -47,9 +47,16 @@ sidebar = html.Div(
 
 content = html.Div(id="page-content", style={'marginLeft': '20%'})
 
-app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
+app.layout = html.Div([dcc.Location(id="url", refresh=False), sidebar, content])
 
 # Main callback
+@app.callback(Output('url', 'pathname'),
+              [Input('url', 'pathname')])
+def redirect_to_default(pathname):
+    if pathname == "/" or pathname is None:
+        return "/backtesting"
+    return dash.no_update
+
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname')])
 def render_page_content(pathname):
@@ -57,7 +64,9 @@ def render_page_content(pathname):
         return l1
     elif pathname == "/portfolio":
         return l2
-
+    else:
+        return "404 Page Not Found"
+    
 # Register all tab callbacks
 rc_openai_key(app)
 rc_gpt(app)

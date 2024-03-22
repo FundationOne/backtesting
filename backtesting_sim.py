@@ -115,7 +115,7 @@ def monthly_dca_strategy(btc_data, starting_investment):
 
     return portfolio_value
 # Function to execute trading strategy
-def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule):
+def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount):
     if pd.to_datetime(start_date) not in btc_data.index:
         start_date = btc_data.index[0].strftime('%Y-%m-%d')
         print("Start date is out of the dataset's date range.")
@@ -126,6 +126,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
     available_cash = starting_investment
     btc_owned = 0
     transactions = []
+    btc_purchases = []  # Keep track of BTC purchases for FIFO taxation
     portfolio_value_over_time = pd.Series(index=btc_data.index, dtype=float)
     
     if not buying_rule and not selling_rule:
@@ -181,17 +182,34 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
                 print(f"Buy Rule could not be applied to this day: {e} >>> {buying_rule}")
             continue
 
-        if buy_eval and available_cash >= current_price:
-            btc_to_buy = available_cash // current_price
-            available_cash -= btc_to_buy * current_price
+        if buy_eval:
+            # Calculate the maximum number of BTC that can be bought with available cash
+            max_btc_to_buy = (available_cash - transaction_fee) / current_price
+            
+            # Buy the lesser of trade_amount or max_btc_to_buy
+            btc_to_buy = min(trade_amount / current_price, max_btc_to_buy)
+            
+            available_cash -= (btc_to_buy * current_price + transaction_fee)
             btc_owned += btc_to_buy
-            transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
+            transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned, 'Taxable Amount': ''})
+            btc_purchases.append({"date": date, "amount": btc_to_buy, "price": current_price})
 
         elif sell_eval and btc_owned > 0:
-            btc_to_sell = btc_owned
-            available_cash += btc_to_sell * current_price
+            btc_to_sell = min(trade_amount / current_price, btc_owned)
+            sale_proceeds = btc_to_sell * current_price
+
+            if taxation_method == "FIFO":
+                taxable_amount = 0
+                for i in range(int(btc_to_sell)):
+                    if btc_purchases:
+                        purchase = btc_purchases.pop(0)
+                        holding_period = (date - purchase["date"]).days
+                        if holding_period < 365:
+                            taxable_amount += (current_price - purchase["price"]) * (tax_amount / 100)
+
+            available_cash += sale_proceeds - taxable_amount - transaction_fee
             btc_owned -= btc_to_sell
-            transactions.append({'Date': date, 'Action': 'Sell', 'BTC': btc_to_sell, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned})
+            transactions.append({'Date': date, 'Action': 'Sell', 'BTC': btc_to_sell, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned, 'Taxable Amount': round(taxable_amount, 2)})
 
     transactions_df = pd.DataFrame(transactions)
 
@@ -260,7 +278,7 @@ layout = dbc.Container(
                             dbc.CardBody([
                                     dbc.Row(
                                         [
-                                            dbc.Label("Starting Investment", html_for="input-starting-investment", width=12),
+                                            dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
                                             dbc.Col(
                                                 dcc.Input(id="input-starting-investment", type="number", value=1000),
                                                 width=12,
@@ -269,10 +287,45 @@ layout = dbc.Container(
                                     ),
                                     dbc.Row(
                                         [
-                                            dbc.Label("Starting Date", html_for="input-starting-date", width=12),
+                                            dbc.Label("Trade Amount $", html_for="input-trade-amount", width=12),
                                             dbc.Col(
-                                                dcc.DatePickerSingle(id="input-starting-date", date='2020-01-01'),
+                                                dcc.Input(id="input-trade-amount", type="number", value=100),
                                                 width=12,
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col([
+                                                dbc.Label("Starting Date", html_for="input-starting-date", width=12),
+                                                dcc.DatePickerSingle(id="input-starting-date", date='2018-01-01')],
+                                                width=12),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col([
+                                                dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
+                                                dcc.Input(id="input-transaction-fee", type="number", value=0.01, step=0.01)],
+                                                width=12),
+                                        ]
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=6),
+                                            dbc.Col(
+                                                dcc.Dropdown(
+                                                    id="taxation-method-dropdown",
+                                                    options=[{"label": "FIFO", "value": "FIFO"}],
+                                                    value="FIFO",
+                                                    clearable=False,
+                                                ),
+                                                width=6,
+                                            ),
+                                            dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=6),
+                                            dbc.Col(
+                                                dcc.Input(id="input-tax-amount", type="number", value=25, min=0, max=100),
+                                                width=6,
                                             ),
                                         ]
                                     ),
@@ -342,9 +395,13 @@ def register_callbacks(app):
         [State('input-starting-investment', 'value'),
         State('input-starting-date', 'date'),
         State("trading-rules-container", "children"),
-        State('scale-toggle', 'value')]
+        State('scale-toggle', 'value'),
+        State('input-trade-amount', 'value'),
+        State('input-transaction-fee', 'value'),
+        State('taxation-method-dropdown', 'value'),  # Add this line
+        State('input-tax-amount', 'value')]
     )
-    def update_backtesting(n_clicks, starting_investment, start_date, children, scale):
+    def update_backtesting(n_clicks, starting_investment, start_date, children, scale, trade_amount, transaction_fee, taxation_method, tax_amount):
         if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
@@ -359,7 +416,7 @@ def register_callbacks(app):
             btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
             print(f"Data loaded from {PREPROC_FILENAME}.")
 
-        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule)
+        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount)
 
         # Calculate strategies
         lump_sum_portfolio = lump_sum_and_hold_strategy(btc_data[start_date:], starting_investment)
@@ -372,23 +429,11 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
 
-        # Update the figure layout to include a secondary y-axis
-        # fig.update_layout(yaxis2=dict(
-        #         title="Indicators",
-        #         overlaying="y",
-        #         side="right"))
-        # fig.update_layout(yaxis2=dict(range=[0, 'auto']))
-
         # Dynamically add traces mentioned in buy and sell rules
         columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
         for column in columns_to_plot:
             if column in btc_data.columns and column != 'price':
                 fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly'))
-
-        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price'], mode='lines', name='BTC Power Law', visible='legendonly'))
-        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price_1y_window'], mode='lines', name='BTC Power Law 1Y Window', visible='legendonly'))
-        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['power_law_price_4y_window'], mode='lines', name='BTC Power Law 4Y Window', visible='legendonly'))
-        # fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['sma_20_week'], mode='lines', name='BTC 20 Week SMA', visible='legendonly'))
 
         # highlight transactions if available
         if not transactions_df.empty:
@@ -406,21 +451,12 @@ def register_callbacks(app):
             yaxis_title='Portfolio Value',
             legend_title='Strategy',
             transition_duration=500,
-            
-            # Set plot background to white
             plot_bgcolor='white',
-            
-            # Set paper background to white
             paper_bgcolor='white',
-            
-            # Improve font readability
             font=dict(
                 family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",  # A commonly used, web-safe font
-                # size=12,  # Adjust based on your preference
                 color="black"  # Ensures good readability against the white background
             ),
-            
-            # Refine gridlines and axis lines
             xaxis=dict(
                 showline=True,  # Show the axis line
                 showgrid=True,  # Show gridlines
@@ -435,8 +471,6 @@ def register_callbacks(app):
                 gridcolor='lightgrey',
                 mirror=True
             ),
-            
-            # Refine the legend
             legend=dict(
                 title_font_family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
                 font=dict(
@@ -459,6 +493,7 @@ def register_callbacks(app):
         table_columns = [{"name": i, "id": i} for i in transactions_df.columns]
 
         fig.update_yaxes(type=scale)
+
         return table_data, table_columns, fig
   
     @app.callback(
