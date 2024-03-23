@@ -240,16 +240,14 @@ layout = dbc.Container(
                 dbc.Col(
                     dbc.Card([
                         dbc.CardHeader([
-                            html.H5("Backtesting Parameters", className="mb-0"),
-                            html.Div([
-                                dbc.Button(
-                                    html.Span("▼", id="collapse-icon"),
-                                    id="collapse-button",
-                                    className="ml-auto",
-                                    color="primary",
-                                    n_clicks=0,
-                                ),
-                            ], style={"width": "30px"}),
+                            dbc.Col(html.H5("Backtesting Parameters", className="mb-0"), width={"size": 8, "offset": 0}),
+                            dbc.Col(dbc.Button(
+                                        html.Span("▼", id="collapse-icon"),
+                                        id="collapse-button",
+                                        className="ml-auto",
+                                        color="primary",
+                                        n_clicks=0,
+                                    ), width={"size": 4, "offset": 0}),
                         ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
                         dbc.Collapse(
                             dbc.CardBody([
@@ -300,27 +298,19 @@ layout = dbc.Container(
                             id="collapse",
                             is_open=True,
                         ),
-                        dbc.Row(
-                            [
-                                dbc.Col(dbc.Label("BUY / SELL RULES\n(Python Expressions)"), width=6),
-                                dbc.Col(dbc.Label(create_rule_generation_button(1)), width=2),
-                                dbc.Col(dbc.Label(dbc.Button("Save Rules", id="open-save-rules-modal", n_clicks=0,
-                                    style={"padding": "10px 5px"})), width=2),
-                                dbc.Col(dbc.Label(dbc.Button("Load Rules", id="open-load-rules-modal", n_clicks=0,
-                                    style={"padding": "10px 5px"})), width=2),
-                                rule_generation_modal
-                            ]
-                        ),
+                        dbc.CardHeader([
+                            dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), width={"size": 8, "offset": 0}),
+                            dbc.Col(create_rule_generation_button(1), width={"size": 4, "offset": 0}),
+                            rule_generation_modal
+                        ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
                         dbc.Row(id="trading-rules-container"),
-                        dbc.Row(
-                            dbc.Col(
-                                dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
-                                width={"size": 6, "offset": 3},
-                            ),
-                            className="mb-3", style={"marginTop":"20px"}
-                        )
-                    ], className="mb-3", style={"border":"unset"}),
-                    sm=12, md=4
+                        dbc.Row([
+                            dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", className="me-2 btn-secodnary", color="secondary", n_clicks=0), width={"size": 3, "offset": 1}),
+                            dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", className="me-2 btn-secodnary", color="secondary", n_clicks=0), width={"size": 3, "offset": 0}),
+                            dbc.Col(dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0), width={"size": 3, "offset": 1})
+                        ],className="mb-3", style={"marginTop":"20px"})
+                    ], className="mb-3", style={"border":"unset"}
+                    ), sm=12, md=4
                 ),
                 dbc.Col(
                     dbc.Card(

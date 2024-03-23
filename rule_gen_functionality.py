@@ -15,7 +15,7 @@ def create_rule_generation_button(index):
             'index': index  # Unique index for each button
         },
         n_clicks=0,
-        style={"padding": "10px 5px"}
+        # style={"padding": "10px 5px"}
     )
 
 
@@ -67,6 +67,7 @@ def load_rules_modal():
             ]),
             dbc.ModalFooter([
                 dbc.Button("Cancel", id="cancel-load-rules-modal", className="ml-auto"),
+                dbc.Button("Delete Rules", id="delete-rule-set-button", className="ml-auto", n_clicks=0),
                 dbc.Button("Load Rules", id="confirm-load-rules-modal", className="ml-auto"),
             ])
         ], id="load-rules-modal")
@@ -142,51 +143,26 @@ rule_generation_modal = dbc.Modal(
 
 def register_callbacks(app):
     # Callbacks to open and close the modal
-    @app.callback(
-        Output("rule-generation-modal", "is_open", allow_duplicate=True),
-        [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
-        Input("close-modal-button", "n_clicks"),
-        Input("apply-modal-button", "n_clicks"),
-        Input("apply-modal-button-sell", "n_clicks"),
-        Input("apply-modal-button-buy", "n_clicks")],
-        [State("rule-generation-modal", "is_open")],
-        prevent_initial_call=True
-    )
-    def toggle_modal(*args):
-        button_clicks, _, _, _, _, is_modal_open = args
+    # @app.callback(
+    #     Output("rule-generation-modal", "is_open", allow_duplicate=True),
+    #     [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
+    #     Input("close-modal-button", "n_clicks"),
+    #     Input("apply-modal-button", "n_clicks"),
+    #     Input("apply-modal-button-sell", "n_clicks"),
+    #     Input("apply-modal-button-buy", "n_clicks")],
+    #     [State("rule-generation-modal", "is_open")],
+    #     prevent_initial_call=True
+    # )
+    # def toggle_modal(*args):
+    #     button_clicks, _, _, _, _, is_modal_open = args
         
-        # Check if any button was clicked. Assumes button_clicks is a list of click counts.
-        if any(click > 0 for click in button_clicks):
-            return not is_modal_open
+    #     # Check if any button was clicked. Assumes button_clicks is a list of click counts.
+    #     if any(click > 0 for click in button_clicks):
+    #         return not is_modal_open
         
-        # If no buttons were clicked, return the current state of the modal.
-        return is_modal_open
+    #     # If no buttons were clicked, return the current state of the modal.
+    #     return is_modal_open
     
-    @app.callback(
-        [Output("load-rules-modal", "is_open"), 
-         Output("load-rules-modal", "input_options")],
-        [
-            Input("open-load-rules-modal", "n_clicks"),
-            Input("confirm-load-rules-modal", "n_clicks"),
-            Input("cancel-load-rules-modal", "n_clicks"),
-            Input("saved-rules-store", "data"),
-        ],
-        [State("load-rules-modal", "is_open"), 
-         State("load-rules-dropdown", "value")],
-    )
-    def toggle_load_rules_modal(open_n_clicks, submit_n_clicks, cancel_n_clicks, store_data, is_open, selected_rule):
-        trigger_id = ctx.triggered_id if ctx.triggered_id else None
-
-        if trigger_id == "open-load-rules-modal":
-            options = [{"label": name, "value": name} for name in get_saved_rules_names(store_data)]
-            return True, options
-        elif trigger_id == "confirm-load-rules-modal" and selected_rule:
-            load_rules_from_store(selected_rule)
-            return False, []
-        elif trigger_id == "cancel-load-rules-modal":
-            return False, []
-        return is_open, []
-
     
     @app.callback(
         [Output("trading-rules-container", "children"),
@@ -203,7 +179,7 @@ def register_callbacks(app):
         State("saved-rules-store", "data")],
         prevent_initial_call=True
     )
-    def generate_rules(generate_rule_clicks, apply_modal_click, apply_modal_buy_click, apply_modal_sell_click, close_modal_click, children, rule_instruction, openai_api_key, is_modal_open, store_data):
+    def toggle_generate_rules_modal(generate_rule_clicks, apply_modal_click, apply_modal_buy_click, apply_modal_sell_click, close_modal_click, children, rule_instruction, openai_api_key, is_modal_open, store_data):
         trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
         try:
             button_clicked = json.loads(trigger_id.split(".")[0]) if trigger_id else None
@@ -256,17 +232,21 @@ def register_callbacks(app):
     
     @app.callback(
         Output("trading-rules-container", "children", allow_duplicate=True),
-        [Input("load-rules-modal", "submit_n_clicks"), 
+        [Input("confirm-load-rules-modal", "n_clicks"), 
          Input("saved-rules-store", "data")],
-        [State("load-rules-modal", "input_value")],
+        [State("load-rules-dropdown", "value")],
         prevent_initial_call=True
     )
     def update_trading_rules_container(submit_n_clicks, store_data, selected_rule):
-        if submit_n_clicks and selected_rule:
+        trigger_id = ctx.triggered_id if ctx.triggered_id else None
+        if trigger_id == 'saved-rules-store':
+            if not selected_rule:
+                children = load_rules_from_store("default_ruleset", store_data)
+                return children
+            return no_update
+        
+        elif submit_n_clicks and selected_rule:
             children = load_rules_from_store(selected_rule, store_data)
-            return children
-        elif store_data:
-            children = load_rules_from_store("default_ruleset", store_data)
             return children
 
         raise PreventUpdate
@@ -301,7 +281,52 @@ def register_callbacks(app):
             return False, updated_store_data
 
         return is_open, no_update
+
+    @app.callback(
+        [Output("load-rules-modal", "is_open"), 
+         Output("load-rules-dropdown", "options", allow_duplicate=True)],
+        [
+            Input("open-load-rules-modal", "n_clicks"),
+            Input("confirm-load-rules-modal", "n_clicks"),
+            Input("cancel-load-rules-modal", "n_clicks"),
+            Input("saved-rules-store", "data"),
+        ],
+        [State("load-rules-modal", "is_open"), 
+         State("load-rules-dropdown", "value")],
+         prevent_initial_call=True
+    )
+    def toggle_load_rules_modal(open_n_clicks, submit_n_clicks, cancel_n_clicks, store_data, is_open, selected_rule):
+        trigger_id = ctx.triggered_id if ctx.triggered_id else None
+
+        if trigger_id == "open-load-rules-modal":
+            options = [{"label": name, "value": name} for name in get_saved_rules_names(store_data)]
+            return True, options
         
+        elif trigger_id == "confirm-load-rules-modal" and selected_rule:
+            return False, []
+        
+        elif trigger_id == "cancel-load-rules-modal":
+            return False, []
+        
+        options = [{"label": name, "value": name} for name in get_saved_rules_names(store_data)]
+        return is_open, options
+
+    @app.callback(
+        [Output("load-rules-dropdown", "options", allow_duplicate=True),
+        Output("saved-rules-store", "data", allow_duplicate=True)],
+        [Input("delete-rule-set-button", "n_clicks")],
+        [State("load-rules-dropdown", "value"),
+        State("saved-rules-store", "data")],
+        prevent_initial_call=True
+    )
+    def delete_rule_set(delete_n_clicks, selected_rule, store_data):
+        if delete_n_clicks > 0 and selected_rule and store_data:
+            if selected_rule in store_data:
+                del store_data[selected_rule]
+                options = [{"label": name, "value": name} for name in store_data.keys()]
+                return options, store_data
+        raise PreventUpdate
+
     @app.callback(
         Output("saved-rules-store", "data"),
         Input("saved-rules-store", "data")

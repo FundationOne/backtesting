@@ -90,3 +90,7 @@ input:focus, textarea:focus {
 .rotate.open {
     transform: rotate(180deg);
 }
+
+#trading-rules-container {
+    padding-top: 10px;
+}
