@@ -102,7 +102,7 @@ layout = dbc.Container([
                     ])
                 ])
             ], style={"border":"unset"})
-        ], sm=12, md=4),
+        ], sm=12, md=4, style={"padding":"0px"}),
         dbc.Col([
             dbc.Card([
                 # dbc.CardHeader(html.H3("Investment Portfolio Over " + str(default_years_to_simulate) + " Years")),
@@ -117,7 +117,7 @@ layout = dbc.Container([
                     )
                 ])
             ])
-        ], sm=12, md=8)
+        ], sm=12, md=8, style={"padding":"0px"})
     ])
 ])
 

@@ -39,13 +39,13 @@ sidebar = html.Div(
         'top': 0,
         'left': 0,
         'bottom': 0,
-        'width': '21%',
+        'width': '18%',
         'padding': '20px',
         'backgroundColor': '#f8f9fa'
     },
 )
 
-content = html.Div(id="page-content", style={'marginLeft': '20%'})
+content = html.Div(id="page-content", style={'marginLeft': '18%'})
 
 app.layout = html.Div([dcc.Location(id="url", refresh=False), sidebar, content])
 
