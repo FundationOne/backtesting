@@ -3,10 +3,6 @@ from dash import dcc, html, ctx
 from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 import json
-from utils import *
-
-from dash.exceptions import PreventUpdate
-from conf import *
 
 from gpt_functionality import generate_rule
 
@@ -23,7 +19,7 @@ def create_rule_generation_button(index):
     )
 
 
-def create_rule_input(rule_type, rule_values, rule_expression):
+def create_rule_input(rule_type, rule_index, rule_expression):
     type_label = html.Div(rule_type.capitalize(), style={
         "writingMode": "vertical-lr",
         "margin": "0px 7px",
@@ -32,14 +28,14 @@ def create_rule_input(rule_type, rule_values, rule_expression):
     })
 
     input_field = dcc.Textarea(
-        id={"type": f"{rule_type}-rule", "index": len(rule_values)},
+        id={"type": f"{rule_type}-rule", "index": rule_index},
         value=rule_expression,
         rows=2
     )
 
     remove_button = dbc.Button(
         children="➖",
-        id={"type": f"remove-rule", "index": len(rule_values)},
+        id={"type": f"remove-rule", "index": rule_index},
         n_clicks=0,
         style={"padding": "0.25rem 0.5rem", "border": "none", "backgroundColor": "transparent"},
     )
@@ -47,31 +43,6 @@ def create_rule_input(rule_type, rule_values, rule_expression):
         [type_label, input_field, remove_button],
         style={"display": "flex", "alignItems": "center", "left":"7px", "maxWidth":"100%", "width":"100%"}
     )
-
-def get_rules_from_input(children):
-    rules = {
-        "buying-rule": [],
-        "selling-rule": []
-    }
-
-    for child in children:
-        textarea = child['props']['children'][1]  # Textarea is the second child
-        textarea_props = textarea['props']
-        rule_type = textarea_props['id']['type']
-        rule_value = textarea_props['value'].strip()
-
-        # Append rule_value to the appropriate list based on rule_type
-        if rule_type == "buy-rule" and rule_value:
-            rules["buying-rule"].append(rule_value)
-        elif rule_type == "sell-rule" and rule_value:
-             rules["selling-rule"].append(rule_value)
-
-    buying_rule = " or ".join(rules["buying-rule"])
-    selling_rule = " or ".join(rules["selling-rule"])
-
-    return buying_rule, selling_rule
-
-
 
 def save_rules_modal():
     return html.Div([
@@ -101,10 +72,23 @@ def load_rules_modal():
         ], id="load-rules-modal")
     ])
 
-
 def save_rules_to_store(rule_name, children, store):
-    buying_rule, selling_rule = get_rules_from_input(children)
-    rules = {"buying_rule": buying_rule, "selling_rule": selling_rule}
+    rules = {
+        "buying_rule": [],
+        "selling_rule": []
+    }
+
+    for child in children:
+        textarea = child['props']['children'][1]  # Textarea is the second child
+        textarea_props = textarea['props']
+        rule_type = textarea_props['id']['type']
+        rule_value = textarea_props['value'].strip()
+
+        if rule_type == "buy-rule" and rule_value:
+            rules["buying_rule"].append(rule_value)
+        elif rule_type == "sell-rule" and rule_value:
+            rules["selling_rule"].append(rule_value)
+
     saved_rules = json.loads(store.get("saved_rules") or "{}")
     saved_rules[rule_name] = rules
     store.set("saved_rules", json.dumps(saved_rules))
@@ -118,16 +102,18 @@ def get_saved_rules_names(store):
 
 def load_rules_from_store(rule_name, store_data):
     saved_rules = json.loads(store_data.get("saved_rules") or "{}")
-    rules = saved_rules.get(rule_name, {})
-    buying_rule = rules.get("buying_rule", "")
-    selling_rule = rules.get("selling_rule", "")
+    rules = saved_rules.get(rule_name, {"buying_rule": [], "selling_rule": []})
+    buying_rules = rules.get("buying_rule", [])
+    selling_rules = rules.get("selling_rule", [])
 
-    children = [
-        create_rule_input("buy", range(1), buying_rule),
-        create_rule_input("sell", range(1), selling_rule),
-    ]
+    children = []
+    for i, rule in enumerate(buying_rules):
+        children.append(create_rule_input("buy", i, rule))
+
+    for i, rule in enumerate(selling_rules):
+        children.append(create_rule_input("sell", i + len(buying_rules), rule))
+
     return children
-
 
 # The modal which will be reused for both buy and sell rule inputs
 rule_generation_modal = dbc.Modal(
@@ -212,13 +198,13 @@ def register_callbacks(app):
         Input("apply-modal-button-sell", "n_clicks"),
         Input("close-modal-button", "n_clicks")],
         [State("trading-rules-container", "children"),
-        State({"type": "buying-rule", "index": ALL}, "value"),
         State("input-generate-rule", "value"),
         State("input-openai-api-key", "value"),
-        State("rule-generation-modal", "is_open")],
+        State("rule-generation-modal", "is_open"),
+        State("saved-rules-store", "data")],
         prevent_initial_call=True
     )
-    def generate_rules(generate_rule_clicks, remove_clicks, apply_modal_click, apply_modal_buy_click, apply_modal_sell_click, close_modal_click, children, rule_values, rule_instruction, openai_api_key, is_modal_open):
+    def generate_rules(generate_rule_clicks, remove_clicks, apply_modal_click, apply_modal_buy_click, apply_modal_sell_click, close_modal_click, children, rule_instruction, openai_api_key, is_modal_open, store_data):
         trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
         try:
             button_clicked = json.loads(trigger_id.split(".")[0]) if trigger_id else None
@@ -229,17 +215,17 @@ def register_callbacks(app):
             return children, True  # Open the modal
 
         elif trigger_id == "apply-modal-button-buy.n_clicks":
-            children.append(create_rule_input("buy", rule_values, ""))
+            children.append(create_rule_input("buy", len(children), ""))
             return children, False  # Close the modal after adding the new rule
         elif trigger_id == "apply-modal-button-sell.n_clicks":
-            children.append(create_rule_input("sell", rule_values, ""))
+            children.append(create_rule_input("sell", len(children), ""))
             return children, False  # Close the modal after adding the new rule
         elif trigger_id == "apply-modal-button.n_clicks":
             if not rule_instruction:
                 return children, is_modal_open
             
             rule_expression, rule_type = generate_rule(rule_instruction, openai_api_key)
-            children.append(create_rule_input(rule_type, rule_values, rule_expression))
+            children.append(create_rule_input(rule_type, len(children), rule_expression))
 
             return children, False  # Close the modal after adding the new rule
 
@@ -247,7 +233,7 @@ def register_callbacks(app):
             return children, False  # Close the modal
 
         elif trigger_id and "remove-rule" in trigger_id:
-            index = json.loads(trigger_id.split(".")[0])["index"] - 1
+            index = json.loads(trigger_id.split(".")[0])["index"]
             children.pop(index)
             return children, is_modal_open
 
@@ -262,7 +248,6 @@ def register_callbacks(app):
     )
     def update_trading_rules_container(submit_n_clicks, store_data, selected_rule):
         if submit_n_clicks and selected_rule:
-            # Assuming load_rules_from_store now correctly handles store_data and returns UI components
             children = load_rules_from_store(selected_rule, store_data)
             return children
         raise PreventUpdate
@@ -270,17 +255,43 @@ def register_callbacks(app):
     @app.callback(
         Output("save-rules-modal", "is_open"),
         [Input("open-save-rules-modal", "n_clicks"), Input("save-rules-modal", "submit_n_clicks"), Input("save-rules-modal", "cancel_n_clicks")],
-        [State("save-rules-modal", "is_open"), State("save-rules-modal", "input_value"), State("trading-rules-container", "children")],
+        [State("save-rules-modal", "is_open"), State("save-rules-modal", "input_value"), State("trading-rules-container", "children"), State("saved-rules-store", "data")],
         prevent_initial_call=True
     )
-    def toggle_save_rules_modal(open_n_clicks, submit_n_clicks, cancel_n_clicks, is_open, rule_name, children):
+    def toggle_save_rules_modal(open_n_clicks, submit_n_clicks, cancel_n_clicks, is_open, rule_name, children, store_data):
         trigger_id = ctx.triggered_id if ctx.triggered_id else None
 
         if trigger_id == "open-save-rules-modal":
             return True
         elif trigger_id == "save-rules-modal.submit_n_clicks" and rule_name:
-            save_rules_to_store(rule_name, children)
+            save_rules_to_store(rule_name, children, store_data)
             return False
         elif trigger_id == "save-rules-modal.cancel_n_clicks":
             return False
         return is_open
+    
+    @app.callback(
+        Output("trading-rules-container", "children"),
+        [Input("saved-rules-store", "data")],
+        prevent_initial_call=True
+    )
+    def load_initial_rules(store_data):
+        children = []
+        saved_rules = json.loads(store_data.get("saved_rules") or "{}")
+
+        if saved_rules:
+            for rule_name, rules in saved_rules.items():
+                buying_rules = rules.get("buying_rule", [])
+                selling_rules = rules.get("selling_rule", [])
+
+                for i, rule in enumerate(buying_rules):
+                    children.append(create_rule_input("buy", i, rule))
+
+                for i, rule in enumerate(selling_rules):
+                    children.append(create_rule_input("sell", i + len(buying_rules), rule))
+        else:
+            # If there are no rules in the store, use the predefined rule
+            predefined_rule = "current('price') < current('power_law_price_4y_window')"
+            children.append(create_rule_input("buy", 0, predefined_rule))
+
+        return children

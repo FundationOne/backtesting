@@ -232,7 +232,6 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
 
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
-predefined_rules = ["current('price') < current('power_law_price_4y_window')"]
 
 layout = dbc.Container(
     [
@@ -310,14 +309,7 @@ layout = dbc.Container(
                                 rule_generation_modal
                             ]
                         ),
-
-                        dbc.Row(
-                            id="trading-rules-container",
-                            children=[
-                                create_rule_input("buy", range(len(predefined_rules)), rule)
-                                for i, rule in enumerate(predefined_rules)
-                            ],
-                        ),
+                        dbc.Row(id="trading-rules-container"),
                         dbc.Row(
                             dbc.Col(
                                 dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2", n_clicks=0),
@@ -369,17 +361,21 @@ def register_callbacks(app):
         [State('input-starting-investment', 'value'),
         State('input-starting-date', 'date'),
         State("trading-rules-container", "children"),
+        State("saved-rules-store", "data"),
         State('scale-toggle', 'value'),
         State('input-trade-amount', 'value'),
         State('input-transaction-fee', 'value'),
         State('taxation-method-dropdown', 'value'),  # Add this line
         State('input-tax-amount', 'value')]
     )
-    def update_backtesting(n_clicks, starting_investment, start_date, children, scale, trade_amount, transaction_fee, taxation_method, tax_amount):
+    def update_backtesting(n_clicks, starting_investment, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount):
         if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
-        buying_rule, selling_rule = get_rules_from_input(children)
+        if store_data:
+            saved_rules = json.loads(store_data.get("saved_rules") or "{}")
+            buying_rule = " or ".join(saved_rules.get("buying_rule", []))
+            selling_rule = " or ".join(saved_rules.get("selling_rule", []))
 
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
             btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
