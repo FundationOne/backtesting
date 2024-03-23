@@ -222,8 +222,7 @@ def register_callbacks(app):
             raise PreventUpdate
 
         # Determine which button was clicked
-        button_id = ctx.triggered[0]['prop_id']
-        index_to_remove = json.loads(button_id.split('.')[0])['index']
+        index_to_remove = remove_clicks.index(1)
 
         # Remove the corresponding child based on the index
         new_children = [child for i, child in enumerate(children) if i != index_to_remove]

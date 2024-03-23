@@ -404,8 +404,8 @@ def register_callbacks(app):
 
         # highlight transactions if available
         if not transactions_df.empty:
-            buy_transactions = transactions_df[transactions_df['Action'] == 'Buy']
-            sell_transactions = transactions_df[transactions_df['Action'] == 'Sell']
+            buy_transactions = transactions_df[transactions_df['Action'] == 'BUY']
+            sell_transactions = transactions_df[transactions_df['Action'] == 'SELL']
             if not buy_transactions.empty:
                 fig.add_trace(go.Scatter(x=buy_transactions['Date'], y=buy_transactions['price'], mode='markers', name='Buy', marker=dict(color='green', size=10)))
             if not sell_transactions.empty:

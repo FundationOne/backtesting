@@ -2,7 +2,6 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 from scipy.signal import find_peaks
-import warnings
 import re
 
 # Assuming the halving dates are known
@@ -18,9 +17,6 @@ def days_since_last_halving(date):
         if date >= halving_dates[i]:
             return (date - halving_dates[i]).days
     return None
-import numpy as np
-import pandas as pd
-from powerlaw import Fit
 
 def rolling_power_law_price(btc_data, Ofst=0):  # '7D' for weekly
         # Initialize a series to store predicted prices
