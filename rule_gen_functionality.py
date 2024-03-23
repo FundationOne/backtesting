@@ -73,7 +73,7 @@ def load_rules_modal():
         ], id="load-rules-modal")
     ])
 
-def prepare_rules_to_store(rule_name, children):
+def get_rules_from_ui(children):
     rules = {
         "buying_rule": [],
         "selling_rule": []
@@ -90,7 +90,7 @@ def prepare_rules_to_store(rule_name, children):
         elif rule_type == "sell-rule" and rule_value:
             rules["selling_rule"].append(rule_value)
 
-    return rule_name, rules
+    return rules
 
 def get_saved_rules_names(store_data):
     if store_data is not None:
@@ -273,7 +273,7 @@ def register_callbacks(app):
             return False, no_update
         
         elif trigger_id == "confirm-save-rules-modal" and rule_name:
-            _, rules = prepare_rules_to_store(rule_name, children)
+            rules = get_rules_from_ui(children)
 
             updated_store_data = store_data if store_data else {}
             updated_store_data[rule_name] = rules

@@ -206,8 +206,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
             
             available_cash -= (btc_to_buy * current_price + transaction_fee)
             btc_owned += btc_to_buy
-            transactions.append({'Date': date, 'Action': 'Buy', 'BTC': btc_to_buy, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned, 'Taxable Amount': ''})
-            btc_purchases.append({"date": date, "amount": btc_to_buy, "price": current_price})
+            transactions.append({'Date': date.strftime('%Y-%m-%d'), 'Action': 'BUY', 'BTC': round(btc_to_buy,12), 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': round(btc_owned,12), 'Taxable Amount': ''})
+            btc_purchases.append({"date": date.strftime('%Y-%m-%d'), "amount": btc_to_buy, "price": current_price})
 
         elif sell_eval and btc_owned > 0:
             btc_to_sell = min(trade_amount / current_price, btc_owned)
@@ -224,7 +224,7 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
             available_cash += sale_proceeds - taxable_amount - transaction_fee
             btc_owned -= btc_to_sell
-            transactions.append({'Date': date, 'Action': 'Sell', 'BTC': btc_to_sell, 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': btc_owned, 'Taxable Amount': round(taxable_amount, 2)})
+            transactions.append({'Date': date.strftime('%Y-%m-%d'), 'Action': 'SELL', 'BTC': round(btc_to_sell,12), 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': round(btc_owned,12), 'Taxable Amount': round(taxable_amount, 2)})
 
     transactions_df = pd.DataFrame(transactions)
 
@@ -365,9 +365,9 @@ def register_callbacks(app):
             raise PreventUpdate
         
         if store_data:
-            saved_rules = json.loads(store_data.get("saved_rules") or "{}")
-            buying_rule = " or ".join(saved_rules.get("buying_rule", []))
-            selling_rule = " or ".join(saved_rules.get("selling_rule", []))
+            rules_from_ui = get_rules_from_ui(children)
+            buying_rule = " or ".join(rules_from_ui.get("buying_rule", []))
+            selling_rule = " or ".join(rules_from_ui.get("selling_rule", []))
 
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
             btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
