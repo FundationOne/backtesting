@@ -7,14 +7,13 @@ import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
 import os
-import json
 from utils import *
 
 from dash.exceptions import PreventUpdate
 from pathlib import Path
 from conf import *
 
-from gpt_functionality import create_rule_generation_button,  rule_generation_modal, generate_rule
+from rule_gen_functionality import *
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
@@ -232,56 +231,9 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
     return transactions_df, portfolio_value_over_time
 
 
-def create_rule_input(rule_type, rule_values, rule_expression):
-    type_label = html.Div(rule_type.capitalize(), style={
-        "writingMode": "vertical-lr",
-        "margin": "0px 7px",
-        "width": "20px",
-        "color": "#555"
-    })
-
-    input_field = dcc.Textarea(
-        id={"type": f"{rule_type}-rule", "index": len(rule_values)},
-        value=rule_expression,
-        rows=2
-    )
-
-    remove_button = dbc.Button(
-        children="➖",
-        id={"type": f"remove-rule", "index": len(rule_values)},
-        n_clicks=0,
-        style={"padding": "0.25rem 0.5rem", "border": "none", "backgroundColor": "transparent"},
-    )
-    return dbc.ListGroupItem(
-        [type_label, input_field, remove_button],
-        style={"display": "flex", "alignItems": "center", "left":"-8px", "maxWidth":"109%", "width":"105%"}
-    )
-
-def get_rules_from_input(children):
-    rules = {
-        "buying-rule": [],
-        "selling-rule": []
-    }
-
-    for child in children:
-        textarea = child['props']['children'][1]  # Textarea is the second child
-        textarea_props = textarea['props']
-        rule_type = textarea_props['id']['type']
-        rule_value = textarea_props['value'].strip()
-
-        # Append rule_value to the appropriate list based on rule_type
-        if rule_type == "buy-rule" and rule_value:
-            rules["buying-rule"].append(rule_value)
-        elif rule_type == "sell-rule" and rule_value:
-             rules["selling-rule"].append(rule_value)
-
-    buying_rule = " or ".join(rules["buying-rule"])
-    selling_rule = " or ".join(rules["selling-rule"])
-
-    return buying_rule, selling_rule
-
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
 predefined_rules = ["current('price') < current('power_law_price_4y_window')"]
+
 layout = dbc.Container(
     [
         dbc.Row(
@@ -351,8 +303,10 @@ layout = dbc.Container(
                         ),
                         dbc.Row(
                             [
-                                dbc.Col(dbc.Label("BUY / SELL RULES\n(Python Expressions)"), width=8),
-                                dbc.Col(dbc.Label(create_rule_generation_button(1)), width=4),
+                                dbc.Col(dbc.Label("BUY / SELL RULES\n(Python Expressions)"), width=6),
+                                dbc.Col(dbc.Label(create_rule_generation_button(1)), width=2),
+                                dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", n_clicks=0), width=2),
+                                dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", n_clicks=0), width=2),
                                 rule_generation_modal
                             ]
                         ),
@@ -398,7 +352,10 @@ layout = dbc.Container(
                     sm=12, md=8
                 ),
             ]
-        )
+        ),
+        dcc.Store(id="saved-rules-store", storage_type="local"),
+        save_rules_modal(),
+        load_rules_modal(),
     ],
     fluid=True,
 )
@@ -506,9 +463,11 @@ def register_callbacks(app):
                 bordercolor="lightgrey",  # Legend border color
                 borderwidth=1,  # Border width
                 orientation='h',  # Set legend orientation to horizontal
-                x=0.5,  # Center the legend with respect to the plot's x-axis
+                x=0,  # Center the legend with respect to the plot's x-axis
                 y=-0.7,  # Adjust y to position the legend below the x-axis
-                xanchor='center',  # Anchor the legend's x-position to the center
+                entrywidthmode="fraction",
+                entrywidth=1.0,
+                xanchor='left',  # Anchor the legend's x-position to the center
                 yanchor='bottom'  # Anchor the legend's y-position to the top
             )
         )
@@ -533,50 +492,7 @@ def register_callbacks(app):
         fig.update_layout(yaxis_type=scale, yaxis_autorange=True)
 
         return [fig]
-    
-    @app.callback(
-        [Output("trading-rules-container", "children"),
-        Output("rule-generation-modal", "is_open")],
-        [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
-        Input({"type": "remove-rule", "index": ALL}, "n_clicks"),
-        Input("apply-modal-button", "n_clicks"),
-        Input("close-modal-button", "n_clicks")],
-        [State("trading-rules-container", "children"),
-        State({"type": "buying-rule", "index": ALL}, "value"),
-        State("input-generate-rule", "value"),
-        State("input-openai-api-key", "value"),
-        State("rule-generation-modal", "is_open")],
-        prevent_initial_call=True
-    )
-    def generate_rules(generate_rule_clicks, remove_clicks, apply_modal_click, close_modal_click, children, rule_values, rule_instruction, openai_api_key, is_modal_open):
-        trigger_id = ctx.triggered[0]["prop_id"] if ctx.triggered else None
-        try:
-            button_clicked = json.loads(trigger_id.split(".")[0]) if trigger_id else None
-        except Exception as e:
-            button_clicked = None
 
-        if button_clicked and button_clicked.get("type") == "generate-rule-button":
-            return children, True  # Open the modal
-
-        elif trigger_id == "apply-modal-button.n_clicks":
-            if not rule_instruction:
-                return children, is_modal_open
-            
-            rule_expression, rule_type = generate_rule(rule_instruction, openai_api_key)
-            children.append(create_rule_input(rule_type, rule_values, rule_expression))
-
-            return children, False  # Close the modal after adding the new rule
-
-        elif trigger_id == "close-modal-button.n_clicks":
-            return children, False  # Close the modal
-
-        elif trigger_id and "remove-rule" in trigger_id:
-            index = json.loads(trigger_id.split(".")[0])["index"] - 1
-            children.pop(index)
-            return children, is_modal_open
-
-        return children, is_modal_open
-        
     @app.callback(
         [Output("collapse", "is_open"), Output("collapse-icon", "style")],
         [Input("collapse-button", "n_clicks")],

@@ -35,15 +35,15 @@ input, textarea, .dbc input, .dbc textarea {
 /* Style for input fields */
 input, textarea {
     border: 1px solid #ccc; /* Light grey border */
-    border-radius: 4px; /* Rounded corners */
-    margin: 0 auto; /* Centering if block */
-    padding: 10px; /* Padding inside the input */
-    width: 90%; /* Width of the inputs - could be less/more depending on preference */
-    max-width: 500px; /* Maximum width of inputs to maintain aesthetics */
-    display: block; /* Makes the input a block element */
-    box-sizing: border-box; /* Includes padding and border in the element's width */
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; /* System fonts */
-    font-size: 16px; /* Adequate font size for readability */
+    border-radius: 5px;
+    margin: 0 auto;
+    padding: 10px;
+    width: 90%;
+    max-width: 500px;
+    display: block;
+    /* box-sizing: border-box; */
+    /* font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 16px; */
 }
 #scale-toggle, .dash-dropdown {
     margin: 0 15px; /* Centering if block */

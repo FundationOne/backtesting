@@ -4,7 +4,7 @@ from dash import dcc, html, Input, Output
 
 from backtesting_sim import layout as l1, register_callbacks as rc1
 from portfolio_sim import layout as l2, register_callbacks as rc2
-from gpt_functionality import register_callbacks as rc_gpt
+from rule_gen_functionality import register_callbacks as rc_gpt
 from openai_key_functionality import openai_api_key_input as l_openai_key, register_callbacks as rc_openai_key
 from settings_functionality import settings_scale_toggle as l_settings_scale_toggle
 
