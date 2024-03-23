@@ -304,8 +304,10 @@ layout = dbc.Container(
                             [
                                 dbc.Col(dbc.Label("BUY / SELL RULES\n(Python Expressions)"), width=6),
                                 dbc.Col(dbc.Label(create_rule_generation_button(1)), width=2),
-                                dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", n_clicks=0), width=2),
-                                dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", n_clicks=0), width=2),
+                                dbc.Col(dbc.Label(dbc.Button("Save Rules", id="open-save-rules-modal", n_clicks=0,
+                                    style={"padding": "10px 5px"})), width=2),
+                                dbc.Col(dbc.Label(dbc.Button("Load Rules", id="open-load-rules-modal", n_clicks=0,
+                                    style={"padding": "10px 5px"})), width=2),
                                 rule_generation_modal
                             ]
                         ),
