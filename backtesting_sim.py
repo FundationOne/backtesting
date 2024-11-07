@@ -151,7 +151,7 @@ def monthly_dca_strategy(btc_data, starting_investment):
 
     return portfolio_value
 # Function to execute trading strategy
-def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount):
+def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
     if pd.to_datetime(start_date) not in btc_data.index:
         start_date = btc_data.index[0].strftime('%Y-%m-%d')
         print("Start date is out of the dataset's date range.")
@@ -236,16 +236,28 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
 
             if taxation_method == "FIFO":
                 taxable_amount = 0
+                total_gain = 0
                 for i in range(int(btc_to_sell)):
                     if btc_purchases:
                         purchase = btc_purchases.pop(0)
-                        holding_period = (date - purchase["date"]).days
-                        if holding_period < 365:
-                            taxable_amount += (current_price - purchase["price"]) * (tax_amount / 100)
+                        gain = (current_price - purchase["price"]) * (1 / btc_to_sell)  # Calculate gain proportionally
+                        current_holding_period = (date - purchase["date"]).days
+                        if current_holding_period <= holding_period:
+                            total_gain += gain  # Accumulate the gains portion for taxable calculation
+                
+                taxable_amount = total_gain * (tax_amount / 100)  # Tax on only the gain portion
 
             available_cash += sale_proceeds - taxable_amount - transaction_fee
             btc_owned -= btc_to_sell
-            transactions.append({'Date': date.strftime('%Y-%m-%d'), 'Action': 'SELL', 'BTC': round(btc_to_sell,12), 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': round(btc_owned,12), 'Taxable Amount': round(taxable_amount, 2)})
+            transactions.append({
+                'Date': date.strftime('%Y-%m-%d'),
+                'Action': 'SELL',
+                'BTC': round(btc_to_sell, 12),
+                'price': current_price,
+                'Owned Cash': round(available_cash, 2),
+                'Owned BTC': round(btc_owned, 12),
+                'Taxable Amount': round(taxable_amount, 2)
+            })
 
     transactions_df = pd.DataFrame(transactions)
 
@@ -261,72 +273,135 @@ layout = dbc.Container(
                 dbc.Col(
                     dbc.Card([
                         dbc.CardHeader([
-                            dbc.Col(html.H5("Backtesting Parameters", className="mb-0"), width={"size": 10, "offset": 0}),
-                            dbc.Col(dbc.Button(
+                            dbc.Row([
+                                dbc.Col(html.H5("Backtesting Parameters", className="mb-0"), 
+                                        width=11, 
+                                        className="d-flex align-items-center"),
+                                dbc.Col(
+                                    dbc.Button(
                                         html.Span("▼", id="collapse-icon"),
                                         id="collapse-button",
-                                        className="mb-2",
-                                        color="primary",
+                                        color="secondary",
                                         n_clicks=0,
-                                    ), width={"size": 2, "offset": 0}),
-                        ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
+                                        size="sm",
+                                    ),
+                                    width=1,
+                                    className="d-flex justify-content-end align-items-center"
+                                ),
+                            ], className="w-100 m-0"),
+                        ], className="d-flex align-items-center"),
                         dbc.Collapse(
                             dbc.CardBody([
                                 dbc.Row([
                                     dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
                                     dbc.Col(
-                                        dcc.Input(id="input-starting-investment", type="number", value=10000),
-                                        width=12,
+                                        dcc.Input(
+                                            id="input-starting-investment",
+                                            type="number",
+                                            value=10000,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
+                                        ),
+                                        width=12
                                     ),
                                 ]),
                                 dbc.Row([
                                     dbc.Label("Trade Amount $", html_for="input-trade-amount", width=12),
                                     dbc.Col(
-                                        dcc.Input(id="input-trade-amount", type="number", value=100),
-                                        width=12,
+                                        dcc.Input(
+                                            id="input-trade-amount",
+                                            type="number",
+                                            value=100,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
+                                        ),
+                                        width=12
                                     ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Col([
-                                        dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
-                                        dcc.Input(id="input-transaction-fee", type="number", value=0.01, step=0.01)
-                                    ], width=12),
+                                    dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
+                                    dbc.Col(
+                                        dcc.Input(
+                                            id="input-transaction-fee",
+                                            type="number",
+                                            value=0.01,
+                                            step=0.01,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
+                                        ),
+                                        width=12
+                                    ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Col([
-                                        dbc.Label("Starting Date", html_for="input-starting-date", width=12),
-                                        dcc.DatePickerSingle(id="input-starting-date", date='2018-01-01')
-                                    ], width=12),
+                                    dbc.Label("Starting Date", html_for="input-starting-date", width=12),
+                                    dbc.Col(
+                                        dcc.DatePickerSingle(
+                                            id="input-starting-date",
+                                            date='2018-01-01',
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '5px'}
+                                        ),
+                                        width=12
+                                    ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Col([
-                                        dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=12),
+                                    dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=12),
+                                    dbc.Col(
                                         dcc.Dropdown(
                                             id="taxation-method-dropdown",
                                             options=[{"label": "FIFO", "value": "FIFO"}],
                                             value="FIFO",
-                                            clearable=False
-                                        )
-                                    ], width=12),
+                                            clearable=False,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '10px'}
+                                        ),
+                                        width=12
+                                    ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Col([
-                                        dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=12),
-                                        dcc.Input(id="input-tax-amount", type="number", value=25, min=0, max=100)
-                                    ], width=12),
+                                    dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=12),
+                                    dbc.Col(
+                                        dcc.Input(
+                                            id="input-tax-amount",
+                                            type="number",
+                                            value=25,
+                                            min=0,
+                                            max=100,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
+                                        ),
+                                        width=12
+                                    ),
+                                ]),
+                                dbc.Row([
+                                    dbc.Label("Holding Period (days)", html_for="input-holding-period", width=12),
+                                    dbc.Col(
+                                        dcc.Input(
+                                            id="input-holding-period",
+                                            type="number",
+                                            value=9999,
+                                            min=0,
+                                            max=9999,
+                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
+                                        ),
+                                        width=12
+                                    ),
                                 ]),
                             ]),
                             id="collapse",
                             is_open=True,
                         ),
                         dbc.CardHeader([
-                            dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), width={"size": 10, "offset": 0}),
-                            dbc.Col(
-                                dbc.Button("Info", id="open-info-modal", className="mb-2", style={"padding": "14px 14px"}),
-                                width={"size": 2, "offset": 0},
-                                style={"display": "flex", "justifyContent": "end"}
-                            ),
-                        ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
+                            dbc.Row([
+                                dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), 
+                                        width=11, 
+                                        className="d-flex align-items-center"),
+                                dbc.Col(
+                                    dbc.Button(
+                                        html.Span("?"),
+                                        id="open-info-modal",
+                                        color="secondary",
+                                        size="sm",
+                                    ),
+                                    width=1,
+                                    className="d-flex justify-content-end align-items-center"
+                                ),
+                            ], className="w-100 m-0 align-items-center"),
+                        ], className="d-flex align-items-center"),
                         dbc.Modal([
                             dbc.ModalHeader(dbc.ModalTitle("Information")),
                             dbc.ModalBody(html.Div(context_description, style={"whiteSpace": "pre-line"})),
@@ -390,10 +465,11 @@ def register_callbacks(app):
         State('scale-toggle', 'value'),
         State('input-trade-amount', 'value'),
         State('input-transaction-fee', 'value'),
-        State('taxation-method-dropdown', 'value'),  # Add this line
-        State('input-tax-amount', 'value')]
+        State('taxation-method-dropdown', 'value'),
+        State('input-tax-amount', 'value'),
+        State('input-holding-period', 'value')]
     )
-    def update_backtesting(n_clicks, starting_investment, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount):
+    def update_backtesting(n_clicks, starting_investment, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
         if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
@@ -417,7 +493,7 @@ def register_callbacks(app):
             btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
             print(f"Data loaded from {PREPROC_FILENAME}.")
 
-        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount)
+        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period)
 
         # Calculate strategies
         lump_sum_portfolio = lump_sum_and_hold_strategy(btc_data[start_date:], starting_investment)

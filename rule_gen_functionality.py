@@ -41,7 +41,7 @@ def create_rule_input(rule_type, rule_index, rule_expression):
     )
     return dbc.ListGroupItem(
         [type_label, input_field, remove_button],
-        style={"display": "flex", "alignItems": "center", "left":"8px", "maxWidth":"94%", "width":"94%"}
+        style={"display": "flex", "alignItems": "center", "left":"18px", "maxWidth":"94%", "width":"94%", "borderRadius":"5px"}
     )
 
 def save_rules_modal():

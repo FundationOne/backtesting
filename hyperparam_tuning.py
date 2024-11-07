@@ -58,22 +58,38 @@ layout = dbc.Container(
                             dbc.CardBody(
                                 [
                                     dcc.Store(id='features-store', data=[]),  # Stores the features list
-                                    dbc.Input(id='feature-input', type='text', placeholder='Enter a feature...', className="mb-2"),
-                                    dbc.Button('Add Feature', id='add-feature-btn', className="mb-2"),
-                                    dbc.ListGroup(id='features-list'),
-                                    dcc.Input(
-                                        id="lag-input",
-                                        type="text",
-                                        placeholder="Enter lag(s) separated by commas",
-                                    ),
-                                    dbc.Input(
-                                        id="prediction-horizon",
-                                        type="number",
-                                        placeholder="Prediction Horizon (e.g., 1 for tomorrow)",
-                                        value=1,
-                                        min=1,
-                                        className="mb-3",
-                                    ),
+                                    html.Label("Features", htmlFor="feature-input"),
+                                    dbc.Row([
+                                        dbc.Col([
+                                            dbc.Input(id='feature-input', type='text', placeholder='Enter a feature...'),
+                                        ], width="auto"),
+                                        dbc.Col([
+                                            dbc.Button('Add Feature', id='add-feature-btn'),
+                                        ], width="auto"),
+                                    ], className="mb-3", justify="start"),
+                                    dbc.ListGroup(id='features-list', className="mb-3"),
+                                    html.Label("Lags to use", htmlFor="lag-input"),
+                                    dbc.Row([
+                                        dbc.Col([
+                                            dbc.Input(
+                                                id="lag-input",
+                                                type="text",
+                                                placeholder="Enter lag(s) separated by commas",
+                                            ),
+                                        ], width="auto"),
+                                    ], className="mb-3", justify="start"),
+                                    html.Label("Prediction Horizon", htmlFor="prediction-horizon"),
+                                    dbc.Row([
+                                        dbc.Col([
+                                            dbc.Input(
+                                                id="prediction-horizon",
+                                                type="number",
+                                                placeholder="Enter number of days (e.g., 1 for tomorrow)",
+                                                value=1,
+                                                min=1,
+                                            ),
+                                        ], width="auto"),
+                                    ], className="mb-3", justify="start"),
                                     dbc.Button(
                                         "Begin Training",
                                         id="train-button",
@@ -184,10 +200,10 @@ def register_callbacks(app):
         return is_open
 
     @app.callback(
-        Output("selected-features", "value", allow_duplicate=True),
+        Output("features-store", "data", allow_duplicate=True),
         Input("save-lags", "n_clicks"),
         State("lag-input", "value"),
-        State("selected-features", "value"),
+        State("features-store", "data"),
         prevent_initial_call=True,
     )
     def update_selected_features_with_lags(n_clicks, lags, current_values):
@@ -195,8 +211,8 @@ def register_callbacks(app):
             updated_values = []
             for feat in current_values:
                 feat_with_lags = f"{feat}"
-                for lag in lags:
-                    feat_with_lags += f"_lag{lag}"
+                for lag in lags.split(','):
+                    feat_with_lags += f"_lag{lag.strip()}"
                 updated_values.append(feat_with_lags)
             return updated_values
         return current_values
@@ -205,7 +221,7 @@ def register_callbacks(app):
         Output("prediction-graph", "figure"),
         Output("evaluation-metrics", "children"),
         Input("train-button", "n_clicks"),
-        State("selected-features", "value"),
+        State("features-store", "value"),
         State("lag-input", "value"),
         State("prediction-horizon", "value"),
     )

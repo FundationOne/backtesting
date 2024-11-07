@@ -22,9 +22,9 @@ sidebar = html.Div(
         ),
         dbc.Nav(
             [
-                dbc.NavLink("Backtesting", href="/backtesting", active=True),
-                dbc.NavLink("Investment Portfolio", href="/portfolio", active="exact"),
-                dbc.NavLink("Model Training", href="/hyperparams", active="exact"),
+                dbc.NavLink("Backtesting", href="/backtesting", id="backtesting-link"),
+                dbc.NavLink("Investment Portfolio", href="/portfolio", id="portfolio-link"),
+                dbc.NavLink("Model Training", href="/hyperparams", id="hyperparams-link"),
                 # Add more links as needed
             ],
             vertical=True,
@@ -70,7 +70,22 @@ def render_page_content(pathname):
         return l3
     else:
         return "404 Page Not Found"
-    
+
+@app.callback(
+    [Output("backtesting-link", "active"),
+     Output("portfolio-link", "active"),
+     Output("hyperparams-link", "active")],
+    [Input("url", "pathname")]
+)
+def set_active_link(pathname):
+    if pathname == "/backtesting":
+        return True, False, False
+    elif pathname == "/portfolio":
+        return False, True, False
+    elif pathname == "/hyperparams":
+        return False, False, True
+    return False, False, False
+
 # Register all tab callbacks
 rc_openai_key(app)
 rc_gpt(app)
