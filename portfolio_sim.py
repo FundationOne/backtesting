@@ -4,50 +4,49 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
+import yfinance as yf
 
-def simulate_portfolio(current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate=0.25, tax_method='FIFO'):
-    # Initialize DataFrame
+def simulate_portfolio(current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate=0.25, tax_method='FIFO', sp500_start_year=None):
+    if sp500_start_year:
+        # Fetch S&P500 data
+        sp500 = yf.Ticker("^GSPC")
+        sp500_data = sp500.history(start=f"{sp500_start_year}-01-01")
+        annual_returns = sp500_data['Close'].resample('Y').last().pct_change().dropna()
+        years_to_simulate = len(annual_returns)
+
     df = pd.DataFrame(index=range(1, years_to_simulate + 1),
-                      columns=["Year", "Starting Value", "Withdrawals", "Growth", "Taxes Paid", "Ending Value"])
+                      columns=["Year", "Starting Value", "Growth", "Withdrawals", "Taxes Paid", "Ending Value"])
     df['Year'] = range(1, years_to_simulate + 1)
-
-    original_principal = current_value  # Keep track of the original investment
-    cumulative_growth = 0  # To track total growth over the years
 
     for year in range(1, years_to_simulate + 1):
         starting_value = current_value
-        growth = current_value * annual_growth_rate
-        cumulative_growth += growth
-        
-        # Determine the portion of withdrawal that is from growth (and taxable) vs principal
-        if original_principal > 0:
-            withdrawal_from_principal = min(annual_withdrawal, original_principal)
-            original_principal -= withdrawal_from_principal
-            withdrawal_from_growth = max(0, annual_withdrawal - withdrawal_from_principal)
+        if sp500_start_year:
+            growth_rate = annual_returns.iloc[year-1]
         else:
-            withdrawal_from_growth = annual_withdrawal
-        
-        # Calculate taxes if withdrawing from growth
-        if withdrawal_from_growth > 0 and cumulative_growth > 0:
-            taxable_amount = min(withdrawal_from_growth, cumulative_growth)
-            taxes_paid = taxable_amount * tax_rate
-            cumulative_growth -= taxable_amount  # Reduce cumulative growth by the taxed portion
-        else:
-            taxes_paid = 0
-        
-        # Update current value after accounting for growth, withdrawal, and taxes
-        current_value = starting_value + growth - annual_withdrawal - taxes_paid
-        df.loc[year] = [year, starting_value, annual_withdrawal, growth, taxes_paid, current_value]
+            growth_rate = annual_growth_rate
+        growth = current_value * growth_rate
+        current_value += growth  # Apply growth before withdrawal
+
+        # Calculate the gain portion of the withdrawal
+        gain_ratio = growth_rate / (1 + growth_rate)  # Proportion of the withdrawal that is gain
+        taxable_amount = annual_withdrawal * gain_ratio
+        taxes_paid = max(0, taxable_amount * tax_rate)
+
+        # Update current value after accounting for withdrawal and taxes
+        current_value -= (annual_withdrawal + taxes_paid)
+
+        # Record the data for the current year
+        df.loc[year] = [year, starting_value, growth, annual_withdrawal, taxes_paid, current_value]
 
     # Convert numeric columns to float and round to 2 decimal places
-    numeric_cols = ['Starting Value', 'Withdrawals', 'Growth', 'Taxes Paid', 'Ending Value']
+    numeric_cols = ['Starting Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value']
     df[numeric_cols] = df[numeric_cols].astype(float).round(2)
 
     return df
 
 # Create the initial DataFrame with default values
 default_current_value = 700000
-default_annual_growth_rate = 10
+default_annual_growth_rate = 7
 default_annual_withdrawal = 30000
 default_years_to_simulate = 30
 default_tax_rate = 25
@@ -81,9 +80,34 @@ layout = dbc.Container([
                         ], width=12)
                     ]),
                     dbc.Row([
-                        dbc.Label("Years to Simulate", html_for="input-years-to-simulate", width=12),
+                        dbc.Label("Simulation Time Frame", html_for="simulation-time-frame", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-years-to-simulate", type="number", value=default_years_to_simulate)
+                            dcc.Dropdown(
+                                id="simulation-time-frame",
+                                options=[
+                                    {'label': 'Custom Years', 'value': 'custom'},
+                                    {'label': 'S&P500 Historical', 'value': 'sp500'}
+                                ],
+                                value='custom'
+                            )
+                        ], width=12)
+                    ]),
+                    dbc.Row([
+                        dbc.Col([
+                            html.Div(id="custom-years-input", children=[
+                                dbc.Label("Years to Simulate", html_for="input-years-to-simulate", width=12),
+                                dcc.Input(id="input-years-to-simulate", type="number", value=default_years_to_simulate)
+                            ])
+                        ], width=12),
+                        dbc.Col([
+                            html.Div(id="sp500-year-input", style={'display': 'none'}, children=[
+                                dbc.Label("Starting Year (S&P500)", html_for="input-sp500-start-year", width=12),
+                                dcc.Dropdown(
+                                    id="input-sp500-start-year",
+                                    options=[{'label': str(year), 'value': year} for year in range(1928, 2024)],  # Adjust the range as needed
+                                    value=1970  # Default starting year
+                                )
+                            ])
                         ], width=12)
                     ]),
                     dbc.Row([
@@ -149,7 +173,18 @@ def register_callbacks(app):
         )
         
         return fig
-
+    
+    @app.callback(
+        [Output("custom-years-input", "style"),
+        Output("sp500-year-input", "style")],
+        [Input("simulation-time-frame", "value")]
+    )
+    def toggle_time_frame_input(selected_time_frame):
+        if selected_time_frame == 'custom':
+            return {'display': 'block'}, {'display': 'none'}
+        else:
+            return {'display': 'none'}, {'display': 'block'}
+        
     @app.callback(
         [Output('investment-graph', 'figure', allow_duplicate=True)],
         [Input('scale-toggle', 'value'),
@@ -167,18 +202,24 @@ def register_callbacks(app):
     # Callback to update the DataFrame and table when parameters change
     @app.callback(
         [Output('table', 'data'),
-        Output('table', 'columns')],
+         Output('table', 'columns')],
         [Input('input-current-value', 'value'),
-        Input('input-annual-growth-rate', 'value'),
-        Input('input-annual-withdrawal', 'value'),
-        Input('input-years-to-simulate', 'value'),
-        Input('input-tax-rate', 'value'),
-        Input('input-tax-method', 'value')], 
+         Input('input-annual-growth-rate', 'value'),
+         Input('input-annual-withdrawal', 'value'),
+         Input('simulation-time-frame', 'value'),
+         Input('input-years-to-simulate', 'value'),
+         Input('input-sp500-start-year', 'value'),
+         Input('input-tax-rate', 'value'),
+         Input('input-tax-method', 'value')],
         State('table', 'data')
     )
-    def update_table(current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate, tax_method, existing_data):
-        if None in [current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate, tax_method]:
+    def update_table(current_value, annual_growth_rate, annual_withdrawal, simulation_time_frame, years_to_simulate, sp500_start_year, tax_rate, tax_method, existing_data):
+        if None in [current_value, annual_growth_rate, annual_withdrawal, simulation_time_frame, tax_rate, tax_method]:
             return existing_data, [{"name": i, "id": i} for i in df_dash.columns]
-
-        df_dash = simulate_portfolio(current_value, annual_growth_rate/100, annual_withdrawal, years_to_simulate, tax_rate/100, tax_method)
+    
+        if simulation_time_frame == 'custom':
+            df_dash = simulate_portfolio(current_value, annual_growth_rate/100, annual_withdrawal, years_to_simulate, tax_rate/100, tax_method)
+        else:
+            df_dash = simulate_portfolio(current_value, None, annual_withdrawal, None, tax_rate/100, tax_method, sp500_start_year)
+    
         return df_dash.to_dict('records'), [{"name": i, "id": i} for i in df_dash.columns]
