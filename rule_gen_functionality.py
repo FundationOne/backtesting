@@ -20,7 +20,7 @@ def create_rule_generation_button(index):
 
 
 def create_rule_input(rule_type, rule_index, rule_expression):
-    type_label = html.Div(rule_type.capitalize(), style={
+    type_label = html.Div(str(rule_type).capitalize(), style={
         "writingMode": "vertical-lr",
         "margin": "0px 7px",
         "width": "20px",

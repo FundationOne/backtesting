@@ -8,11 +8,13 @@ from dash.exceptions import PreventUpdate
 import ta
 import os
 from utils import *
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-from dash.exceptions import PreventUpdate
 from pathlib import Path
 from conf import *
 
+from gpt_functionality import context_description
 from rule_gen_functionality import *
 
 # Function to fetch historical data for Bitcoin
@@ -57,6 +59,25 @@ def fetch_onchain_indicators(csv_file_path):
 
     full_df = pd.concat(data_frames, axis=1)
     return full_df
+
+def add_oscillators_quantiles(btc_data):
+    # Filter columns with "oscillator" in the name
+    oscillator_columns = btc_data.filter(like='oscillator')
+
+    # Normalize these columns to range 0:1
+    normalized_oscillators = oscillator_columns.apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+    # plt.figure(figsize=(10, 8))
+    # sns.heatmap(normalized_oscillators, cmap="YlGnBu", cbar_kws={'label': 'Normalized Value'})
+    # plt.show()
+
+    # Calculate new columns as specified quantiles
+    btc_data['1st_quantile_oscillators'] = normalized_oscillators.quantile(0.01, axis=1)
+    btc_data['4th_quantile_oscillators'] = normalized_oscillators.quantile(0.25, axis=1)
+    btc_data['50th_quantile_oscillators'] = normalized_oscillators.quantile(0.5, axis=1)
+    btc_data['96th_quantile_oscillators'] = normalized_oscillators.quantile(0.96, axis=1)
+    btc_data['99th_quantile_oscillators'] = normalized_oscillators.quantile(0.99, axis=1)
+
+    return btc_data
 
 def add_historical_indicators(btc_data):
     btc_data['last_highest'] = btc_data['price'].cummax().shift(1)
@@ -244,7 +265,7 @@ layout = dbc.Container(
                             dbc.Col(dbc.Button(
                                         html.Span("▼", id="collapse-icon"),
                                         id="collapse-button",
-                                        className="ml-auto",
+                                        className="mb-2",
                                         color="primary",
                                         n_clicks=0,
                                     ), width={"size": 2, "offset": 0}),
@@ -299,8 +320,20 @@ layout = dbc.Container(
                             is_open=True,
                         ),
                         dbc.CardHeader([
-                            dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), width={"size": 8, "offset": 0}),
+                            dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), width={"size": 10, "offset": 0}),
+                            dbc.Col(
+                                dbc.Button("Info", id="open-info-modal", className="mb-2", style={"padding": "14px 14px"}),
+                                width={"size": 2, "offset": 0},
+                                style={"display": "flex", "justifyContent": "end"}
+                            ),
                         ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
+                        dbc.Modal([
+                            dbc.ModalHeader(dbc.ModalTitle("Information")),
+                            dbc.ModalBody(html.Div(context_description, style={"whiteSpace": "pre-line"})),
+                            dbc.ModalFooter(
+                                dbc.Button("Close", id="close-info-modal", className="ms-auto", n_clicks=0)
+                            ),
+                        ], id="info-modal", is_open=False, size="xl"),
                         dbc.Row(id="trading-rules-container"),
                         dbc.Row([
                             dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", className="me-2 btn-secodnary", color="secondary", n_clicks=0), width={"size": 3, "offset": 1}),
@@ -376,6 +409,7 @@ def register_callbacks(app):
             #add onchain
             onchain_data = fetch_onchain_indicators('./indicators')
             btc_data_full = btc_data.join(onchain_data, how='left')
+            btc_data_full = add_oscillators_quantiles(btc_data_full)
 
             btc_data_full.to_csv(PREPROC_FILENAME)
             print(f"Data saved to {PREPROC_FILENAME}.")
@@ -395,13 +429,7 @@ def register_callbacks(app):
         fig.add_trace(go.Scatter(x=lump_sum_portfolio.index, y=lump_sum_portfolio, mode='lines', name='Lump Sum & Hold Portfolio'))
         fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
         fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
-
-        # Dynamically add traces mentioned in buy and sell rules
-        columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
-        for column in columns_to_plot:
-            if column in btc_data.columns and column != 'price':
-                fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly'))
-
+        
         # highlight transactions if available
         if not transactions_df.empty:
             buy_transactions = transactions_df[transactions_df['Action'] == 'BUY']
@@ -412,6 +440,21 @@ def register_callbacks(app):
                 fig.add_trace(go.Scatter(x=sell_transactions['Date'], y=sell_transactions['price'], mode='markers', name='Sell', marker=dict(color='red', size=10)))
 
         # Update the layout
+        fig.update_layout(
+            yaxis2=dict(
+                title="Secondary Y-Axis Title",
+                overlaying='y',
+                side='right',
+                range=[btc_data['price'].min(), btc_data['price'].max()]  # Ensuring the same range as the primary y-axis
+            )
+        )
+        
+        # Dynamically add traces mentioned in buy and sell rules
+        columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
+        for column in columns_to_plot:
+            if column in btc_data.columns and column != 'price':
+                fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly', yaxis='y2'))
+
         fig.update_layout(
             title='Backtesting Results Over Time',
             xaxis_title='Date',
@@ -490,3 +533,13 @@ def register_callbacks(app):
         if n:
             return not is_open, {"transform": "rotate(180deg)" if not is_open else "none"}
         return is_open, {"transform": "none"}
+
+    @app.callback(
+        Output("info-modal", "is_open"),
+        [Input("open-info-modal", "n_clicks"), Input("close-info-modal", "n_clicks")],
+        [State("info-modal", "is_open")],
+    )
+    def toggle_modal(n1, n2, is_open):
+        if n1 or n2:
+            return not is_open
+        return is_open

@@ -4,6 +4,7 @@ from dash import dcc, html, Input, Output
 
 from backtesting_sim import layout as l1, register_callbacks as rc1
 from portfolio_sim import layout as l2, register_callbacks as rc2
+from hyperparam_tuning import layout as l3, register_callbacks as rc3
 from rule_gen_functionality import register_callbacks as rc_gpt
 from openai_key_functionality import openai_api_key_input as l_openai_key, register_callbacks as rc_openai_key
 from settings_functionality import settings_scale_toggle as l_settings_scale_toggle
@@ -23,6 +24,7 @@ sidebar = html.Div(
             [
                 dbc.NavLink("Backtesting", href="/backtesting", active=True),
                 dbc.NavLink("Investment Portfolio", href="/portfolio", active="exact"),
+                dbc.NavLink("Model Training", href="/hyperparams", active="exact"),
                 # Add more links as needed
             ],
             vertical=True,
@@ -64,12 +66,15 @@ def render_page_content(pathname):
         return l1
     elif pathname == "/portfolio":
         return l2
+    elif pathname == "/hyperparams":
+        return l3
     else:
         return "404 Page Not Found"
     
 # Register all tab callbacks
 rc_openai_key(app)
 rc_gpt(app)
+rc3(app)
 rc2(app)
 rc1(app)
 
