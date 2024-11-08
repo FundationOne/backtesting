@@ -6,12 +6,12 @@ import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import yfinance as yf
 
-def simulate_portfolio(current_value, annual_growth_rate, annual_withdrawal, years_to_simulate, tax_rate=0.25, tax_method='FIFO', sp500_start_year=None):
+def simulate_portfolio(current_value, annual_growth_rate, withdrawal_type, annual_withdrawal, years_to_simulate, tax_rate=0.25, tax_method='FIFO', sp500_start_year=None):
     if sp500_start_year:
         # Fetch S&P500 data
         sp500 = yf.Ticker("^GSPC")
         sp500_data = sp500.history(start=f"{sp500_start_year}-01-01")
-        annual_returns = sp500_data['Close'].resample('Y').last().pct_change().dropna()
+        annual_returns = sp500_data['Close'].resample('YE').last().pct_change().dropna()
         years_to_simulate = len(annual_returns)
 
     df = pd.DataFrame(index=range(1, years_to_simulate + 1),
@@ -27,16 +27,22 @@ def simulate_portfolio(current_value, annual_growth_rate, annual_withdrawal, yea
         growth = current_value * growth_rate
         current_value += growth  # Apply growth before withdrawal
 
+        # Calculate withdrawal amount based on type
+        if withdrawal_type == 'percentage':
+            withdrawal_amount = current_value * (annual_withdrawal / 100)
+        else:
+            withdrawal_amount = annual_withdrawal
+
         # Calculate the gain portion of the withdrawal
         gain_ratio = growth_rate / (1 + growth_rate)  # Proportion of the withdrawal that is gain
-        taxable_amount = annual_withdrawal * gain_ratio
+        taxable_amount = withdrawal_amount * gain_ratio
         taxes_paid = max(0, taxable_amount * tax_rate)
 
         # Update current value after accounting for withdrawal and taxes
-        current_value -= (annual_withdrawal + taxes_paid)
+        current_value -= (withdrawal_amount + taxes_paid)
 
         # Record the data for the current year
-        df.loc[year] = [year, starting_value, growth, annual_withdrawal, taxes_paid, current_value]
+        df.loc[year] = [year, starting_value, growth, withdrawal_amount, taxes_paid, current_value]
 
     # Convert numeric columns to float and round to 2 decimal places
     numeric_cols = ['Starting Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value']
@@ -51,8 +57,9 @@ default_annual_withdrawal = 30000
 default_years_to_simulate = 30
 default_tax_rate = 25
 default_tax_method = 'FIFO'
+default_withdrawal_type = 'fixed'
 
-df_dash = simulate_portfolio(default_current_value, default_annual_growth_rate/100, default_annual_withdrawal, default_years_to_simulate, default_tax_rate/100, default_tax_method)
+df_dash = simulate_portfolio(default_current_value, default_annual_growth_rate/100, default_withdrawal_type, default_annual_withdrawal, default_years_to_simulate, default_tax_rate/100, default_tax_method)
 
 # Tab layout
 layout = dbc.Container([
@@ -74,9 +81,26 @@ layout = dbc.Container([
                         ], width=12)
                     ]),
                     dbc.Row([
+                        dbc.Label("Withdrawal Type", html_for="withdrawal-type", width=12),
+                        dbc.Col([
+                            dcc.RadioItems(
+                                id='withdrawal-type',
+                                options=[
+                                    {'label': 'Fixed Sum', 'value': 'fixed'},
+                                    {'label': 'Percentage of Portfolio', 'value': 'percentage'}
+                                ],
+                                value='fixed',
+                                inline=True
+                            )
+                        ], width=12)
+                    ]),
+                    dbc.Row([
                         dbc.Label("Annual Withdrawal", html_for="input-annual-withdrawal", width=12),
                         dbc.Col([
-                            dcc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal)
+                            dbc.InputGroup([
+                                dbc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal),
+                                dbc.InputGroupText(id="withdrawal-unit")
+                            ])
                         ], width=12)
                     ]),
                     dbc.Row([
@@ -136,7 +160,7 @@ layout = dbc.Container([
                         id='table',
                         columns=[{"name": i, "id": i} for i in df_dash.columns],
                         data=df_dash.to_dict('records'),
-                        style_table={'height': '400px', 'overflowY': 'auto'},
+                        style_table={'height': '600px', 'overflowY': 'auto'},
                         style_cell={'textAlign': 'left'}
                     )
                 ])
@@ -146,6 +170,13 @@ layout = dbc.Container([
 ])
 
 def register_callbacks(app):
+    @app.callback(
+        Output('withdrawal-unit', 'children'),
+        [Input('withdrawal-type', 'value')]
+    )
+    def update_withdrawal_unit(withdrawal_type):
+        return '$' if withdrawal_type == 'fixed' else '%'
+
     @app.callback(
         Output('investment-graph', 'figure'),
         [Input('table', 'data')]
@@ -161,8 +192,15 @@ def register_callbacks(app):
         numeric_columns = df.select_dtypes(include=['float', 'int']).columns.drop('Year')
         
         for col in numeric_columns:
-            fig.add_trace(go.Scatter(x=df['Year'], y=df[col], mode='lines+markers', name=col))
-        
+            visible = True if col != 'Ending Value' else 'legendonly'
+            fig.add_trace(go.Scatter(
+                x=df['Year'], 
+                y=df[col], 
+                mode='lines+markers', 
+                name=col,
+                visible=visible
+            ))
+            
         # Update the layout of the figure
         fig.update_layout(
             title='Investment Portfolio Simulation Over Years',
@@ -205,6 +243,7 @@ def register_callbacks(app):
          Output('table', 'columns')],
         [Input('input-current-value', 'value'),
          Input('input-annual-growth-rate', 'value'),
+         Input('withdrawal-type', 'value'), 
          Input('input-annual-withdrawal', 'value'),
          Input('simulation-time-frame', 'value'),
          Input('input-years-to-simulate', 'value'),
@@ -213,13 +252,13 @@ def register_callbacks(app):
          Input('input-tax-method', 'value')],
         State('table', 'data')
     )
-    def update_table(current_value, annual_growth_rate, annual_withdrawal, simulation_time_frame, years_to_simulate, sp500_start_year, tax_rate, tax_method, existing_data):
-        if None in [current_value, annual_growth_rate, annual_withdrawal, simulation_time_frame, tax_rate, tax_method]:
+    def update_table(current_value, annual_growth_rate, withdrawal_type, annual_withdrawal, simulation_time_frame, years_to_simulate, sp500_start_year, tax_rate, tax_method, existing_data):
+        if None in [current_value, annual_growth_rate, withdrawal_type, annual_withdrawal, simulation_time_frame, tax_rate, tax_method]:
             return existing_data, [{"name": i, "id": i} for i in df_dash.columns]
     
         if simulation_time_frame == 'custom':
-            df_dash = simulate_portfolio(current_value, annual_growth_rate/100, annual_withdrawal, years_to_simulate, tax_rate/100, tax_method)
+            df_dash = simulate_portfolio(current_value, annual_growth_rate/100, withdrawal_type, annual_withdrawal, years_to_simulate, tax_rate/100, tax_method)
         else:
-            df_dash = simulate_portfolio(current_value, None, annual_withdrawal, None, tax_rate/100, tax_method, sp500_start_year)
+            df_dash = simulate_portfolio(current_value, None, withdrawal_type, annual_withdrawal, None, tax_rate/100, tax_method, sp500_start_year)
     
         return df_dash.to_dict('records'), [{"name": i, "id": i} for i in df_dash.columns]
