@@ -66,8 +66,8 @@ def load_rules_modal():
                 dcc.Dropdown(id="load-rules-dropdown")
             ]),
             dbc.ModalFooter([
-                dbc.Button("Cancel", id="cancel-load-rules-modal", className="ml-auto"),
-                dbc.Button("Delete Rules", id="delete-rule-set-button", className="ml-auto", n_clicks=0),
+                dbc.Button("Cancel", id="cancel-load-rules-modal", className="me-2 btn-secondary"),
+                dbc.Button("Delete Rules", id="delete-rule-set-button", className="me-2 btn-secondary", n_clicks=0),
                 dbc.Button("Load Rules", id="confirm-load-rules-modal", className="ml-auto"),
             ])
         ], id="load-rules-modal")

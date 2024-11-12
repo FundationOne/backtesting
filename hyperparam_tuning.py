@@ -15,7 +15,7 @@ from conf import PREPROC_FILENAME
 
 # Load the data
 btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
-print(f"Data loaded from {PREPROC_FILENAME}.")
+print(f"Hyperparam data loaded from {PREPROC_FILENAME}.")
 
 # Define available features
 available_features = btc_data.columns.tolist()

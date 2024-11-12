@@ -8,8 +8,7 @@ from dash.exceptions import PreventUpdate
 import ta
 import os
 from utils import *
-import seaborn as sns
-import matplotlib.pyplot as plt
+import yfinance as yf
 
 from pathlib import Path
 from conf import *
@@ -19,30 +18,74 @@ from rule_gen_functionality import *
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
-    if isinstance(value, str):  # Ensure the value is processed as a string
-        value = value.replace(',', '').upper()  # Remove commas, standardize on uppercase
+    if isinstance(value, str):
+        value = value.replace(',', '').upper()  # Remove commas and standardize to uppercase
         if 'K' in value:
             return float(value.replace('K', '')) * 1e3
         elif 'M' in value:
             return float(value.replace('M', '')) * 1e6
         elif 'B' in value:
             return float(value.replace('B', '')) * 1e9
-    return pd.to_numeric(value, errors='coerce')  # Safely convert non-string or malformed values
-
+    return pd.to_numeric(value, errors='coerce')  # Convert safely if the value is numeric
     
 def fetch_historical_data(csv_file_path):
+    # Load data from CSV
     btc_data_raw = pd.read_csv(csv_file_path, parse_dates=['Date'], index_col='Date', dtype={'Vol.': str})
     btc_data_raw.sort_index(inplace=True)
-    btc_data = pd.DataFrame(index=btc_data_raw.index)
 
-    # Clean and convert data types
-    btc_data['price'] = btc_data_raw['Price'].str.replace(',', '').astype(float)
-    btc_data['open'] = btc_data_raw['Open'].str.replace(',', '').astype(float)
-    btc_data['high'] = btc_data_raw['High'].str.replace(',', '').astype(float)
-    btc_data['low'] = btc_data_raw['Low'].str.replace(',', '').astype(float)
-    btc_data['volume'] = btc_data_raw['Vol.'].apply(convert_volume)
+    # Clean up numeric columns in btc_data_raw (remove commas and convert to float)
+    btc_data_raw['Price'] = btc_data_raw['Price'].str.replace(',', '').astype(float)
+    btc_data_raw['Open'] = btc_data_raw['Open'].str.replace(',', '').astype(float)
+    btc_data_raw['High'] = btc_data_raw['High'].str.replace(',', '').astype(float)
+    btc_data_raw['Low'] = btc_data_raw['Low'].str.replace(',', '').astype(float)
+    btc_data_raw['Vol.'] = btc_data_raw['Vol.'].apply(convert_volume)
+    
+    # Convert 'Change %' to numeric by removing '%' and converting to float
+    btc_data_raw['Change %'] = btc_data_raw['Change %'].str.replace('%', '').astype(float)
 
-    return btc_data
+    # Download recent data from Yahoo Finance
+    btc_data_yahoo = yf.download('BTC-USD', start=btc_data_raw.index[-1] + pd.to_timedelta(1, unit='D'), progress=False)
+
+    # If Yahoo data is empty, just use the CSV data
+    if btc_data_yahoo.empty:
+        return btc_data_raw
+
+    # Adjust Yahoo data to match your CSV format
+    btc_data_yahoo.reset_index(inplace=True)
+    btc_data_yahoo.rename(columns={
+        'Date': 'Date',
+        'Adj Close': 'Price',
+        'Open': 'Open',
+        'High': 'High',
+        'Low': 'Low',
+        'Volume': 'Vol.'
+    }, inplace=True)
+
+    btc_data_yahoo.set_index('Date', inplace=True)
+
+    # Remove unnecessary columns and ensure consistency with historical data
+    btc_data_yahoo = btc_data_yahoo[['Price', 'Open', 'High', 'Low', 'Vol.']]
+
+    # Convert Yahoo data columns to appropriate types
+    btc_data_yahoo['Price'] = btc_data_yahoo['Price'].astype(float)
+    btc_data_yahoo['Open'] = btc_data_yahoo['Open'].astype(float)
+    btc_data_yahoo['High'] = btc_data_yahoo['High'].astype(float)
+    btc_data_yahoo['Low'] = btc_data_yahoo['Low'].astype(float)
+    btc_data_yahoo['Vol.'] = btc_data_yahoo['Vol.'].astype(float)
+
+    # Concatenate the historical and Yahoo data
+    btc_data_combined = pd.concat([btc_data_raw, btc_data_yahoo])
+
+    # Sort the index to maintain chronological order
+    btc_data_combined.sort_index(inplace=True)
+
+    # Rename 'Vol.' to 'volume' for consistency
+    btc_data_combined.rename(columns={'Vol.': 'volume'}, inplace=True)
+
+    # Fill missing values if there are any gaps
+    btc_data_combined.ffill(inplace=True)
+
+    return btc_data_combined
 
 def fetch_onchain_indicators(csv_file_path):
     base_dir = Path(csv_file_path)
@@ -151,7 +194,7 @@ def monthly_dca_strategy(btc_data, starting_investment):
 
     return portfolio_value
 # Function to execute trading strategy
-def execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
+def execute_strategy(btc_data, starting_investment, start_invested, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
     if pd.to_datetime(start_date) not in btc_data.index:
         start_date = btc_data.index[0].strftime('%Y-%m-%d')
         print("Start date is out of the dataset's date range.")
@@ -159,8 +202,15 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
     # Filter the data to start from the given start date
     btc_data = btc_data[start_date:]
 
-    available_cash = starting_investment
-    btc_owned = 0
+    print(start_invested, "invested at", start_date)
+    if start_invested:
+        print("Starting with an initial investment of", starting_investment)
+        available_cash = 0
+        btc_owned = starting_investment / btc_data.iloc[0]['price']
+    else:
+        available_cash = starting_investment
+        btc_owned = 0
+
     transactions = []
     btc_purchases = []  # Keep track of BTC purchases for FIFO taxation
     portfolio_value_over_time = pd.Series(index=btc_data.index, dtype=float)
@@ -210,25 +260,27 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
                 print(f"Rule is invalid. Type Error evaluating rules: {te} >>> {buying_rule}")
             return
         except Exception as e:
-            # print(context['historic']('price'))
-            # print(context['current']('price'))
+            print(f"Error on date {date.strftime('%Y-%m-%d')}:")
+            print(f"Current price: {context['current']('price')}")
+            print(f"Historical prices: {context['historic']('price')[-5:]}")  # Print last 5 prices for context
             if not sell_eval:
                 print(f"Sell Rule could not be applied to this day: {e} >>> {selling_rule}")
             if not buy_eval:
                 print(f"Buy Rule could not be applied to this day: {e} >>> {buying_rule}")
             continue
 
-        if buy_eval:
+        if buy_eval and available_cash > 0:
             # Calculate the maximum number of BTC that can be bought with available cash
             max_btc_to_buy = (available_cash - transaction_fee) / current_price
             
             # Buy the lesser of trade_amount or max_btc_to_buy
-            btc_to_buy = min(trade_amount / current_price, max_btc_to_buy)
-            
-            available_cash -= (btc_to_buy * current_price + transaction_fee)
-            btc_owned += btc_to_buy
-            transactions.append({'Date': date.strftime('%Y-%m-%d'), 'Action': 'BUY', 'BTC': round(btc_to_buy,12), 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': round(btc_owned,12), 'Taxable Amount': ''})
-            btc_purchases.append({"date": date.strftime('%Y-%m-%d'), "amount": btc_to_buy, "price": current_price})
+            if max_btc_to_buy > 0:
+                btc_to_buy = min(trade_amount / current_price, max_btc_to_buy)
+                
+                available_cash -= (btc_to_buy * current_price + transaction_fee)
+                btc_owned += btc_to_buy
+                transactions.append({'Date': date.strftime('%Y-%m-%d'), 'Action': 'BUY', 'BTC': round(btc_to_buy,12), 'price': current_price, 'Owned Cash': round(available_cash, 2), 'Owned BTC': round(btc_owned,12), 'Taxable Amount': ''})
+                btc_purchases.append({"date": date.strftime('%Y-%m-%d'), "amount": btc_to_buy, "price": current_price})
 
         elif sell_eval and btc_owned > 0:
             btc_to_sell = min(trade_amount / current_price, btc_owned)
@@ -241,7 +293,8 @@ def execute_strategy(btc_data, starting_investment, start_date, buying_rule, sel
                     if btc_purchases:
                         purchase = btc_purchases.pop(0)
                         gain = (current_price - purchase["price"]) * (1 / btc_to_sell)  # Calculate gain proportionally
-                        current_holding_period = (date - purchase["date"]).days
+                        purchase_date = pd.to_datetime(purchase["date"])  # Convert string to Timestamp
+                        current_holding_period = (date - purchase_date).days
                         if current_holding_period <= holding_period:
                             total_gain += gain  # Accumulate the gains portion for taxable calculation
                 
@@ -305,7 +358,18 @@ layout = dbc.Container(
                                     ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Label("Trade Amount $", html_for="input-trade-amount", width=12),
+                                    dbc.Col(
+                                        dbc.Checkbox(
+                                            id='start-invested',
+                                            value=False,
+                                            label='Start with entire cash amount invested',
+                                            style={'marginLeft': '20px'}
+                                        ),
+                                        width="12"
+                                    )
+                                ], className="mb-3 align-items-center"),
+                                dbc.Row([
+                                    dbc.Label("One Trade Amount $", html_for="input-trade-amount", width=12),
                                     dbc.Col(
                                         dcc.Input(
                                             id="input-trade-amount",
@@ -317,7 +381,7 @@ layout = dbc.Container(
                                     ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Label("Transaction Fee $", html_for="input-transaction-fee", width=12),
+                                    dbc.Label("Transaction Fee per Trade $", html_for="input-transaction-fee", width=12),
                                     dbc.Col(
                                         dcc.Input(
                                             id="input-transaction-fee",
@@ -368,14 +432,14 @@ layout = dbc.Container(
                                     ),
                                 ]),
                                 dbc.Row([
-                                    dbc.Label("Holding Period (days)", html_for="input-holding-period", width=12),
+                                    dbc.Label("Holding Period (days after which gains are tax-free)", html_for="input-holding-period", width=12),
                                     dbc.Col(
                                         dcc.Input(
                                             id="input-holding-period",
                                             type="number",
-                                            value=9999,
+                                            value=999999,
                                             min=0,
-                                            max=9999,
+                                            max=999999,
                                             style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
                                         ),
                                         width=12
@@ -411,8 +475,8 @@ layout = dbc.Container(
                         ], id="info-modal", is_open=False, size="xl"),
                         dbc.Row(id="trading-rules-container"),
                         dbc.Row([
-                            dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", className="me-2 btn-secodnary", color="secondary", n_clicks=0), width={"size": 3, "offset": 1}),
-                            dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", className="me-2 btn-secodnary", color="secondary", n_clicks=0), width={"size": 3, "offset": 0}),
+                            dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", className="me-2 btn-secondary", color="secondary", n_clicks=0), width={"size": 3, "offset": 1}),
+                            dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", className="me-2 btn-secondary", color="secondary", n_clicks=0), width={"size": 3, "offset": 0}),
                             dbc.Col(create_rule_generation_button(1), width={"size": 3, "offset": 1}),
                             rule_generation_modal,
                             dbc.Col(dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2 mt-4", n_clicks=0), width={"size": 6, "offset": 3})
@@ -459,6 +523,7 @@ def register_callbacks(app):
          Output('backtesting-graph', 'figure')],
         [Input('update-backtesting-button', 'n_clicks')],  # Updated trigger
         [State('input-starting-investment', 'value'),
+         State('start-invested', 'value'),
         State('input-starting-date', 'date'),
         State("trading-rules-container", "children"),
         State("saved-rules-store", "data"),
@@ -469,7 +534,7 @@ def register_callbacks(app):
         State('input-tax-amount', 'value'),
         State('input-holding-period', 'value')]
     )
-    def update_backtesting(n_clicks, starting_investment, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
+    def update_backtesting(n_clicks, starting_investment, start_invested, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
         if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
@@ -479,21 +544,62 @@ def register_callbacks(app):
             selling_rule = " or ".join(rules_from_ui.get("selling_rule", []))
 
         if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
-            btc_data = fetch_historical_data('./btc_hist_prices.csv')  # Load the entire historical dataset
-            btc_data = add_historical_indicators(btc_data)
+            print(f"Reloading all historical data.")
 
-            #add onchain
-            onchain_data = fetch_onchain_indicators('./indicators')
-            btc_data_full = btc_data.join(onchain_data, how='left')
-            btc_data_full = add_oscillators_quantiles(btc_data_full)
+            try:
+                # Load historical dataset
+                btc_data = fetch_historical_data('./btc_hist_prices.csv')
+                if btc_data.empty:
+                    raise ValueError("Historical BTC data is empty after loading. Please check the source CSV.")
 
-            btc_data_full.to_csv(PREPROC_FILENAME)
-            print(f"Data saved to {PREPROC_FILENAME}.")
+                # Convert all column names to lowercase for consistency
+                btc_data.columns = btc_data.columns.str.lower()
+                
+                print("Loaded historical data (sample):")
+                print(btc_data.head())  # Print just the first few rows for sanity check
+                
+                # Add historical indicators to BTC data
+                btc_data = add_historical_indicators(btc_data)
+                print("Added historical indicators.")
+
+                # Add on-chain data
+                try:
+                    onchain_data = fetch_onchain_indicators('./indicators')
+                    if onchain_data.empty:
+                        print("Warning: On-chain data is empty. Proceeding without it.")
+                    else:
+                        print("Loaded on-chain data (sample):")
+                        print(onchain_data.head())
+
+                    # Ensure on-chain data column names are also lowercase for consistency
+                    onchain_data.columns = onchain_data.columns.str.lower()
+                    
+                    # Merge BTC and on-chain data
+                    btc_data_full = btc_data.join(onchain_data, how='left')
+                    print("Merged historical BTC data with on-chain data.")
+                except FileNotFoundError as e:
+                    print(f"Error: On-chain indicators directory not found: {e}")
+                    btc_data_full = btc_data  # Proceed with only historical BTC data if on-chain data is unavailable
+
+                # Add oscillators quantiles to the combined data
+                btc_data_full = add_oscillators_quantiles(btc_data_full)
+                print("Added oscillators quantiles.")
+
+                # Write the preprocessed data to CSV, explicitly fail if any issue occurs
+                try:
+                    btc_data_full.to_csv(PREPROC_FILENAME)
+                    print(f"Data saved to {PREPROC_FILENAME}.")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to save data to {PREPROC_FILENAME}: {e}")
+
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+
         else:
             btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
             print(f"Data loaded from {PREPROC_FILENAME}.")
-
-        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period)
+        
+        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_invested, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period)
 
         # Calculate strategies
         lump_sum_portfolio = lump_sum_and_hold_strategy(btc_data[start_date:], starting_investment)
@@ -518,10 +624,11 @@ def register_callbacks(app):
         # Update the layout
         fig.update_layout(
             yaxis2=dict(
-                title="Secondary Y-Axis Title",
+                title="Indicators",
                 overlaying='y',
                 side='right',
-                range=[btc_data['price'].min(), btc_data['price'].max()]  # Ensuring the same range as the primary y-axis
+                showgrid=False,  # Disable gridlines for clarity
+                automargin=True  # Automatically adjust margins to fit the axis
             )
         )
         

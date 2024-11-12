@@ -15,7 +15,7 @@ def simulate_portfolio(current_value, annual_growth_rate, withdrawal_type, annua
         years_to_simulate = len(annual_returns)
 
     df = pd.DataFrame(index=range(1, years_to_simulate + 1),
-                      columns=["Year", "Starting Value", "Growth", "Withdrawals", "Taxes Paid", "Ending Value"])
+                      columns=["Year", "Portfolio Value", "Growth", "Withdrawals", "Taxes Paid", "Ending Value"])
     df['Year'] = range(1, years_to_simulate + 1)
 
     for year in range(1, years_to_simulate + 1):
@@ -45,7 +45,7 @@ def simulate_portfolio(current_value, annual_growth_rate, withdrawal_type, annua
         df.loc[year] = [year, starting_value, growth, withdrawal_amount, taxes_paid, current_value]
 
     # Convert numeric columns to float and round to 2 decimal places
-    numeric_cols = ['Starting Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value']
+    numeric_cols = ['Portfolio Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value']
     df[numeric_cols] = df[numeric_cols].astype(float).round(2)
 
     return df
@@ -97,10 +97,10 @@ layout = dbc.Container([
                     dbc.Row([
                         dbc.Label("Annual Withdrawal", html_for="input-annual-withdrawal", width=12),
                         dbc.Col([
-                            dbc.InputGroup([
-                                dbc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal),
-                                dbc.InputGroupText(id="withdrawal-unit")
-                            ])
+                            html.Div([
+                                dcc.Input(id="input-annual-withdrawal", type="number", value=default_annual_withdrawal, style={"width": "calc(100% - 60px)", "display": "inline-block"}),
+                                html.Span(id="withdrawal-unit", style={"display": "inline-block", "width": "30px", "text-align": "center"})
+                            ], style={"display": "flex", "alignItems": "center"})
                         ], width=12)
                     ]),
                     dbc.Row([
