@@ -15,8 +15,10 @@ def simulate_portfolio(current_value, annual_growth_rate, withdrawal_type, annua
         years_to_simulate = len(annual_returns)
 
     df = pd.DataFrame(index=range(1, years_to_simulate + 1),
-                      columns=["Year", "Portfolio Value", "Growth", "Withdrawals", "Taxes Paid", "Ending Value"])
+                      columns=["Year", "Portfolio Value", "Growth", "Withdrawals", "Taxes Paid", "Ending Value", "Cost Basis"])
     df['Year'] = range(1, years_to_simulate + 1)
+
+    cost_basis = current_value  # Initialize cost basis
 
     for year in range(1, years_to_simulate + 1):
         starting_value = current_value
@@ -33,19 +35,22 @@ def simulate_portfolio(current_value, annual_growth_rate, withdrawal_type, annua
         else:
             withdrawal_amount = annual_withdrawal
 
-        # Calculate the gain portion of the withdrawal
-        gain_ratio = growth_rate / (1 + growth_rate)  # Proportion of the withdrawal that is gain
+        # Calculate the taxable gain
+        total_gain = max(0, current_value - cost_basis)
+        gain_ratio = total_gain / current_value if current_value > 0 else 0
         taxable_amount = withdrawal_amount * gain_ratio
         taxes_paid = max(0, taxable_amount * tax_rate)
 
-        # Update current value after accounting for withdrawal and taxes
+        # Update current value and cost basis after accounting for withdrawal and taxes
         current_value -= (withdrawal_amount + taxes_paid)
+        cost_basis_reduction = cost_basis * (withdrawal_amount / starting_value)
+        cost_basis -= cost_basis_reduction
 
         # Record the data for the current year
-        df.loc[year] = [year, starting_value, growth, withdrawal_amount, taxes_paid, current_value]
+        df.loc[year] = [year, starting_value, growth, withdrawal_amount, taxes_paid, current_value, cost_basis]
 
     # Convert numeric columns to float and round to 2 decimal places
-    numeric_cols = ['Portfolio Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value']
+    numeric_cols = ['Portfolio Value', 'Growth', 'Withdrawals', 'Taxes Paid', 'Ending Value', 'Cost Basis']
     df[numeric_cols] = df[numeric_cols].astype(float).round(2)
 
     return df

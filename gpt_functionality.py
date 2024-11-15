@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from conf import PREPROC_FILENAME
 
-available_columns = pd.read_csv(PREPROC_FILENAME).columns.tolist()
+available_columns = pd.read_csv(PREPROC_FILENAME, low_memory=False).columns.tolist()
 available_columns_list = "', '".join(available_columns[:39])
 
 context_description = f"""
