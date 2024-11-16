@@ -25,38 +25,48 @@ def generate_risk_band_scenarios(band_indices, max_length=7, total_combinations=
     return scenarios[:total_combinations]
 
 def calculate_scenario_value(scenario, stop_loss_prices, trigger_prices, percentage_pushed):
-    total_btc = 1  # Start with 1 BTC
+    total_btc = {band: 0 for band in range(len(stop_loss_prices))}  # BTC allocated to each band
+    total_btc[scenario[0]] = 1  # Start with 1 BTC in the initial band
     capital = 0   # Start with $0
+    btc_sold_at_each_step = []  # To record BTC sold at each step
 
     percentage_pushed = percentage_pushed / 100.0  # Convert percentage to fraction
 
     for i in range(1, len(scenario)):
-        current_band_index = scenario[i - 1]
-        next_band_index = scenario[i]
+        prev_band = scenario[i - 1]
+        current_band = scenario[i]
 
-        # Use Trigger Price when moving up, Stop Loss Price when moving down
-        if next_band_index > current_band_index:
-            price = trigger_prices[current_band_index]
+        if current_band > prev_band:
+            # Price moved up to a higher band
+            btc_to_move = total_btc[prev_band] * percentage_pushed
+            total_btc[prev_band] -= btc_to_move
+            total_btc[current_band] += btc_to_move
+            # No BTC is sold
+            btc_sold_at_each_step.append(0)  # Append 0 as no BTC sold
+        elif current_band < prev_band:
+            # Price moved down to a lower band
+            # Sell all BTC in the higher band at Stop Loss Price of the higher band
+            btc_to_sell = total_btc[prev_band]
+            sale_value = btc_to_sell * stop_loss_prices[prev_band]
+            capital += sale_value
+            total_btc[prev_band] = 0
+            btc_sold_at_each_step.append(btc_to_sell)  # Record BTC sold
         else:
-            price = stop_loss_prices[current_band_index]
+            # No movement, no action
+            btc_sold_at_each_step.append(0)  # Append 0 as no BTC sold
 
-        # Sell percentage_pushed of BTC at the price
-        btc_to_sell = percentage_pushed * total_btc
-        sale_value = btc_to_sell * price
-        capital += sale_value
-        total_btc -= btc_to_sell
+    # After the scenario ends, calculate the value of remaining BTC holdings
+    for band, btc_amount in total_btc.items():
+        if btc_amount > 0:
+            # Value remaining BTC at the current Stop Loss Price of the band
+            capital += btc_amount * stop_loss_prices[band]
 
-    # Add final BTC value at the last band's Stop Loss Price
-    final_band_index = scenario[-1]
-    final_price = stop_loss_prices[final_band_index]
-    capital += total_btc * final_price
-
-    return capital
+    return capital, btc_sold_at_each_step
 
 # Corrected default values (from low band to high band)
 default_stop_loss_prices = [79000, 87600, 110800, 137200, 166900]
 default_trigger_prices = [90850, 100740, 127420, 157780, 191935]
-default_percentage_pushed = 20  # Default percentage pushed to next level
+default_percentage_pushed = 80  # Default percentage pushed to next level
 
 # Define the number of risk bands
 num_bands = len(default_stop_loss_prices)
@@ -69,7 +79,7 @@ band_indices = list(range(len(stop_loss_prices_list)))
 scenarios = generate_risk_band_scenarios(band_indices)
 scenario_values = []
 for idx, scenario in enumerate(scenarios):
-    total_value = calculate_scenario_value(scenario, stop_loss_prices_list, trigger_prices_list, default_percentage_pushed)
+    total_value, btc_sold_at_each_step = calculate_scenario_value(scenario, stop_loss_prices_list, trigger_prices_list, default_percentage_pushed)
     scenario_str = ' -> '.join([f"Band {band_index + 1}" for band_index in scenario])
     scenario_values.append({'Scenario': scenario_str, 'Total Value': total_value})
 
@@ -105,7 +115,7 @@ for i in range(num_bands):
     )
 
 # Define the layout for the riskbands page
-layout = dbc.Container(
+layout = html.Div(
     [
         dbc.Row([
             # Input fields on the left
@@ -187,7 +197,7 @@ def register_callbacks(app):
         lines = []
 
         for idx, scenario in enumerate(scenarios):
-            total_value = calculate_scenario_value(scenario, stop_loss_prices, trigger_prices, percentage_pushed)
+            total_value, btc_sold_at_each_step = calculate_scenario_value(scenario, stop_loss_prices, trigger_prices, percentage_pushed)
             scenario_str = ' -> '.join([f"Band {band_index + 1}" for band_index in scenario])
             scenario_values.append({'Scenario': scenario_str, 'Total Value': total_value})
             steps = np.array(range(len(scenario)), dtype=float)
@@ -197,11 +207,21 @@ def register_callbacks(app):
             x_offset = idx * 0.1  # Adjust this value to control spacing
             steps = steps + x_offset
 
+            # Prepare hover text including BTC sold at each step
+            hover_text = []
+            for i, band_index in enumerate(scenario):
+                text = f"Step: {i}<br>Band: {band_index + 1}<br>Stop Loss: ${stop_loss_prices[band_index]:,.2f}<br>Trigger: ${trigger_prices[band_index]:,.2f}"
+                if i > 0:
+                    btc_sold = btc_sold_at_each_step[i - 1]
+                    if btc_sold > 0:
+                        text += f"<br>BTC Sold: {btc_sold:.6f}"
+                hover_text.append(text)
+
             # Append line data and total value
-            lines.append((go.Scatter(), total_value, steps, bands, scenario))
+            lines.append((go.Scatter(), total_value, steps, bands, scenario, hover_text))
 
         # Normalize colors based on total values
-        total_values = [total_value for _, total_value, _, _, _ in lines]
+        total_values = [total_value for _, total_value, _, _, _, _ in lines]
         min_total_value = min(total_values)
         max_total_value = max(total_values)
         norm = Normalize(vmin=min_total_value, vmax=max_total_value)
@@ -211,7 +231,7 @@ def register_callbacks(app):
         fig = go.Figure()
 
         # Plot each line with appropriate color
-        for line_data, total_value, steps, bands, scenario in lines:
+        for line_data, total_value, steps, bands, scenario, hover_text in lines:
             rgba_color = cmap(norm(total_value))
             line_color = 'rgba({},{},{},{})'.format(
                 int(rgba_color[0]*255),
@@ -228,7 +248,7 @@ def register_callbacks(app):
                     width=2  # Adjust line width as desired
                 ),
                 hoverinfo='text',
-                text=[f"Step: {i:.2f}<br>Band: {band_index + 1}<br>Stop Loss: ${stop_loss_prices[band_index]:,.2f}<br>Trigger: ${trigger_prices[band_index]:,.2f}" for i, band_index in zip(steps, scenario)],
+                text=hover_text,
                 showlegend=False
             )
             fig.add_trace(line_data)
