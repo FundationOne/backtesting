@@ -174,7 +174,9 @@ layout = html.Div(
                                 'backgroundColor': 'rgb(230, 230, 230)',
                                 'fontWeight': 'bold'
                             },
-                            page_size=20
+                            page_size=20,
+                            sort_action='native',  # Enable sorting
+                            sort_mode='single',    # Allow sorting by a single column at a time
                         )
                     ])
                 ])
