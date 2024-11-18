@@ -65,7 +65,7 @@ def calculate_scenario_value(scenario, stop_loss_prices, percentage_pushed):
 
 # Corrected default values (from low band to high band)
 default_stop_loss_prices = [79000, 87600, 110800, 137200, 166900]
-default_probabilities = [20, 25, 30, 15, 10]  # Percentages
+default_probabilities = [100, 80, 60, 40, 20]  # Adjusted default probabilities
 default_percentage_pushed = 80  # Default percentage pushed to next level
 
 # Define the number of risk bands
@@ -80,11 +80,12 @@ scenarios = generate_risk_band_scenarios(band_indices)
 scenario_values = []
 for idx, scenario in enumerate(scenarios):
     total_value, btc_sold_at_each_step = calculate_scenario_value(scenario, stop_loss_prices_list, default_percentage_pushed)
-    scenario_str = ' -> '.join([f"Band {band_index + 1}" for band_index in scenario])
-    # Compute average probability for the scenario
-    probabilities_of_bands_in_scenario = [probabilities_list[band_index] for band_index in scenario]
-    average_probability = sum(probabilities_of_bands_in_scenario) / len(probabilities_of_bands_in_scenario)
-    total_value_times_probability = total_value * (average_probability / 100.0)
+    scenario_str = ' ⇨ '.join([f"{band_index + 1}" for band_index in scenario])
+    # Compute scenario probability as the product of band probabilities
+    probabilities_of_bands_in_scenario = [probabilities_list[band_index] / 100.0 for band_index in scenario]
+    scenario_probability = np.prod(probabilities_of_bands_in_scenario)
+    total_value_times_probability = total_value * scenario_probability
+
     scenario_values.append({'Scenario': scenario_str, 'Total Value': total_value, 'Total Value Times Probability': total_value_times_probability})
 
 df_dash = pd.DataFrame(scenario_values)
@@ -147,7 +148,6 @@ layout = html.Div(
                         ]),
                         # Heatmap below the inputs
                         html.Div([
-                            html.H5("Heatmap of Total Sums", style={"marginTop": "20px"}),
                             dcc.Graph(id='heatmap-graph')
                         ])
                     ])
@@ -213,7 +213,7 @@ def register_callbacks(app):
 
         for idx, scenario in enumerate(scenarios):
             total_value, btc_sold_at_each_step = calculate_scenario_value(scenario, stop_loss_prices, percentage_pushed)
-            scenario_str = ' -> '.join([f"Band {band_index + 1}" for band_index in scenario])
+            scenario_str = ' ⇨ '.join([f"{band_index + 1}" for band_index in scenario])
             # Compute average probability for the scenario
             probabilities_of_bands_in_scenario = [probabilities[band_index] for band_index in scenario]
             average_probability = sum(probabilities_of_bands_in_scenario) / len(probabilities_of_bands_in_scenario)
@@ -313,7 +313,7 @@ def register_callbacks(app):
         df_scenarios['Total Value'] = df_scenarios['Total Value'].apply(lambda x: f"${x:,.2f}")
         df_scenarios['Total Value Times Probability'] = df_scenarios['Total Value Times Probability'].apply(lambda x: f"${x:,.2f}")
 
-        # Compute TOTAL SUM and TOTAL SUB PROBABILITY
+        # Compute TOTAL SUM and TOTAL SUM X PROBABILITY
         total_sum = sum([sv['Total Value'] for sv in scenario_values])
         total_sub_probability = sum([sv['Total Value Times Probability'] for sv in scenario_values])
 
@@ -325,7 +325,9 @@ def register_callbacks(app):
 
         # Compute heatmap data
         percentage_pushed_values = np.arange(0, 110, 10)  # From 0% to 100% in steps of 10%
-        spreads = np.logspace(np.log10(25), 0, num=25)  # Exponential range from 1 to 20
+        spreads = np.logspace(0, np.log10(25), num=25)
+        spreads = np.round(spreads).astype(int)
+        spreads = np.unique(spreads)
         Z = np.zeros((len(spreads), len(percentage_pushed_values)))
 
         for i, spread in enumerate(spreads):
@@ -333,9 +335,10 @@ def register_callbacks(app):
             N = len(band_indices)
             probabilities_spread = []
             for idx in band_indices:
-                prob = max(100 - spread * (N - 1 - idx), 0)
+                prob = max(100 - spread * idx, 0)  # Start at 100 for Risk Band 1
                 probabilities_spread.append(prob)
             probabilities_spread = np.array(probabilities_spread)
+            
 
             for j, percentage_pushed_value in enumerate(percentage_pushed_values):
                 # For each percentage_pushed, compute total sum
@@ -355,14 +358,15 @@ def register_callbacks(app):
             x=percentage_pushed_values,
             y=spreads,
             colorscale='Viridis',
-            showscale=False,  # This line hides the color bar
-            hovertemplate='Percentage Pushed: %{x}<br>Probability Spread: %{y}<br>Total Sum X Prob: $%{z:.2f}<extra></extra>'
+            showscale=False,  # Hides the color bar
+            hovertemplate='Percentage Pushed: %{x}%<br>Probability Spread: %{y:.2f}<br>Total Sum X Prob: $%{z:,.2f}<extra></extra>'
         ))
 
         heatmap_fig.update_layout(
             title='Heatmap of Total Sums',
-            xaxis_title='Percentage Pushed to Next Risk Band',
+            xaxis_title='Percentage Pushed to Next Risk Band (%)',
             yaxis_title='Probability Spread',
+            yaxis_type='category',
             showlegend=False
         )
 
@@ -382,17 +386,17 @@ def register_callbacks(app):
             x = clickData['points'][0]['x']  # percentage_pushed
             y = clickData['points'][0]['y']  # spread
 
-            percentage_pushed = x
+            percentage_pushed = float(x)
 
             # Compute the probabilities based on the spread
             N = num_bands
-            spread = y
+            spread = float(y)
             probabilities = []
             for idx in range(N):
-                prob = max(100 - spread * (N - 1 - idx), 0)
+                prob = max(100 - spread * idx, 0)  # Start at 100 for Risk Band 1
                 probabilities.append(prob)
 
-            # Return the new probabilities and percentage_pushed
+            # Update the probabilities input fields
             return probabilities + [percentage_pushed]
 
     # Make sure to not touch or change anything else.
