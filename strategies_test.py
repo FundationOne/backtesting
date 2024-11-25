@@ -27,6 +27,54 @@ probability_sets = {
     'Pessimistic Market': {'A': 100, 'B': 50, 'C': 25, 'D': 10, 'E': 1}
 }
 
+# Define scenario descriptions
+scenario_descriptions = {
+    'Scenario 1': 'Price remains at Level A. (A → A → A → A → A → A)',
+    'Scenario 2': 'Consistently rising prices. (A → B → C → D → E → E)',
+    'Scenario 3': 'Consistently falling prices. (A → B → C → D → E → A)',
+    'Scenario 4': 'Fluctuating prices between Level A and B. (A → B → A → B → A → B)',
+    'Scenario 5': 'Fluctuating with higher peaks at Level C. (A → C → A → C → A → C)',
+    'Scenario 6': 'Delayed rise in prices. (A → A → B → B → C → C)',
+    'Scenario 7': 'Early rise to Level D then plateau. (A → D → D → D → D → D)',
+    'Scenario 8': 'Rising prices with minor dips. (A → B → C → B → C → D)',
+    'Scenario 9': 'Late rise to Level B. (A → A → A → B → B → B)',
+    'Scenario 10': 'Peak at Level E then slight drop. (A → B → C → D → E → D)',
+    'Scenario 11': 'Peak at Level E then fall to initial. (A → B → C → D → E → A)',
+    'Scenario 12': 'Immediate peak at Level E. (A → E → E → E → E → E)',
+    'Scenario 13': 'Sudden spike at the end. (A → A → A → A → A → E)',
+    'Scenario 14': 'Fluctuating with higher highs. (A → B → A → C → A → D)',
+    'Scenario 15': 'Fluctuating between Level A and D. (A → D → A → D → A → D)',
+    'Scenario 16': 'Price remains at Level B. (A → B → B → B → B → B)',
+    'Scenario 17': 'Rise then fall then rise again. (A → B → C → B → A → B)',
+    'Scenario 18': 'Fluctuating with overall rise. (A → C → B → D → C → E)',
+    'Scenario 19': 'Drop before final rise to Level E. (A → D → C → B → A → E)',
+    'Scenario 20': 'Late peaks with drops. (A → A → B → A → C → A)'
+}
+
+# Define scenarios
+scenarios = {
+    'Scenario 1': ['A', 'A', 'A', 'A', 'A', 'A'],
+    'Scenario 2': ['A', 'B', 'C', 'D', 'E', 'E'],
+    'Scenario 3': ['A', 'B', 'C', 'D', 'E', 'A'],
+    'Scenario 4': ['A', 'B', 'A', 'B', 'A', 'B'],
+    'Scenario 5': ['A', 'C', 'A', 'C', 'A', 'C'],
+    'Scenario 6': ['A', 'A', 'B', 'B', 'C', 'C'],
+    'Scenario 7': ['A', 'D', 'D', 'D', 'D', 'D'],
+    'Scenario 8': ['A', 'B', 'C', 'B', 'C', 'D'],
+    'Scenario 9': ['A', 'A', 'A', 'B', 'B', 'B'],
+    'Scenario 10': ['A', 'B', 'C', 'D', 'E', 'D'],
+    'Scenario 11': ['A', 'B', 'C', 'D', 'E', 'A'],
+    'Scenario 12': ['A', 'E', 'E', 'E', 'E', 'E'],
+    'Scenario 13': ['A', 'A', 'A', 'A', 'A', 'E'],
+    'Scenario 14': ['A', 'B', 'A', 'C', 'A', 'D'],
+    'Scenario 15': ['A', 'D', 'A', 'D', 'A', 'D'],
+    'Scenario 16': ['A', 'B', 'B', 'B', 'B', 'B'],
+    'Scenario 17': ['A', 'B', 'C', 'B', 'A', 'B'],
+    'Scenario 18': ['A', 'C', 'B', 'D', 'C', 'E'],
+    'Scenario 19': ['A', 'D', 'C', 'B', 'A', 'E'],
+    'Scenario 20': ['A', 'A', 'B', 'A', 'C', 'A']
+}
+
 # Define strategies
 strategies = {
     'Strategy 1': 'Sell immediately at the current price (Price Level A) to secure $80,000. This conservative approach avoids market risks by cashing out as soon as possible.',
@@ -80,12 +128,8 @@ app.layout = dbc.Container([
                 clearable=False,
             ),
             html.Div(id='probabilities-display', className="mt-3"),
-        ], md=6),
-    ]),
-    dbc.Row([
-        dbc.Col([
-            dbc.Label("Number of Simulations:", html_for='num-simulations'),
-            dbc.Input(id='num-simulations', type='number', value=1000, min=100, max=10000, step=100, className="mb-4"),
+            html.H4("Number of Simulations"),
+            dbc.Input(id='num-simulations', type='number', value=1000, min=100, step=100, className="mb-2"),
         ], md=6),
     ]),
     dbc.Button('Run Analysis', id='run-button', color='primary', className="my-4"),
@@ -134,13 +178,12 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
 
     # Compute marginal probabilities
     marginal_probs = {}
-    marginal_probs['A'] = (100 - cumulative_probabilities['B']) / 100
-    marginal_probs['B'] = (cumulative_probabilities['B'] - cumulative_probabilities['C']) / 100
-    marginal_probs['C'] = (cumulative_probabilities['C'] - cumulative_probabilities['D']) / 100
-    marginal_probs['D'] = (cumulative_probabilities['D'] - cumulative_probabilities['E']) / 100
-    marginal_probs['E'] = cumulative_probabilities['E'] / 100
-
     levels = ['A', 'B', 'C', 'D', 'E']
+    cum_probs = [cumulative_probabilities[level] for level in levels]
+    marginal_probs['E'] = cum_probs[-1] / 100
+    for i in range(len(levels)-2, -1, -1):
+        marginal_probs[levels[i]] = (cum_probs[i] - cum_probs[i+1]) / 100
+
     probabilities = [marginal_probs[level] for level in levels]
 
     # Number of periods (time points)
@@ -155,8 +198,202 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
         price_path = np.random.choice(levels, size=num_periods, p=probabilities)
         price_paths.append(price_path)
 
+    # Initialize variables for scenario results
+    scenario_results = []
+    strategy_summary = {strategy: {'Winning Scenarios': [], 'Total BTC Sold': []} for strategy in strategies}
+
+    # Process predefined scenarios
+    for scenario_name, price_path in scenarios.items():
+        print(scenario_name)
+        prices = [price_levels[point] for point in price_path]
+        results = []
+
+        for strategy in strategies:
+            btc_remaining = 1.0
+            cash_received = 0.0
+            actions = []
+            goal_achieved = False
+
+            # Implement Strategy 1
+            if strategy == 'Strategy 1':
+                sell_price = prices[0]
+                btc_to_sell = min(btc_remaining, 80000 / sell_price)
+                cash = btc_to_sell * sell_price
+                btc_remaining -= btc_to_sell
+                cash_received += cash
+                actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                goal_achieved = cash_received >= 80000
+
+            # Implement Strategy 2
+            elif strategy == 'Strategy 2':
+                stop_loss_price = 87600
+                stop_loss_triggered = False
+                for price in prices:
+                    if price >= price_levels['B']:
+                        sell_price = price
+                        btc_to_sell = min(btc_remaining, 80000 / sell_price)
+                        cash = btc_to_sell * sell_price
+                        btc_remaining -= btc_to_sell
+                        cash_received += cash
+                        actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                        goal_achieved = cash_received >= 80000
+                        break
+                    elif price <= stop_loss_price and not stop_loss_triggered:
+                        sell_price = stop_loss_price
+                        btc_to_sell = btc_remaining
+                        cash = btc_to_sell * sell_price
+                        btc_remaining = 0
+                        cash_received += cash
+                        actions.append(f"Stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                        goal_achieved = cash_received >= 80000
+                        break
+
+            # Implement Strategy 3
+            elif strategy == 'Strategy 3':
+                sell_points = [price_levels['A'], price_levels['B'], price_levels['C']]
+                btc_per_sale = 0.2
+                stop_loss_price = 87600
+                stop_loss_triggered = False
+                for price in prices:
+                    if price in sell_points and btc_remaining >= btc_per_sale:
+                        sell_price = price
+                        btc_to_sell = min(btc_per_sale, btc_remaining)
+                        cash = btc_to_sell * sell_price
+                        btc_remaining -= btc_to_sell
+                        cash_received += cash
+                        actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                        if cash_received >= 80000:
+                            goal_achieved = True
+                            break
+                    if price <= stop_loss_price and not stop_loss_triggered:
+                        sell_price = stop_loss_price
+                        btc_to_sell = btc_remaining
+                        cash = btc_to_sell * sell_price
+                        btc_remaining = 0
+                        cash_received += cash
+                        actions.append(f"Stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                        goal_achieved = cash_received >= 80000
+                        break
+                # Final sale if goal not achieved
+                if not goal_achieved and btc_remaining > 0:
+                    sell_price = prices[-1]
+                    btc_needed = (80000 - cash_received) / sell_price
+                    btc_to_sell = min(btc_remaining, btc_needed)
+                    cash = btc_to_sell * sell_price
+                    btc_remaining -= btc_to_sell
+                    cash_received += cash
+                    actions.append(f"Final sale of {btc_to_sell:.4f} BTC at ${sell_price}")
+                    goal_achieved = cash_received >= 80000
+
+            # Implement Strategy 4
+            elif strategy == 'Strategy 4':
+                sell_price = prices[-1]
+                btc_to_sell = min(btc_remaining, 80000 / sell_price)
+                cash = btc_to_sell * sell_price
+                btc_remaining -= btc_to_sell
+                cash_received += cash
+                actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                goal_achieved = cash_received >= 80000
+
+            # Implement Strategy 5
+            elif strategy == 'Strategy 5':
+                trailing_percentage = 0.10
+                peak_price = prices[0]
+                for price in prices:
+                    if price > peak_price:
+                        peak_price = price
+                    stop_price = peak_price * (1 - trailing_percentage)
+                    if price <= stop_price:
+                        sell_price = stop_price
+                        btc_to_sell = btc_remaining
+                        cash = btc_to_sell * sell_price
+                        btc_remaining = 0
+                        cash_received += cash
+                        actions.append(f"Trailing stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${sell_price:.2f}")
+                        goal_achieved = cash_received >= 80000
+                        break
+                else:
+                    # If stop-loss not triggered, sell at last price
+                    sell_price = prices[-1]
+                    btc_to_sell = btc_remaining
+                    cash = btc_to_sell * sell_price
+                    btc_remaining = 0
+                    cash_received += cash
+                    actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                    goal_achieved = cash_received >= 80000
+
+            # Implement Strategy 6
+            elif strategy == 'Strategy 6':
+                target_price = price_levels['C']
+                for price in prices:
+                    if price >= target_price:
+                        sell_price = price
+                        btc_to_sell = min(btc_remaining, 80000 / sell_price)
+                        cash = btc_to_sell * sell_price
+                        btc_remaining -= btc_to_sell
+                        cash_received += cash
+                        actions.append(f"Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                        goal_achieved = cash_received >= 80000
+                        break
+                else:
+                    # If target price not reached, sell at last price
+                    sell_price = prices[-1]
+                    btc_to_sell = min(btc_remaining, 80000 / sell_price)
+                    cash = btc_to_sell * sell_price
+                    btc_remaining -= btc_to_sell
+                    cash_received += cash
+                    actions.append(f"Target not reached. Sold {btc_to_sell:.4f} BTC at ${sell_price}")
+                    goal_achieved = cash_received >= 80000
+
+            # Record the result
+            total_btc_sold = round(1.0 - btc_remaining, 4)
+            result = {
+                'Strategy': strategy,
+                'Actions': '; '.join(actions),
+                'Total BTC Sold': total_btc_sold,
+                'Cash Received': cash_received,
+                'Goal Achieved': 'Yes' if goal_achieved else 'No'
+            }
+            results.append(result)
+
+            # Update strategy summary
+            # if goal_achieved:
+            #     strategy_summary[strategy]['Winning Scenarios'].append(scenario_name)
+            #     strategy_summary[strategy]['Total BTC Sold'].append(total_btc_sold)
+
+        # Convert results to DataFrame
+        df_results = pd.DataFrame(results)
+        df_results['Total BTC Sold'] = df_results['Total BTC Sold'].astype(float)
+        df_results['Cash Received'] = df_results['Cash Received'].astype(float)
+
+        # Determine the winning strategy (least BTC sold, goal achieved)
+        goal_achieved_df = df_results[df_results['Goal Achieved'] == 'Yes']
+        if not goal_achieved_df.empty:
+            min_btc_sold = goal_achieved_df['Total BTC Sold'].min()
+            df_results['Winner'] = df_results.apply(
+                lambda x: 'Yes' if x['Goal Achieved'] == 'Yes' and x['Total BTC Sold'] == min_btc_sold else '', axis=1
+            )
+        else:
+            df_results['Winner'] = ''
+
+        # Update strategy summary based on the winning strategy/strategies
+        winning_strategies = df_results[df_results['Winner'] == 'Yes']['Strategy'].tolist()
+        for winning_strategy in winning_strategies:
+            strategy_summary[winning_strategy]['Winning Scenarios'].append(scenario_name)
+            # Get the Total BTC Sold for the winning strategy
+            total_btc_sold = df_results[df_results['Strategy'] == winning_strategy]['Total BTC Sold'].values[0]
+            strategy_summary[winning_strategy]['Total BTC Sold'].append(total_btc_sold)
+            
+        # Append scenario description
+        df_results.insert(0, 'Scenario', scenario_name)
+        df_results.insert(1, 'Scenario Description', scenario_descriptions[scenario_name])
+
+        # Append to the list
+        scenario_results.append(df_results)
+
+    # Process simulations using probabilities
     # Initialize strategy results
-    strategy_results = {strategy: {'Cash Received': [], 'Goal Achieved': [], 'Total BTC Sold': []} for strategy in strategies}
+    sim_strategy_results = {strategy: {'Cash Received': [], 'Goal Achieved': [], 'Total BTC Sold': []} for strategy in strategies}
 
     for price_path in price_paths:
         prices = [price_levels[level] for level in price_path]
@@ -168,7 +405,6 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
 
             # Implement Strategy 1
             if strategy == 'Strategy 1':
-                # Sell immediately at current price
                 sell_price = prices[0]
                 btc_to_sell = min(btc_remaining, 80000 / sell_price)
                 cash = btc_to_sell * sell_price
@@ -300,27 +536,35 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
 
             # Record the result
             total_btc_sold = 1.0 - btc_remaining
-            strategy_results[strategy]['Cash Received'].append(cash_received)
-            strategy_results[strategy]['Goal Achieved'].append(goal_achieved)
-            strategy_results[strategy]['Total BTC Sold'].append(total_btc_sold)
+            sim_strategy_results[strategy]['Cash Received'].append(cash_received)
+            sim_strategy_results[strategy]['Goal Achieved'].append(goal_achieved)
+            sim_strategy_results[strategy]['Total BTC Sold'].append(total_btc_sold)
 
     # Create strategy summary table
     summary_rows = []
     for strategy in strategies:
-        cash_received_list = strategy_results[strategy]['Cash Received']
-        goal_achieved_list = strategy_results[strategy]['Goal Achieved']
-        total_btc_sold_list = strategy_results[strategy]['Total BTC Sold']
+        # Results from predefined scenarios
+        num_wins = len(strategy_summary[strategy]['Winning Scenarios'])
+        avg_btc_sold_scenarios = round(sum(strategy_summary[strategy]['Total BTC Sold']) / num_wins, 4) if num_wins > 0 else 'N/A'
+
+        # Results from simulations
+        cash_received_list = sim_strategy_results[strategy]['Cash Received']
+        goal_achieved_list = sim_strategy_results[strategy]['Goal Achieved']
+        total_btc_sold_list = sim_strategy_results[strategy]['Total BTC Sold']
 
         avg_cash_received = np.mean(cash_received_list)
         prob_goal_achieved = np.mean(goal_achieved_list)
-        avg_btc_sold = np.mean(total_btc_sold_list)
+        avg_btc_sold_simulations = np.mean(total_btc_sold_list)
 
         summary_rows.append({
             'Strategy': strategy,
             'Description': strategies[strategy],
-            'Expected Cash Received': f"${avg_cash_received:,.2f}",
-            'Probability of Achieving Goal': f"{prob_goal_achieved * 100:.2f}%",
-            'Average BTC Sold': f"{avg_btc_sold:.4f}"
+            'Number of Wins in Scenarios': num_wins,
+            'Winning Scenarios': ', '.join(strategy_summary[strategy]['Winning Scenarios']),
+            'Avg BTC Sold in Scenario Wins': avg_btc_sold_scenarios,
+            'Expected Cash Received (Simulations)': f"${avg_cash_received:,.2f}",
+            'Probability of Achieving Goal (Simulations)': f"{prob_goal_achieved * 100:.2f}%",
+            'Avg BTC Sold (Simulations)': f"{avg_btc_sold_simulations:.4f}"
         })
 
     df_summary = pd.DataFrame(summary_rows)
@@ -343,17 +587,50 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
         },
     )
 
-    # Display results (optional)
-    results_div = html.Div([
-        html.H2("Simulation Results"),
-        html.P("Detailed results are not displayed for brevity.")
-    ])
+    # Display results
+    tables = []
+    for df in scenario_results:
+        scenario_name = df['Scenario'].iloc[0]
+        description = df['Scenario Description'].iloc[0]
+        table = dash_table.DataTable(
+            columns=[{"name": i, "id": i} for i in df.columns if i not in ['Scenario', 'Scenario Description']],
+            data=df.to_dict('records'),
+            style_cell={
+                'textAlign': 'left',
+                'whiteSpace': 'normal',
+                'height': 'auto',
+                'minWidth': '100px',
+                'width': '150px',
+                'maxWidth': '300px',
+            },
+            style_header={
+                'backgroundColor': 'rgb(230, 230, 230)',
+                'fontWeight': 'bold'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'filter_query': '{Winner} = "Yes"'},
+                    'backgroundColor': '#C2FFC2'
+                },
+                {
+                    'if': {'filter_query': '{Goal Achieved} = "No"'},
+                    'backgroundColor': '#FFC2C2'
+                },
+            ]
+        )
+        tables.append(html.H4(f"{scenario_name}: {description}"))
+        tables.append(table)
+        tables.append(html.Hr())
+
+    # Append simulation results
+    tables.append(html.H2("Simulation Results"))
+    tables.append(html.P("The simulation results are based on the selected probability set and number of simulations."))
 
     return html.Div([
         html.H2("Strategy Summary"),
         summary_table,
         html.Hr()
-    ]), results_div
+    ]), tables
 
 if __name__ == '__main__':
     app.run_server(debug=True)
