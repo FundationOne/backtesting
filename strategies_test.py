@@ -8,7 +8,7 @@ import numpy as np
 
 # Initialize the Dash app with Bootstrap CSS for better styling
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-goal_achieved_cash = 80000
+# goal_achieved_cash = 80000
 
 # Define default price levels
 default_price_levels = {
@@ -92,7 +92,7 @@ strategies = {
     'Strategy 6': 'Wait for the price to reach at least Price Level C before selling. If Price Level C is not reached, sell at the last price point to meet the $80,000 goal. This strategy prioritizes higher returns but risks missing the goal entirely if the target price is not reached.'
 }
 
-def execute_strategy_1(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_1(prices, price_levels, goal):
     """Sell immediately at the current price."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -107,7 +107,7 @@ def execute_strategy_1(prices, price_levels, goal=goal_achieved_cash):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_2(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_2(prices, price_levels, goal):
     """Hold for Level B with stop-loss."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -140,7 +140,7 @@ def execute_strategy_2(prices, price_levels, goal=goal_achieved_cash):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_3(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_3(prices, price_levels, goal):
     """Incremental selling at levels A, B, C with stop-loss."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -175,7 +175,7 @@ def execute_strategy_3(prices, price_levels, goal=goal_achieved_cash):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_4(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_4(prices, price_levels, goal):
     """Hold until last price point."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -190,7 +190,7 @@ def execute_strategy_4(prices, price_levels, goal=goal_achieved_cash):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_5(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_5(prices, price_levels, goal):
     """Trailing stop-loss strategy."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -219,7 +219,7 @@ def execute_strategy_5(prices, price_levels, goal=goal_achieved_cash):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_6(prices, price_levels, goal=goal_achieved_cash):
+def execute_strategy_6(prices, price_levels, goal):
     """Wait for Level C then sell."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -286,35 +286,33 @@ app.layout = dbc.Container([
             ], className="mb-4"),
         ], md=6),
         dbc.Col([
-            html.H4("Select Probability Set"),
-            dcc.Dropdown(
-                id='probability-set-dropdown',
-                options=[{'label': key, 'value': key} for key in probability_sets.keys()],
-                value='Pessimistic Market',
-                clearable=False,
-            ),
-            html.Div(id='probabilities-display', className="mt-3"),
-            html.H4("Number of Simulations"),
-            dbc.Input(id='num-simulations', type='number', value=1000, min=100, step=100, className="mb-2"),
-        ], md=6),
+            html.Div([
+                html.H4("Select Probability Set", className="mb-2"),
+                dcc.Dropdown(
+                    id='probability-set-dropdown',
+                    options=[
+                        {'label': f"{key} (A: {value['A']}%, B: {value['B']}%, C: {value['C']}%, D: {value['D']}%, E: {value['E']}%)", 'value': key}
+                        for key, value in probability_sets.items()
+                    ],
+                    value='Pessimistic Market',
+                    clearable=False,
+                    className="mb-3"
+                )
+            ]),
+            html.Div([
+                html.H4("Number of Simulations", className="mb-2"),
+                dbc.Input(id='num-simulations', type='number', value=1000, min=100, step=100, className="mb-3")
+            ]),
+            html.Div([
+                html.H4("Goal Achieved Cash", className="mb-2"),
+                dbc.Input(id='goal-achieved-cash', type='number', value=80000, min=0, step=100, className="mb-3")
+            ])
+        ], md=6)
     ]),
     dbc.Button('Run Analysis', id='run-button', color='primary', className="my-4"),
     html.Div(id='summary-table'),
     html.Div(id='results-div')
 ], fluid=True)
-
-# Callback to display selected probabilities
-@app.callback(
-    Output('probabilities-display', 'children'),
-    Input('probability-set-dropdown', 'value')
-)
-def display_probabilities(selected_set):
-    probs = probability_sets[selected_set]
-    return html.Div([
-        html.P("Selected Cumulative Probabilities (Probability of reaching at least this level):"),
-        html.Ul([html.Li(f"Price Level {level}: {prob}%") for level, prob in probs.items()])
-    ])
-
 
 @app.callback(
     [Output('summary-table', 'children'),
@@ -327,8 +325,9 @@ def display_probabilities(selected_set):
     State('price-E', 'value'),
     State('probability-set-dropdown', 'value'),
     State('num-simulations', 'value'),
+    State('goal-achieved-cash', 'value')
 )
-def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected_prob_set, num_simulations):
+def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected_prob_set, num_simulations, goal_achieved_cash):
     if n_clicks is None:
         return '', ''
 
@@ -367,7 +366,7 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
             # Execute all strategies on this price path
             sim_results = []
             for strategy_name, strategy_func in strategy_functions.items():
-                btc_remaining, cash_received, _ = strategy_func(actual_prices, price_levels)
+                btc_remaining, cash_received, _ = strategy_func(actual_prices, price_levels, goal_achieved_cash)
 
                 total_btc_sold = 1.0 - btc_remaining
                 goal_achieved = cash_received >= goal_achieved_cash
@@ -441,9 +440,6 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
 
         # Find the highest Win Rate for this scenario
         max_win_rate = scenario_df['Win Rate'].str.rstrip('%').astype(float).max()
-
-        print(max_win_rate)
-        print("#############")
         
         # Combine average and standard deviation for 'Cash Received' and 'BTC Sold'
         scenario_df['Cash Received'] = scenario_df.apply(lambda row: f"{row['Avg Cash Received']} ± {row['Std Cash Received']}", axis=1)
