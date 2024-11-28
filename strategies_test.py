@@ -8,6 +8,7 @@ import numpy as np
 
 # Initialize the Dash app with Bootstrap CSS for better styling
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+goal_achieved_cash = 80000
 
 # Define default price levels
 default_price_levels = {
@@ -24,7 +25,8 @@ probability_sets = {
     'Bullish Market': {'A': 100, 'B': 90, 'C': 70, 'D': 50, 'E': 30},
     'Bearish Market': {'A': 100, 'B': 60, 'C': 30, 'D': 10, 'E': 5},
     'Volatile Market': {'A': 100, 'B': 70, 'C': 50, 'D': 30, 'E': 15},
-    'Pessimistic Market': {'A': 100, 'B': 50, 'C': 25, 'D': 10, 'E': 1}
+    'Pessimistic Market': {'A': 100, 'B': 50, 'C': 25, 'D': 10, 'E': 1},
+    'To The Moon': {'A': 100, 'B': 100, 'C': 100, 'D': 100, 'E': 100}
 }
 
 # Define scenario descriptions
@@ -90,7 +92,7 @@ strategies = {
     'Strategy 6': 'Wait for the price to reach at least Price Level C before selling. If Price Level C is not reached, sell at the last price point to meet the $80,000 goal. This strategy prioritizes higher returns but risks missing the goal entirely if the target price is not reached.'
 }
 
-def execute_strategy_1(prices, goal=80000):
+def execute_strategy_1(prices, price_levels, goal=goal_achieved_cash):
     """Sell immediately at the current price."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -105,7 +107,7 @@ def execute_strategy_1(prices, goal=80000):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_2(prices, price_levels, goal=80000):
+def execute_strategy_2(prices, price_levels, goal=goal_achieved_cash):
     """Hold for Level B with stop-loss."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -138,7 +140,7 @@ def execute_strategy_2(prices, price_levels, goal=80000):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_3(prices, price_levels, goal=80000):
+def execute_strategy_3(prices, price_levels, goal=goal_achieved_cash):
     """Incremental selling at levels A, B, C with stop-loss."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -173,7 +175,7 @@ def execute_strategy_3(prices, price_levels, goal=80000):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_4(prices, goal=80000):
+def execute_strategy_4(prices, price_levels, goal=goal_achieved_cash):
     """Hold until last price point."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -188,7 +190,7 @@ def execute_strategy_4(prices, goal=80000):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_5(prices):
+def execute_strategy_5(prices, price_levels, goal=goal_achieved_cash):
     """Trailing stop-loss strategy."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -217,7 +219,7 @@ def execute_strategy_5(prices):
     
     return btc_remaining, cash_received, actions
 
-def execute_strategy_6(prices, price_levels, goal=80000):
+def execute_strategy_6(prices, price_levels, goal=goal_achieved_cash):
     """Wait for Level C then sell."""
     btc_remaining = 1.0
     cash_received = 0.0
@@ -288,7 +290,7 @@ app.layout = dbc.Container([
             dcc.Dropdown(
                 id='probability-set-dropdown',
                 options=[{'label': key, 'value': key} for key in probability_sets.keys()],
-                value='Equal Probabilities',
+                value='Pessimistic Market',
                 clearable=False,
             ),
             html.Div(id='probabilities-display', className="mt-3"),
@@ -357,6 +359,7 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
                 if level not in reached_levels and np.random.random() > cumulative_probabilities[level]/100:
                     # Failed to reach this level, use previous level (or A if first)
                     actual_prices.append(price_levels[list(reached_levels)[-1] if reached_levels else 'A'])
+                    break
                 else:
                     actual_prices.append(price_levels[level])
                     reached_levels.add(level)
@@ -364,13 +367,10 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
             # Execute all strategies on this price path
             sim_results = []
             for strategy_name, strategy_func in strategy_functions.items():
-                if strategy_name in ['Strategy 2', 'Strategy 3', 'Strategy 6']:
-                    btc_remaining, cash_received, _ = strategy_func(actual_prices, price_levels)
-                else:
-                    btc_remaining, cash_received, _ = strategy_func(actual_prices)
+                btc_remaining, cash_received, _ = strategy_func(actual_prices, price_levels)
 
                 total_btc_sold = 1.0 - btc_remaining
-                goal_achieved = cash_received >= 80000
+                goal_achieved = cash_received >= goal_achieved_cash
                 
                 sim_results.append((strategy_name, total_btc_sold, cash_received, goal_achieved))
                 
@@ -437,17 +437,39 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
     # Create scenario tables
     scenario_tables = []
     for scenario_name in scenarios:
-        scenario_df = df_results[df_results['Scenario'] == scenario_name]
+        scenario_df = df_results[df_results['Scenario'] == scenario_name].copy()
+
+        # Find the highest Win Rate for this scenario
+        max_win_rate = scenario_df['Win Rate'].str.rstrip('%').astype(float).max()
+
+        print(max_win_rate)
+        print("#############")
+        
+        # Combine average and standard deviation for 'Cash Received' and 'BTC Sold'
+        scenario_df['Cash Received'] = scenario_df.apply(lambda row: f"{row['Avg Cash Received']} ± {row['Std Cash Received']}", axis=1)
+        scenario_df['BTC Sold'] = scenario_df.apply(lambda row: f"{row['Avg BTC Sold']} ± {row['Std BTC Sold']}", axis=1)
+        scenario_df = scenario_df.drop(columns=['Avg Cash Received', 'Std Cash Received', 'Avg BTC Sold', 'Std BTC Sold'])
         if not scenario_df.empty:
+            # Ensure 'Win Rate' is a float for comparison
+            scenario_df['Win Rate'] = scenario_df['Win Rate'].str.rstrip('%').astype(float)
+
+            # Find the highest Win Rate for this scenario
+            max_win_rate = scenario_df['Win Rate'].max()
+
             table = dash_table.DataTable(
                 columns=[{"name": i, "id": i} for i in scenario_df.columns if i not in ['Scenario']],
                 data=scenario_df.to_dict('records'),
                 style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto',
-                           'minWidth': '100px', 'width': '150px', 'maxWidth': '300px'},
+                            'minWidth': '100px', 'width': '150px', 'maxWidth': '300px'},
                 style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
                 style_data_conditional=[
-                    {'if': {'filter_query': '{Goal Achievement Rate} >= "50%"'}, 'backgroundColor': '#C2FFC2'},
-                    {'if': {'filter_query': '{Goal Achievement Rate} < "50%"'}, 'backgroundColor': '#FFC2C2'},
+                    {
+                        'if': {
+                            'filter_query': '{{Win Rate}} >= {} && {{Win Rate}} <= {}'.format(max_win_rate - 0.01, max_win_rate + 0.01),
+                            'column_id': 'Win Rate'  # Specify the column to apply the style
+                        },
+                        'backgroundColor': '#C2FFC2'  # Light green color
+                    }
                 ]
             )
             scenario_tables.append(html.H4(f"{scenario_name}: {scenario_descriptions[scenario_name]}"))
@@ -465,4 +487,5 @@ def run_analysis(n_clicks, price_A, price_B, price_C, price_D, price_E, selected
     ])
 
 if __name__ == '__main__':
+    print("Running Dash app...")
     app.run_server(debug=True)
