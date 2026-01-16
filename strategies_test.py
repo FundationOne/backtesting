@@ -113,7 +113,7 @@ def execute_strategy_2(prices, price_levels, goal):
     cash_received = 0.0
     actions = []
     stop_loss_price = 87600
-    
+
     for price in prices:
         if price >= price_levels['B']:
             btc_to_sell = min(btc_remaining, goal / price)
@@ -123,21 +123,22 @@ def execute_strategy_2(prices, price_levels, goal):
             actions.append(f"Sold {btc_to_sell:.4f} BTC at ${price}")
             break
         elif price <= stop_loss_price:
-            cash = btc_remaining * stop_loss_price
-            btc_remaining = 0
+            btc_to_sell = btc_remaining
+            cash = btc_to_sell * stop_loss_price
+            btc_remaining -= btc_to_sell
             cash_received += cash
-            actions.append(f"Stop-loss triggered. Sold {btc_remaining:.4f} BTC at ${stop_loss_price}")
+            actions.append(f"Stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${stop_loss_price}")
             break
-    
+
     # Sell remaining at last price if neither condition met
     if btc_remaining > 0:
         price = prices[-1]
         btc_to_sell = btc_remaining
         cash = btc_to_sell * price
-        btc_remaining = 0
+        btc_remaining -= btc_to_sell
         cash_received += cash
         actions.append(f"Final sale of {btc_to_sell:.4f} BTC at ${price}")
-    
+
     return btc_remaining, cash_received, actions
 
 def execute_strategy_3(prices, price_levels, goal):
@@ -148,7 +149,7 @@ def execute_strategy_3(prices, price_levels, goal):
     sell_points = [price_levels['A'], price_levels['B'], price_levels['C']]
     btc_per_sale = 0.2
     stop_loss_price = 87600
-    
+
     for price in prices:
         if price in sell_points and btc_remaining >= btc_per_sale:
             btc_to_sell = min(btc_per_sale, btc_remaining)
@@ -157,12 +158,13 @@ def execute_strategy_3(prices, price_levels, goal):
             cash_received += cash
             actions.append(f"Sold {btc_to_sell:.4f} BTC at ${price}")
         elif price <= stop_loss_price and btc_remaining > 0:
-            cash = btc_remaining * stop_loss_price
-            btc_remaining = 0
+            btc_to_sell = btc_remaining
+            cash = btc_to_sell * stop_loss_price
+            btc_remaining -= btc_to_sell
             cash_received += cash
-            actions.append(f"Stop-loss triggered. Sold {btc_remaining:.4f} BTC at ${stop_loss_price}")
+            actions.append(f"Stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${stop_loss_price}")
             break
-    
+
     # Final sale if goal not achieved
     if btc_remaining > 0:
         price = prices[-1]
@@ -172,7 +174,7 @@ def execute_strategy_3(prices, price_levels, goal):
         btc_remaining -= btc_to_sell
         cash_received += cash
         actions.append(f"Final sale of {btc_to_sell:.4f} BTC at ${price}")
-    
+
     return btc_remaining, cash_received, actions
 
 def execute_strategy_4(prices, price_levels, goal):
@@ -197,26 +199,28 @@ def execute_strategy_5(prices, price_levels, goal):
     actions = []
     trailing_percentage = 0.10
     peak_price = prices[0]
-    
+
     for price in prices:
         if price > peak_price:
             peak_price = price
         stop_price = peak_price * (1 - trailing_percentage)
         if price <= stop_price and btc_remaining > 0:
-            cash = btc_remaining * stop_price
-            btc_remaining = 0
+            btc_to_sell = btc_remaining
+            cash = btc_to_sell * stop_price
+            btc_remaining -= btc_to_sell
             cash_received += cash
-            actions.append(f"Trailing stop-loss triggered. Sold {btc_remaining:.4f} BTC at ${stop_price:.2f}")
+            actions.append(f"Trailing stop-loss triggered. Sold {btc_to_sell:.4f} BTC at ${stop_price:.2f}")
             break
-    
+
     # Sell remaining at last price if stop-loss not triggered
     if btc_remaining > 0:
         price = prices[-1]
-        cash = btc_remaining * price
-        btc_remaining = 0
+        btc_to_sell = btc_remaining
+        cash = btc_to_sell * price
+        btc_remaining -= btc_to_sell
         cash_received += cash
-        actions.append(f"Sold {btc_remaining:.4f} BTC at ${price}")
-    
+        actions.append(f"Sold {btc_to_sell:.4f} BTC at ${price}")
+
     return btc_remaining, cash_received, actions
 
 def execute_strategy_6(prices, price_levels, goal):
