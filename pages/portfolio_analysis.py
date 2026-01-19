@@ -1,0 +1,1166 @@
+"""
+Portfolio Analysis Page
+Analyze your Trade Republic portfolio with performance charts and metrics
+Inspired by Parqet's design
+"""
+
+import dash
+from dash import html, dcc, Input, Output, State, callback, dash_table, ctx, no_update
+import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+import json
+import math
+
+# Import the TR connector component
+from components.tr_connector import create_tr_connector_card, register_tr_callbacks
+from components.tr_api import fetch_all_data, is_connected, reconnect
+from components.benchmark_data import get_benchmark_data, initialize_benchmarks, BENCHMARKS
+
+# Initialize benchmark cache on module load
+initialize_benchmarks()
+
+
+def fetch_benchmark_data(symbol, start_date, end_date):
+    """Fetch historical data for a benchmark using cached data."""
+    try:
+        # Use cached benchmark data
+        df = get_benchmark_data(symbol, start_date, end_date)
+        if df is not None and len(df) > 0:
+            df = df.reset_index()
+            return df[["Date", "Close"]]
+        return None
+    except Exception as e:
+        print(f"Error fetching {symbol}: {e}")
+        return None
+
+
+# TR Connect Modal
+tr_connect_modal = dbc.Modal([
+    dbc.ModalHeader([
+        html.Div([
+            html.I(className="bi bi-bank me-2"),
+            "Connect to Trade Republic"
+        ], className="d-flex align-items-center")
+    ], close_button=True),
+    dbc.ModalBody([
+        create_tr_connector_card(),
+    ]),
+], id="tr-connect-modal", size="md", centered=True, className="tr-modal", is_open=False)
+
+
+def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class=""):
+    """Create a metric card component."""
+    return html.Div([
+        html.Div([
+            html.Div(title, className="metric-label"),
+            html.Div(id=value_id, className=f"metric-value sensitive {color_class}", children="--"),
+            html.Div(id=subtitle_id, className="metric-subtitle sensitive", children="") if subtitle_id else None,
+        ], className="metric-content"),
+    ], className="metric-card")
+
+
+# Layout for the analysis page
+layout = dbc.Container([
+    # Page Header
+    html.Div([
+        html.Div([
+            html.H4([
+                html.I(className="bi bi-pie-chart me-2"),
+                "Portfolio Analysis"
+            ], className="mb-0"),
+            html.P("Trade Republic Portfolio Overview", className="text-muted mb-0 mt-1"),
+        ], className="d-flex flex-column"),
+        # Sync button + privacy toggle
+        html.Div([
+            dbc.Button([
+                html.I(className="bi bi-arrow-repeat me-2"),
+                "Sync"
+            ], id="sync-tr-data-btn", color="outline-primary", size="sm", className="me-2", n_clicks=0),
+            dbc.Button([
+                html.I(className="bi bi-eye-slash me-2"),
+                "Hide Values"
+            ], id="toggle-privacy-btn", color="outline-secondary", size="sm", className="me-2", n_clicks=0),
+        ], className="d-flex align-items-center"),
+    ], className="page-header d-flex justify-content-between align-items-start"),
+    
+    # Portfolio Summary Row
+    dbc.Row([
+        # Main Value Card
+        dbc.Col([
+            html.Div([
+                html.Div([
+                    html.Div("Portfolio Value", className="text-muted small"),
+                    html.Div(id="portfolio-total-value", className="display-6 fw-bold sensitive sensitive-strong", 
+                             children="€0.00"),
+                    html.Div(id="portfolio-total-change", className="fs-6 sensitive", children=""),
+                    html.Div(id="data-freshness", className="text-muted small mt-2", children=""),
+                ], className="text-center py-3"),
+            ], className="card-modern h-100 d-flex align-items-center justify-content-center"),
+        ], md=3),
+        
+        # Key Metrics
+        dbc.Col([
+            dbc.Row([
+                dbc.Col([
+                    create_metric_card("Invested", "metric-invested"),
+                ], width=6, className="mb-2"),
+                dbc.Col([
+                    create_metric_card("Profit/Loss", "metric-profit", "metric-profit-pct"),
+                ], width=6, className="mb-2"),
+                dbc.Col([
+                    create_metric_card("Cash", "metric-cash"),
+                ], width=6),
+                dbc.Col([
+                    create_metric_card("Positions", "metric-positions"),
+                ], width=6),
+            ]),
+        ], md=5),
+        
+        # Return Metrics
+        dbc.Col([
+            dbc.Row([
+                dbc.Col([
+                    create_metric_card("1M Return", "metric-1m-return"),
+                ], width=6, className="mb-2"),
+                dbc.Col([
+                    create_metric_card("3M Return", "metric-3m-return"),
+                ], width=6, className="mb-2"),
+                dbc.Col([
+                    create_metric_card("YTD Return", "metric-ytd-return"),
+                ], width=6),
+                dbc.Col([
+                    create_metric_card("Total Return", "metric-total-return"),
+                ], width=6),
+            ]),
+        ], md=4),
+    ], className="mb-3"),
+    
+    # Main Content Row
+    dbc.Row([
+        # Chart Section
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    # Chart Type Tabs
+                    dbc.Tabs([
+                        dbc.Tab(label="Value", tab_id="tab-value"),
+                        dbc.Tab(label="Performance %", tab_id="tab-performance"),
+                        dbc.Tab(label="Drawdown", tab_id="tab-drawdown"),
+                    ], id="chart-tabs", active_tab="tab-value", className="mb-2"),
+                    
+                    # Time Range Buttons
+                    html.Div([
+                        dbc.ButtonGroup([
+                            dbc.Button("1M", id="range-1m", color="outline-secondary", size="sm", n_clicks=0),
+                            dbc.Button("3M", id="range-3m", color="outline-secondary", size="sm", n_clicks=0),
+                            dbc.Button("6M", id="range-6m", color="outline-secondary", size="sm", n_clicks=0),
+                            dbc.Button("YTD", id="range-ytd", color="outline-secondary", size="sm", n_clicks=0),
+                            dbc.Button("1Y", id="range-1y", color="outline-secondary", size="sm", n_clicks=0),
+                            dbc.Button("MAX", id="range-max", color="primary", size="sm", n_clicks=0),
+                        ], size="sm"),
+                        
+                        # Benchmark Toggle
+                        dbc.Checklist(
+                            id="benchmark-toggle",
+                            options=[
+                                {"label": "S&P 500", "value": "^GSPC"},
+                                {"label": "DAX", "value": "^GDAXI"},
+                                {"label": "MSCI World", "value": "URTH"},
+                            ],
+                            value=["^GSPC", "^GDAXI", "URTH"],  # All selected by default
+                            inline=True,
+                            className="ms-3 small benchmark-toggles",
+                        ),
+                    ], className="d-flex align-items-center justify-content-between mb-3"),
+                    
+                    # Main Chart
+                    dcc.Loading(
+                        dcc.Graph(
+                            id="main-portfolio-chart-v2",
+                            config={
+                                "displayModeBar": False,
+                                "displaylogo": False,
+                                "scrollZoom": False,
+                                "doubleClick": "reset",
+                                "responsive": True,
+                            },
+                            style={"height": "350px"},
+                        ),
+                        type="circle",
+                        color="#6366f1"
+                    ),
+                ], className="py-2"),
+            ], className="card-modern mb-3"),
+            
+            # Performance Comparison Table
+            dbc.Card([
+                dbc.CardHeader([
+                    html.I(className="bi bi-bar-chart-line me-2"),
+                    "Performance Comparison"
+                ], className="card-header-modern"),
+                dbc.CardBody([
+                    html.Div(id="comparison-table-container"),
+                ], className="py-2"),
+            ], className="card-modern"),
+        ], md=8),
+        
+        # Positions Panel - Donut Chart + Holdings List
+        dbc.Col([
+            # Donut Chart Card
+            dbc.Card([
+                dbc.CardBody([
+                    dcc.Graph(id="holdings-donut-chart", 
+                              config={"displayModeBar": False},
+                              style={"height": "280px"}),
+                ], className="py-0 px-0"),
+            ], className="card-modern mb-2 sensitive"),
+            
+            # Holdings List Card
+            dbc.Card([
+                dbc.CardHeader([
+                    html.I(className="bi bi-list-ul me-2"),
+                    "Holdings",
+                    dbc.Badge(id="holdings-count", children="0", className="ms-2", color="primary", pill=True),
+                ], className="card-header-modern d-flex align-items-center"),
+                dbc.CardBody([
+                    html.Div(id="holdings-list", style={"maxHeight": "280px", "overflowY": "auto"}),
+                ], className="py-2 px-2"),
+            ], className="card-modern"),
+        ], md=4),
+    ]),
+    
+    # TR Connect Modal
+    tr_connect_modal,
+    
+    # Hidden stores - portfolio-data-store and tr-encrypted-creds are in main.py layout
+    dcc.Store(id="selected-range", data="max"),
+    dcc.Store(id="privacy-mode", data=False),
+    dcc.Store(id="tr-session-data", storage_type="session"),  # Current session only
+    dcc.Store(id="tr-auth-step", data="initial"),
+    dcc.Store(id="tr-check-creds-trigger", data=0),
+    dcc.Interval(id="load-cached-data-interval", interval=500, max_intervals=1),
+    html.Div(id="comparison-page", style={"display": "none"}),
+    
+    # (debug divs removed)
+    
+], fluid=True, className="portfolio-analysis-page", id="portfolio-analysis-root")
+
+
+def register_callbacks(app):
+    """Register callbacks for the portfolio analysis page."""
+    
+    # Register TR connector callbacks
+    register_tr_callbacks(app)
+    
+    # (debug clientside callbacks removed)
+    
+    # Load from server cache if browser localStorage is empty
+    @app.callback(
+        Output("portfolio-data-store", "data", allow_duplicate=True),
+        Input("load-cached-data-interval", "n_intervals"),
+        State("portfolio-data-store", "data"),
+        prevent_initial_call='initial_duplicate'
+    )
+    def load_from_server_cache(n_intervals, current_data):
+        """Load portfolio data from server cache.
+        
+        ALWAYS prefer server cache over browser localStorage to ensure
+        fresh data after recalculations (e.g., correct EUR values).
+        """
+        from components.tr_api import get_cached_portfolio
+        
+        # Always load from server cache - it has the latest recalculated values
+        cached = get_cached_portfolio()
+        
+        if cached and cached.get("success"):
+            # ALWAYS use server cache. Browser storage is not authoritative and can be stale/wrong.
+            positions = cached.get('data', {}).get('positions', [])
+            history = cached.get('data', {}).get('history', [])
+            total_value = cached.get('data', {}).get('totalValue', 0)
+            
+            # If history is minimal, try to build proper market-price-based history
+            if len(history) < 50 and positions:
+                try:
+                    from components.portfolio_history import calculate_and_save_history
+                    success, message, new_history = calculate_and_save_history(force_rebuild=False)
+                    if success and new_history:
+                        # Reload updated cache
+                        cached = get_cached_portfolio()
+                except Exception as e:
+                    pass
+            
+            return json.dumps(cached)
+        
+        return no_update
+    
+    # Modal: auto-open on first load if no data; close on successful sync
+    @app.callback(
+        Output("tr-connect-modal", "is_open"),
+        [Input("portfolio-data-store", "data"),
+         Input("load-cached-data-interval", "n_intervals")],
+        [State("tr-connect-modal", "is_open"),
+         State("tr-encrypted-creds", "data")],
+        prevent_initial_call=False
+    )
+    def toggle_tr_modal(portfolio_data, n_intervals, is_open, encrypted_creds):
+        triggered = ctx.triggered_id
+        
+        # Close modal when data loads successfully
+        if triggered == "portfolio-data-store" and portfolio_data:
+            try:
+                data = json.loads(portfolio_data)
+                if data.get("success"):
+                    return False
+            except:
+                pass
+        
+        # On initial load, if no data and no credentials, prompt login
+        if triggered == "load-cached-data-interval":
+            if not portfolio_data and not encrypted_creds:
+                return True
+        
+        return is_open
+    
+    # Sync button: if connected → sync; if not → open login modal
+    @app.callback(
+        [Output("portfolio-data-store", "data", allow_duplicate=True),
+         Output("sync-tr-data-btn", "children"),
+         Output("sync-tr-data-btn", "disabled"),
+         Output("tr-connect-modal", "is_open", allow_duplicate=True)],
+        Input("sync-tr-data-btn", "n_clicks"),
+        [State("tr-encrypted-creds", "data"),
+         State("tr-connect-modal", "is_open")],
+        prevent_initial_call=True,
+        running=[
+            (Output("sync-tr-data-btn", "disabled"), True, False),
+            (Output("sync-tr-data-btn", "children"), [html.I(className="bi bi-arrow-repeat spin me-2"), "Syncing..."], [html.I(className="bi bi-arrow-repeat me-2"), "Sync"]),
+        ]
+    )
+    def sync_data(n_clicks, encrypted_creds, modal_open):
+        if not n_clicks:
+            raise PreventUpdate
+        
+        from components.tr_api import fetch_all_data, reconnect, is_connected
+        
+        # If not connected, try silent reconnect with stored creds
+        if not is_connected() and encrypted_creds:
+            reconnect(encrypted_creds)
+        
+        # Still not connected? Open login modal
+        if not is_connected():
+            return no_update, [html.I(className="bi bi-arrow-repeat me-2"), "Sync"], False, True
+        
+        # Connected — fetch data (uses server cache if fresh)
+        data = fetch_all_data()
+        if data.get("success"):
+            return json.dumps(data), [html.I(className="bi bi-check-circle me-2"), "Synced!"], False, False
+        
+        return no_update, [html.I(className="bi bi-x-circle me-2"), "Sync Failed"], False, modal_open
+    
+    # Update metrics when data changes
+    @app.callback(
+        [Output("portfolio-total-value", "children"),
+         Output("portfolio-total-change", "children"),
+         Output("portfolio-total-change", "className"),
+         Output("data-freshness", "children"),
+         Output("metric-invested", "children"),
+         Output("metric-profit", "children"),
+         Output("metric-profit", "className"),
+         Output("metric-profit-pct", "children"),
+         Output("metric-cash", "children"),
+         Output("metric-positions", "children"),
+         Output("holdings-count", "children"),
+         Output("holdings-list", "children")],
+        Input("portfolio-data-store", "data"),
+        prevent_initial_call=False
+    )
+    def update_metrics(data_json):
+        if not data_json:
+            empty = ("€0.00", "", "fs-5", "No data synced", "€0.00", "€0.00", "metric-value", "", "€0.00", "0", "0", 
+                     html.Div("No data - connect to Trade Republic and sync", className="text-muted text-center py-4"))
+            return empty
+        
+        try:
+            data = json.loads(data_json)
+            if not data.get("success") or not data.get("data"):
+                raise ValueError("No data")
+            
+            portfolio = data["data"]
+            total_value = portfolio.get("totalValue", 0)
+            invested = portfolio.get("investedAmount", 0)
+            profit = portfolio.get("totalProfit", 0)
+            profit_pct = portfolio.get("totalProfitPercent", 0)
+            cash = portfolio.get("cash", 0)
+            positions = portfolio.get("positions", [])
+            
+            # Get sync timestamp
+            cached_at = data.get("cached_at", "")
+            if cached_at:
+                try:
+                    from datetime import datetime
+                    sync_time = datetime.fromisoformat(cached_at)
+                    freshness = f"Last synced: {sync_time.strftime('%d %b %Y, %H:%M')}"
+                except:
+                    freshness = "Synced"
+            else:
+                freshness = "Just synced"
+            
+            # Calculate returns from history
+            history = portfolio.get("history", [])
+            
+            # Format values
+            value_str = f"€{total_value:,.2f}"
+            invested_str = f"€{invested:,.2f}"
+            profit_str = f"{'+'if profit >= 0 else ''}€{profit:,.2f}"
+            profit_pct_str = f"{'+'if profit_pct >= 0 else ''}{profit_pct:.2f}%"
+            cash_str = f"€{cash:,.2f}"
+            positions_str = str(len(positions))
+            
+            # Change styling
+            change_class = "fs-5 text-success sensitive" if profit >= 0 else "fs-5 text-danger sensitive"
+            profit_class = "metric-value text-success sensitive" if profit >= 0 else "metric-value text-danger sensitive"
+            change_str = html.Span([
+                html.I(className=f"bi bi-{'arrow-up' if profit >= 0 else 'arrow-down'}-right me-1"),
+                f"{'+'if profit >= 0 else ''}€{abs(profit):,.2f} ({profit_pct:+.2f}%)"
+            ])
+            
+            # Build holdings list
+            holdings_items = []
+            for pos in sorted(positions, key=lambda x: x.get("value", 0), reverse=True):
+                name = pos.get("name", "Unknown")
+                value = pos.get("value", 0)
+                qty = pos.get("quantity", 0)
+                pos_profit = pos.get("profit", 0)
+                avg_buy = pos.get("averageBuyIn", 0)
+                
+                profit_color = "text-success" if pos_profit >= 0 else "text-danger"
+                
+                holdings_items.append(
+                    html.Div([
+                        html.Div([
+                            html.Div(name[:30] + ("..." if len(name) > 30 else ""), 
+                                     className="fw-medium small", title=name),
+                            html.Div(f"{qty:.4g} × €{avg_buy:.2f}", className="text-muted small"),
+                        ], className="flex-grow-1"),
+                        html.Div([
+                            html.Div(f"€{value:,.2f}", className="small fw-medium text-end sensitive"),
+                            html.Div(f"{'+'if pos_profit >= 0 else ''}€{pos_profit:,.2f}", 
+                                     className=f"small {profit_color} text-end sensitive"),
+                        ]),
+                    ], className="d-flex justify-content-between align-items-center py-2 border-bottom holding-item")
+                )
+            
+            holdings_list = html.Div(holdings_items) if holdings_items else html.Div(
+                "No holdings", className="text-muted text-center py-3"
+            )
+            
+            return (value_str, change_str, change_class, freshness, invested_str, profit_str, 
+                    profit_class, profit_pct_str, cash_str, positions_str, positions_str, holdings_list)
+            
+        except Exception as e:
+            print(f"Error updating metrics: {e}")
+            return ("€0.00", "", "fs-5", "Error loading data", "€0.00", "€0.00", "metric-value", "", "€0.00", "0", "0",
+                    html.Div(f"Error: {str(e)}", className="text-danger text-center py-3"))
+    
+    # Donut chart for holdings breakdown
+    @app.callback(
+        Output("holdings-donut-chart", "figure"),
+        Input("portfolio-data-store", "data"),
+        prevent_initial_call=False
+    )
+    def update_donut_chart(data_json):
+        # Dark theme colors matching the image
+        colors = ['#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', 
+                  '#8b5cf6', '#d946ef', '#ec4899', '#ef4444', '#f59e0b', '#84cc16']
+        
+        fig = go.Figure()
+        
+        if not data_json:
+            # Empty donut
+            fig.add_trace(go.Pie(
+                values=[1], labels=["No data"], hole=0.7,
+                marker=dict(colors=["#374151"]),
+                textinfo="none", hoverinfo="none"
+            ))
+            fig.update_layout(
+                showlegend=False, margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                annotations=[dict(text="No data", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="#9ca3af")]
+            )
+            return fig
+        
+        try:
+            data = json.loads(data_json)
+            positions = data.get("data", {}).get("positions", [])
+            
+            if not positions:
+                fig.add_trace(go.Pie(values=[1], labels=["Empty"], hole=0.7, marker=dict(colors=["#374151"]), textinfo="none"))
+                fig.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                return fig
+            
+            # Sort by value
+            positions = sorted(positions, key=lambda x: x.get("value", 0), reverse=True)
+            
+            labels = [p.get("name", "Unknown")[:25] for p in positions]
+            values = [p.get("value", 0) for p in positions]
+            total = sum(values)
+            
+            # Find largest position for center text
+            largest = positions[0] if positions else {}
+            center_name = largest.get("name", "")[:20]
+            center_value = f"€{largest.get('value', 0):,.2f}"
+            
+            fig.add_trace(go.Pie(
+                values=values, labels=labels, hole=0.7,
+                marker=dict(colors=colors[:len(values)]),
+                textinfo="none",
+                hovertemplate="<b>%{label}</b><br>€%{value:,.2f}<br>%{percent}<extra></extra>",
+            ))
+            
+            fig.update_layout(
+                showlegend=False,
+                margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor="#1f2937",
+                font=dict(color="white"),
+                annotations=[
+                    dict(text=center_name, x=0.5, y=0.55, font_size=11, showarrow=False, font_color="#d1d5db"),
+                    dict(text=center_value, x=0.5, y=0.45, font_size=18, showarrow=False, font_color="white", font_weight="bold"),
+                ]
+            )
+            return fig
+            
+        except Exception as e:
+            print(f"Donut chart error: {e}")
+            fig.add_trace(go.Pie(values=[1], labels=["Error"], hole=0.7, marker=dict(colors=["#374151"]), textinfo="none"))
+            fig.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+            return fig
+    
+    # Time return metrics
+    @app.callback(
+        [Output("metric-1m-return", "children"),
+         Output("metric-1m-return", "className"),
+         Output("metric-3m-return", "children"),
+         Output("metric-3m-return", "className"),
+         Output("metric-ytd-return", "children"),
+         Output("metric-ytd-return", "className"),
+         Output("metric-total-return", "children"),
+         Output("metric-total-return", "className")],
+        Input("portfolio-data-store", "data"),
+        prevent_initial_call=False
+    )
+    def update_return_metrics(data_json):
+        default = ("--", "metric-value", "--", "metric-value", "--", "metric-value", "--", "metric-value")
+        
+        if not data_json:
+            return default
+        
+        try:
+            data = json.loads(data_json)
+            history = data.get("data", {}).get("history", [])
+            
+            if not history:
+                return default
+            
+            # Convert to dataframe
+            df = pd.DataFrame(history)
+            if 'date' not in df.columns or 'value' not in df.columns:
+                return default
+            
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            
+            current_value = df['value'].iloc[-1]
+            
+            # Get total invested (from latest 'invested' field or fallback to portfolio data)
+            total_invested = df['invested'].iloc[-1] if 'invested' in df.columns else df['value'].iloc[-2] if len(df) > 1 else current_value
+            
+            # Also try getting from portfolio data directly
+            portfolio = data.get("data", {})
+            if portfolio.get("investedAmount", 0) > 0:
+                total_invested = portfolio["investedAmount"]
+            
+            def calc_return_on_investment(days_ago):
+                """Calculate return compared to invested amount at that time."""
+                target_date = datetime.now() - timedelta(days=days_ago)
+                past_data = df[df['date'] <= target_date]
+                if len(past_data) == 0:
+                    return 0
+                
+                # Get invested amount at that point
+                invested_then = past_data['invested'].iloc[-1] if 'invested' in past_data.columns else past_data['value'].iloc[-1]
+                
+                # If invested amount was less than current, calculate growth
+                if invested_then > 0 and total_invested > 0:
+                    # Calculate how much the portfolio has grown relative to additional investments
+                    # Simple approach: (current_value - total_invested) vs (value_then - invested_then)
+                    current_profit = current_value - total_invested
+                    past_profit = past_data['value'].iloc[-1] - invested_then
+                    
+                    # Return change in profit relative to current invested
+                    if total_invested > 0:
+                        return (current_profit - past_profit) / total_invested * 100
+                return 0
+            
+            # YTD: Compare current profit to profit at start of year
+            ytd_start = df[df['date'] >= datetime(datetime.now().year, 1, 1)]
+            if len(ytd_start) > 0 and 'invested' in df.columns:
+                ytd_invested = ytd_start['invested'].iloc[0]
+                ytd_value = ytd_start['value'].iloc[0]
+                ytd_profit = ytd_value - ytd_invested
+                current_profit = current_value - total_invested
+                
+                if total_invested > 0:
+                    ytd_return = (current_profit - ytd_profit) / total_invested * 100
+                else:
+                    ytd_return = 0
+            else:
+                ytd_return = 0
+            
+            # Total return: (current_value - total_invested) / total_invested
+            if total_invested > 0:
+                total_return = (current_value - total_invested) / total_invested * 100
+            else:
+                total_return = 0
+            
+            m1_return = calc_return_on_investment(30)
+            m3_return = calc_return_on_investment(90)
+            
+            def fmt(val):
+                sign = "+" if val >= 0 else ""
+                return f"{sign}{val:.1f}%"
+            
+            def cls(val):
+                return "metric-value text-success" if val >= 0 else "metric-value text-danger"
+            
+            return (fmt(m1_return), cls(m1_return), fmt(m3_return), cls(m3_return),
+                    fmt(ytd_return), cls(ytd_return), fmt(total_return), cls(total_return))
+            
+        except Exception as e:
+            print(f"Error calculating returns: {e}")
+            return default
+    
+    # Range button clicks
+    @app.callback(
+        [Output("selected-range", "data"),
+         Output("range-1m", "color"),
+         Output("range-3m", "color"),
+         Output("range-6m", "color"),
+         Output("range-ytd", "color"),
+         Output("range-1y", "color"),
+         Output("range-max", "color")],
+        [Input("range-1m", "n_clicks"),
+         Input("range-3m", "n_clicks"),
+         Input("range-6m", "n_clicks"),
+         Input("range-ytd", "n_clicks"),
+         Input("range-1y", "n_clicks"),
+         Input("range-max", "n_clicks")],
+        prevent_initial_call=True
+    )
+    def update_range(n1, n3, n6, nytd, n1y, nmax):
+        triggered = ctx.triggered_id
+        ranges = {"range-1m": "1m", "range-3m": "3m", "range-6m": "6m", 
+                  "range-ytd": "ytd", "range-1y": "1y", "range-max": "max"}
+        
+        selected = ranges.get(triggered, "max")
+        colors = ["outline-secondary"] * 6
+        idx = list(ranges.keys()).index(triggered) if triggered in ranges else 5
+        colors[idx] = "primary"
+        
+        return [selected] + colors
+    
+    # Main chart
+    @app.callback(
+        Output("main-portfolio-chart-v2", "figure"),
+        [Input("portfolio-data-store", "data"),
+         Input("chart-tabs", "active_tab"),
+         Input("selected-range", "data"),
+         Input("benchmark-toggle", "value")],
+        State("url", "pathname"),
+        prevent_initial_call=False
+    )
+    def update_chart(data_json, chart_type, selected_range, benchmarks, pathname):
+        # Only render chart on /compare page
+        if not pathname or pathname != "/compare":
+            return go.Figure()  # Return empty figure instead of raising exception
+
+        fig = go.Figure()
+        # Ensure Plotly does not keep an old zoom/range when data changes.
+        # Changing uirevision forces a full redraw.
+        fig.update_layout(uirevision=datetime.now().isoformat())
+        
+        if not data_json:
+            fig.update_layout(
+                height=320,
+                margin=dict(l=40, r=20, t=20, b=40),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                annotations=[{
+                    "text": "Connect to Trade Republic to see your portfolio",
+                    "xref": "paper", "yref": "paper",
+                    "x": 0.5, "y": 0.5, "showarrow": False,
+                    "font": {"size": 14, "color": "#9ca3af"}
+                }],
+                xaxis=dict(showgrid=False, showticklabels=False),
+                yaxis=dict(showgrid=False, showticklabels=False),
+            )
+            return fig
+        
+        try:
+            data = json.loads(data_json)
+
+            # Prefer server cache over browser localStorage (localStorage can be stale)
+            from components.tr_api import get_cached_portfolio
+            server_cache = get_cached_portfolio()
+            if server_cache and server_cache.get("success"):
+                history = server_cache.get("data", {}).get("history", [])
+                transactions = server_cache.get("data", {}).get("transactions", [])
+            else:
+                history = data.get("data", {}).get("history", [])
+                transactions = data.get("data", {}).get("transactions", [])
+            
+            if not history:
+                fig.update_layout(
+                    height=320,
+                    margin=dict(l=40, r=20, t=20, b=40),
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    annotations=[{
+                        "text": "Historical chart not available from Trade Republic",
+                        "xref": "paper", "yref": "paper",
+                        "x": 0.5, "y": 0.5, "showarrow": False,
+                        "font": {"size": 14, "color": "#9ca3af"}
+                    }],
+                    xaxis=dict(showgrid=False, showticklabels=False),
+                    yaxis=dict(showgrid=False, showticklabels=False),
+                )
+                return fig
+            
+            df = pd.DataFrame(history)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            
+            # Filter by range
+            # Use portfolio history's last date for stable ranges (not wall-clock now)
+            end_date = df['date'].max().to_pydatetime()
+            if selected_range == "1m":
+                start_date = end_date - timedelta(days=30)
+            elif selected_range == "3m":
+                start_date = end_date - timedelta(days=90)
+            elif selected_range == "6m":
+                start_date = end_date - timedelta(days=180)
+            elif selected_range == "ytd":
+                start_date = datetime(end_date.year, 1, 1)
+            elif selected_range == "1y":
+                start_date = end_date - timedelta(days=365)
+            else:
+                start_date = df['date'].min()
+
+            df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+            
+            if len(df) == 0:
+                fig.update_layout(
+                    height=320,
+                    margin=dict(l=40, r=20, t=20, b=40),
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    annotations=[{
+                        "text": "No history data for selected range",
+                        "xref": "paper", "yref": "paper",
+                        "x": 0.5, "y": 0.5, "showarrow": False,
+                        "font": {"size": 14, "color": "#9ca3af"}
+                    }],
+                    xaxis=dict(showgrid=False, showticklabels=False),
+                    yaxis=dict(showgrid=False, showticklabels=False),
+                )
+                return fig
+            
+            # Calculate based on chart type
+            # Now we have real portfolio values from market price calculations
+
+            def _series_to_number_list(series):
+                # Convert pandas/numpy series to JSON-friendly python floats.
+                # Replace NaN/inf with None so Plotly can handle gaps.
+                vals = []
+                for v in series.tolist() if hasattr(series, "tolist") else list(series):
+                    try:
+                        if v is None:
+                            vals.append(None)
+                            continue
+                        fv = float(v)
+                        if not math.isfinite(fv):
+                            vals.append(None)
+                        else:
+                            vals.append(fv)
+                    except Exception:
+                        vals.append(None)
+                return vals
+
+            # Use ISO date strings to keep JSON simple and avoid dtype encodings
+            x_dates = df['date'].dt.strftime('%Y-%m-%d').tolist()
+            
+            # Get actual portfolio data
+            portfolio = data.get("data", {})
+            total_invested = portfolio.get("investedAmount", df['invested'].iloc[-1] if 'invested' in df.columns else df['value'].iloc[-1])
+            current_total = portfolio.get("totalValue", df['value'].iloc[-1])
+            
+            if chart_type == "tab-value":
+                # Absolute portfolio value over time
+                y_data = df['value']
+                y_title = "Portfolio Value (€)"
+                y_prefix = "€"
+                fill_color = "rgba(99, 102, 241, 0.1)"
+            elif chart_type == "tab-performance":
+                # Return vs invested at that time (matches benchmark simulation semantics)
+                invested_series = df['invested'] if 'invested' in df.columns else None
+                if invested_series is not None:
+                    y_data = (df['value'] / invested_series.replace(0, pd.NA) - 1) * 100
+                else:
+                    first_val = df['value'].iloc[0]
+                    y_data = (df['value'] / first_val - 1) * 100
+                y_title = "Return (%)"
+                y_prefix = ""
+                fill_color = None
+            else:  # drawdown
+                # Drawdown from peak portfolio value
+                rolling_max = df['value'].expanding().max().replace(0, pd.NA)
+                y_data = (df['value'] - rolling_max) / rolling_max * 100
+                if 'invested' in df.columns:
+                    y_data = y_data.where(df['invested'].replace(0, pd.NA).notna())
+                y_title = "Drawdown (%)"
+                y_prefix = ""
+                fill_color = "rgba(239, 68, 68, 0.2)"
+            
+            # Portfolio line
+            if chart_type == "tab-value":
+                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
+            else:
+                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
+
+            fig.add_trace(go.Scatter(
+                x=x_dates,
+                y=_series_to_number_list(y_data),
+                mode='lines',
+                name='Portfolio',
+                line=dict(color='#6366f1', width=2),
+                fill='tozeroy' if fill_color else None,
+                fillcolor=fill_color,
+                hovertemplate=portfolio_hover,
+            ))
+            
+            # Add benchmarks
+            benchmark_colors = {"^GSPC": "#10b981", "^GDAXI": "#f59e0b", "URTH": "#3b82f6"}
+            benchmark_names = {"^GSPC": "S&P 500", "^GDAXI": "DAX", "URTH": "MSCI World"}
+
+            # Use proper transaction-based simulations for ALL tabs when available.
+            bench_simulations = {}
+            if benchmarks and transactions:
+                try:
+                    from components.benchmark_data import get_benchmark_simulation
+                    bench_simulations = get_benchmark_simulation(history, transactions)
+                except Exception:
+                    bench_simulations = {}
+
+            for bench in (benchmarks or []):
+                sim_data = bench_simulations.get(bench)
+                if sim_data:
+                    sim_df = pd.DataFrame(sim_data)
+                    sim_df['date'] = pd.to_datetime(sim_df['date'])
+
+                    # Filter to same date range
+                    sim_df = sim_df[(sim_df['date'] >= pd.Timestamp(start_date)) & (sim_df['date'] <= pd.Timestamp(end_date))]
+                    if len(sim_df) == 0:
+                        continue
+
+                    if chart_type == "tab-value":
+                        bench_y = sim_df['value']
+                        hovertemplate = f"<b>{benchmark_names.get(bench, bench)}</b><br>%{{x|%d %b %Y}}<br>€%{{y:,.2f}}<extra></extra>"
+                    elif chart_type == "tab-performance":
+                        bench_y = (sim_df['value'] / sim_df['invested'].replace(0, pd.NA) - 1) * 100
+                        hovertemplate = f"<b>{benchmark_names.get(bench, bench)}</b><br>%{{x|%d %b %Y}}<br>%{{y:,.2f}}%<extra></extra>"
+                    else:  # drawdown
+                        rolling_max = sim_df['value'].expanding().max().replace(0, pd.NA)
+                        bench_y = (sim_df['value'] - rolling_max) / rolling_max * 100
+                        if 'invested' in sim_df.columns:
+                            bench_y = bench_y.where(sim_df['invested'].replace(0, pd.NA).notna())
+                        hovertemplate = f"<b>{benchmark_names.get(bench, bench)}</b><br>%{{x|%d %b %Y}}<br>%{{y:,.2f}}%<extra></extra>"
+
+                    fig.add_trace(go.Scatter(
+                        x=sim_df['date'].dt.strftime('%Y-%m-%d').tolist(),
+                        y=_series_to_number_list(bench_y),
+                        mode='lines',
+                        name=benchmark_names.get(bench, bench),
+                        line=dict(color=benchmark_colors.get(bench, "#888"), width=1.5, dash='dot'),
+                        hovertemplate=hovertemplate,
+                    ))
+                else:
+                    # Fallback: if simulation isn't available, use normalized index data.
+                    bench_data = fetch_benchmark_data(
+                        bench,
+                        start_date.strftime("%Y-%m-%d"),
+                        end_date.strftime("%Y-%m-%d"),
+                    )
+                    if bench_data is None or len(bench_data) == 0:
+                        continue
+
+                    first_bench = bench_data['Close'].iloc[0]
+                    if chart_type == "tab-performance":
+                        bench_y = (bench_data['Close'] / first_bench - 1) * 100
+                    elif chart_type == "tab-drawdown":
+                        rolling_max = bench_data['Close'].expanding().max()
+                        bench_y = (bench_data['Close'] - rolling_max) / rolling_max * 100
+                    else:
+                        first_port = df['invested'].iloc[0] if 'invested' in df.columns else df['value'].iloc[0]
+                        bench_y = bench_data['Close'] / first_bench * first_port
+
+                    fig.add_trace(go.Scatter(
+                        x=pd.to_datetime(bench_data['Date']).dt.strftime('%Y-%m-%d').tolist(),
+                        y=_series_to_number_list(bench_y),
+                        mode='lines',
+                        name=benchmark_names.get(bench, bench),
+                        line=dict(color=benchmark_colors.get(bench, "#888"), width=1.5, dash='dot'),
+                    ))
+            
+            fig.update_layout(
+                height=320,
+                margin=dict(l=40, r=20, t=20, b=40),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(family="Inter, sans-serif", size=11),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                xaxis=dict(
+                    showgrid=True, 
+                    gridcolor="#f3f4f6", 
+                    tickformat="%b %Y" if selected_range in ["max", "1y"] else "%d %b"
+                ),
+                yaxis=dict(
+                    showgrid=True, 
+                    gridcolor="#f3f4f6", 
+                    title=y_title,
+                    tickprefix=y_prefix if chart_type == "tab-value" else "",
+                    ticksuffix="%" if chart_type != "tab-value" else "",
+                ),
+                hovermode="x unified",
+            )
+
+            # Persist a lightweight numeric-only summary for end-to-end verification.
+            # (Avoids JSON serialization issues with datetimes inside Plotly figures.)
+            try:
+                from components.benchmark_data import CACHE_DIR
+                created_at = datetime.now().isoformat()
+                summary_payload = {
+                    "created_at": created_at,
+                    "chart_type": chart_type,
+                    "selected_range": selected_range,
+                    "benchmarks": benchmarks,
+                    "data_source": "server_cache" if (server_cache and server_cache.get("success")) else "browser_store",
+                    "history_points": int(len(history) if history else 0),
+                    "filtered_points": int(len(df)),
+                    "date_range": {
+                        "start": start_date.strftime("%Y-%m-%d") if isinstance(start_date, datetime) else str(start_date),
+                        "end": end_date.strftime("%Y-%m-%d") if isinstance(end_date, datetime) else str(end_date),
+                    },
+                    "df_last": {
+                        "date": df['date'].iloc[-1].strftime("%Y-%m-%d") if len(df) else None,
+                        "invested": float(df['invested'].iloc[-1]) if (len(df) and 'invested' in df.columns) else None,
+                        "value": float(df['value'].iloc[-1]) if (len(df) and 'value' in df.columns) else None,
+                    },
+                    "traces": [
+                        {
+                            "name": t.name,
+                            "n": int(len(t.y) if t.y is not None else 0),
+                            "first_y": (float(t.y[0]) if t.y is not None and len(t.y) else None),
+                            "last_y": (float(t.y[-1]) if t.y is not None and len(t.y) else None),
+                        }
+                        for t in fig.data
+                    ],
+                }
+
+                # Write to user cache dir AND repo-local .debug (so we can always read it here).
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                (CACHE_DIR / "last_compare_summary.json").write_text(
+                    json.dumps(summary_payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                try:
+                    repo_debug = Path(__file__).resolve().parents[1] / ".debug"
+                    repo_debug.mkdir(parents=True, exist_ok=True)
+                    (repo_debug / "last_compare_summary.json").write_text(
+                        json.dumps(summary_payload, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return fig
+            
+        except Exception as e:
+            # Avoid noisy prints; return empty figure.
+            return fig
+
+    # Privacy mode toggle (clientside so it reacts instantly)
+    app.clientside_callback(
+        """
+        function(n_clicks, is_private) {
+            const current = Boolean(is_private);
+            const next = n_clicks ? !current : current;
+
+            const icon = next
+                ? {type: 'I', namespace: 'dash_html_components', props: {className: 'bi bi-eye me-2'}}
+                : {type: 'I', namespace: 'dash_html_components', props: {className: 'bi bi-eye-slash me-2'}};
+
+            const label = next ? 'Show Values' : 'Hide Values';
+            const cls = next ? 'portfolio-analysis-page privacy-on' : 'portfolio-analysis-page';
+
+            return [next, [icon, label], cls];
+        }
+        """,
+        [Output("privacy-mode", "data"),
+         Output("toggle-privacy-btn", "children"),
+         Output("portfolio-analysis-root", "className")],
+        Input("toggle-privacy-btn", "n_clicks"),
+        State("privacy-mode", "data"),
+        prevent_initial_call=False,
+    )
+    
+    # Comparison table
+    @app.callback(
+        Output("comparison-table-container", "children"),
+        [Input("portfolio-data-store", "data"),
+         Input("benchmark-toggle", "value")],
+        State("url", "pathname"),
+        prevent_initial_call=False
+    )
+    def update_comparison_table(data_json, benchmarks, pathname):
+        if not pathname or pathname != "/compare":
+            return html.Div()
+        if not data_json:
+            return html.Div("No data available", className="text-muted text-center py-3")
+        
+        try:
+            data = json.loads(data_json)
+            history = data.get("data", {}).get("history", [])
+            portfolio = data.get("data", {})
+            
+            if not history:
+                return html.Div("No history data", className="text-muted text-center py-3")
+            
+            df = pd.DataFrame(history)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            
+            # Current portfolio value
+            current_value = df['value'].iloc[-1]
+            
+            # Calculate returns based on actual portfolio values
+            def calc_return(days_ago):
+                """Calculate return from X days ago to now."""
+                target_date = datetime.now() - timedelta(days=days_ago)
+                past_data = df[df['date'] <= target_date]
+                if len(past_data) == 0:
+                    past_data = df.head(1)
+                past_value = past_data['value'].iloc[-1]
+                if past_value > 0:
+                    return (current_value - past_value) / past_value * 100
+                return 0
+            
+            # YTD
+            ytd_start = df[df['date'] >= datetime(datetime.now().year, 1, 1)]
+            if len(ytd_start) > 0:
+                ytd_value = ytd_start['value'].iloc[0]
+                ytd_return = (current_value - ytd_value) / ytd_value * 100 if ytd_value > 0 else 0
+            else:
+                ytd_return = 0
+            
+            # Total return (from first data point)
+            first_value = df['value'].iloc[0]
+            total_return = (current_value - first_value) / first_value * 100 if first_value > 0 else 0
+            
+            rows = [{
+                "Asset": "Your Portfolio",
+                "1M": f"{calc_return(30):+.1f}%",
+                "3M": f"{calc_return(90):+.1f}%",
+                "YTD": f"{ytd_return:+.1f}%",
+                "1Y": f"{calc_return(365):+.1f}%",
+                "Total": f"{total_return:+.1f}%",
+            }]
+            
+            # Add benchmarks
+            benchmark_names = {"^GSPC": "S&P 500", "^GDAXI": "DAX", "URTH": "MSCI World"}
+            end_date = datetime.now()
+            
+            for bench in (benchmarks or []):
+                bench_data = fetch_benchmark_data(bench, (end_date - timedelta(days=365*3)).strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+                if bench_data is not None and len(bench_data) > 0:
+                    bdf = bench_data.copy()
+                    bdf['Date'] = pd.to_datetime(bdf['Date'])
+                    bdf = bdf.sort_values('Date')
+                    
+                    current_bench = bdf['Close'].iloc[-1]
+                    
+                    def bench_return(days_ago):
+                        target = end_date - timedelta(days=days_ago)
+                        past = bdf[bdf['Date'] <= target]
+                        if len(past) == 0:
+                            return 0
+                        past_val = past['Close'].iloc[-1]
+                        return (current_bench - past_val) / past_val * 100 if past_val > 0 else 0
+                    
+                    # YTD
+                    ytd_bench = bdf[bdf['Date'] >= datetime(end_date.year, 1, 1)]
+                    ytd_b = 0
+                    if len(ytd_bench) > 0:
+                        ytd_b = (current_bench - ytd_bench['Close'].iloc[0]) / ytd_bench['Close'].iloc[0] * 100
+                    
+                    first_bench = bdf['Close'].iloc[0]
+                    total_b = (current_bench - first_bench) / first_bench * 100 if first_bench > 0 else 0
+                    
+                    rows.append({
+                        "Asset": benchmark_names.get(bench, bench),
+                        "1M": f"{bench_return(30):+.1f}%",
+                        "3M": f"{bench_return(90):+.1f}%",
+                        "YTD": f"{ytd_b:+.1f}%",
+                        "1Y": f"{bench_return(365):+.1f}%",
+                        "Total": f"{total_b:+.1f}%",
+                    })
+            
+            table = dash_table.DataTable(
+                data=rows,
+                columns=[
+                    {"name": "Asset", "id": "Asset"},
+                    {"name": "1M", "id": "1M"},
+                    {"name": "3M", "id": "3M"},
+                    {"name": "YTD", "id": "YTD"},
+                    {"name": "1Y", "id": "1Y"},
+                    {"name": "Total", "id": "Total"},
+                ],
+                style_cell={"textAlign": "center", "padding": "8px 12px", "fontFamily": "Inter, sans-serif", "fontSize": "12px", "border": "none"},
+                style_header={"fontWeight": "600", "backgroundColor": "#f8fafc", "borderBottom": "1px solid #e5e7eb"},
+                style_data={"borderBottom": "1px solid #f3f4f6"},
+                style_data_conditional=[
+                    {"if": {"filter_query": "{1M} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{1M} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{3M} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{3M} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{YTD} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{YTD} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{1Y} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{1Y} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{Total} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{Total} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{Asset} = \"Your Portfolio\""}, "backgroundColor": "#eef2ff", "fontWeight": "500"},
+                    {"if": {"column_id": "Asset"}, "textAlign": "left"},
+                ],
+                style_as_list_view=True,
+            )
+            
+            return table
+            
+        except Exception as e:
+            print(f"Error creating table: {e}")
+            return html.Div(f"Error: {str(e)}", className="text-danger text-center py-3")

@@ -1,0 +1,782 @@
+"""
+Trade Republic API Wrapper
+Uses pytr library for actual TR API communication
+"""
+
+import asyncio
+from datetime import datetime, timedelta
+import os
+import json
+import base64
+import hashlib
+from pathlib import Path
+from typing import Optional, Dict, Any, Tuple, List
+import threading
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+
+# Minimum seconds between Trade Republic syncs.
+# Keeps the app responsive and prevents accidental rapid re-syncs.
+MIN_SYNC_INTERVAL_SECONDS = 6 * 60 * 60  # 6 hours
+
+# pytr imports
+from pytr.api import TradeRepublicApi
+from pytr.utils import get_logger
+
+# Setup logging
+log = get_logger(__name__)
+
+# Credentials storage path (server-side for keyfile only)
+TR_CREDENTIALS_DIR = Path.home() / ".pytr"
+TR_KEYFILE = TR_CREDENTIALS_DIR / "keyfile.pem"
+TR_TRANSACTIONS_CACHE = TR_CREDENTIALS_DIR / "transactions_cache.json"
+
+# Encryption key from environment (set this in your .env or hosting config)
+ENCRYPTION_KEY = os.environ.get("TR_ENCRYPTION_KEY", "default-dev-key-change-in-prod")
+
+
+def _get_cipher_key():
+    """Derive a 32-byte key from the encryption key."""
+    return hashlib.sha256(ENCRYPTION_KEY.encode()).digest()
+
+
+def encrypt_credentials(phone_no: str, pin: str) -> str:
+    """Encrypt credentials for browser storage."""
+    try:
+        from cryptography.fernet import Fernet
+        # Derive Fernet key from our encryption key
+        key = base64.urlsafe_b64encode(_get_cipher_key())
+        f = Fernet(key)
+        data = json.dumps({"phone": phone_no, "pin": pin})
+        encrypted = f.encrypt(data.encode())
+        return base64.urlsafe_b64encode(encrypted).decode()
+    except ImportError:
+        # Fallback: simple XOR obfuscation (install cryptography for better security)
+        data = json.dumps({"phone": phone_no, "pin": pin})
+        key = _get_cipher_key()
+        encrypted = bytes([data.encode()[i] ^ key[i % len(key)] for i in range(len(data))])
+        return base64.urlsafe_b64encode(encrypted).decode()
+
+
+def decrypt_credentials(encrypted: str) -> Tuple[Optional[str], Optional[str]]:
+    """Decrypt credentials from browser storage."""
+    try:
+        from cryptography.fernet import Fernet
+        key = base64.urlsafe_b64encode(_get_cipher_key())
+        f = Fernet(key)
+        encrypted_bytes = base64.urlsafe_b64decode(encrypted.encode())
+        decrypted = f.decrypt(encrypted_bytes).decode()
+        data = json.loads(decrypted)
+        return data.get("phone"), data.get("pin")
+    except ImportError:
+        # Fallback XOR
+        encrypted_bytes = base64.urlsafe_b64decode(encrypted.encode())
+        key = _get_cipher_key()
+        decrypted = bytes([encrypted_bytes[i] ^ key[i % len(key)] for i in range(len(encrypted_bytes))])
+        data = json.loads(decrypted.decode())
+        return data.get("phone"), data.get("pin")
+    except Exception as e:
+        log.error(f"Failed to decrypt credentials: {e}")
+        return None, None
+
+
+class TRConnection:
+    """Manages Trade Republic connection state."""
+    
+    def __init__(self):
+        self.api: Optional[TradeRepublicApi] = None
+        self.phone_no: Optional[str] = None
+        self.pin: Optional[str] = None
+        self.is_connected = False
+        self.portfolio_data: Optional[Dict] = None
+        self.cash_data: Optional[Dict] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._loop_ready = threading.Event()
+        self._op_lock = threading.Lock()
+
+        self._instrument_cache_path = TR_CREDENTIALS_DIR / "instrument_cache.json"
+
+    def _ensure_worker_loop(self) -> asyncio.AbstractEventLoop:
+        """Ensure a single dedicated asyncio loop exists for all pytr websocket work.
+
+        Dash callbacks can run in different threads; mixing event loops causes
+        'Future attached to a different loop' runtime errors.
+        """
+        if self._loop and self._thread and self._thread.is_alive():
+            return self._loop
+
+        self._loop_ready.clear()
+
+        def _runner():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._loop = loop
+            self._loop_ready.set()
+            loop.run_forever()
+
+        self._thread = threading.Thread(target=_runner, name="tr-async-loop", daemon=True)
+        self._thread.start()
+        if not self._loop_ready.wait(timeout=5):
+            raise RuntimeError("Failed to start TR asyncio loop thread")
+        if not self._loop:
+            raise RuntimeError("TR asyncio loop not initialized")
+        return self._loop
+
+    def run(self, coro, timeout: float = 90):
+        """Run a coroutine on the dedicated TR loop and wait for its result."""
+        loop = self._ensure_worker_loop()
+        fut = asyncio.run_coroutine_threadsafe(coro, loop)
+        try:
+            return fut.result(timeout=timeout)
+        except FuturesTimeoutError:
+            fut.cancel()
+            raise
+
+    def run_serialized(self, coro, timeout: float = 90):
+        """Run a coroutine while holding an operation lock.
+
+        This prevents overlapping websocket recv/unsubscribe calls from multiple Dash callbacks.
+        """
+        with self._op_lock:
+            return self.run(coro, timeout=timeout)
+
+    def has_credentials(self) -> bool:
+        """Best-effort check for a reusable TR session (keyfile)."""
+        return TR_KEYFILE.exists()
+
+    def _load_instrument_cache(self) -> Dict[str, str]:
+        try:
+            if self._instrument_cache_path.exists():
+                data = json.loads(self._instrument_cache_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    # values should be shortName/name strings
+                    return {str(k): str(v) for k, v in data.items() if k and v}
+        except Exception as e:
+            log.warning(f"Failed to load instrument cache: {e}")
+        return {}
+
+    def _save_instrument_cache(self, cache: Dict[str, str]) -> None:
+        try:
+            TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            self._instrument_cache_path.write_text(json.dumps(cache), encoding="utf-8")
+        except Exception as e:
+            log.warning(f"Failed to save instrument cache: {e}")
+
+    def _load_transactions_cache(self) -> List[Dict]:
+        """Load cached transactions."""
+        try:
+            if TR_TRANSACTIONS_CACHE.exists():
+                data = json.loads(TR_TRANSACTIONS_CACHE.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            log.warning(f"Failed to load transactions cache: {e}")
+        return []
+
+    def _save_transactions_cache(self, transactions: List[Dict]) -> None:
+        """Save transactions to cache."""
+        try:
+            TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            TR_TRANSACTIONS_CACHE.write_text(json.dumps(transactions, default=str), encoding="utf-8")
+            log.info(f"Saved {len(transactions)} transactions to cache")
+        except Exception as e:
+            log.warning(f"Failed to save transactions cache: {e}")
+
+    async def _fetch_timeline_transactions(self) -> List[Dict]:
+        """Fetch all timeline transactions from TR.
+        
+        This fetches the entire transaction history (buys, sells, deposits, 
+        dividends, etc.) which we can use to reconstruct portfolio history.
+        """
+        if not self.api or not self.is_connected:
+            log.error("Cannot fetch timeline - not connected")
+            return []
+        
+        transactions = []
+        after_cursor = None
+        page = 0
+        max_pages = 100  # Safety limit
+        
+        log.info("Fetching timeline transactions...")
+        
+        while page < max_pages:
+            page += 1
+            try:
+                # Subscribe to timeline transactions
+                await self.api.timeline_transactions(after=after_cursor)
+                sub_id, sub_params, response = await self.api.recv()
+                await self.api.unsubscribe(sub_id)
+                
+                items = response.get('items', [])
+                if not items:
+                    log.info(f"Timeline page {page}: no more items")
+                    break
+                    
+                log.info(f"Timeline page {page}: got {len(items)} items")
+                
+                for item in items:
+                    # Extract basic transaction info
+                    txn = {
+                        'id': item.get('id'),
+                        'timestamp': item.get('timestamp'),
+                        'title': item.get('title'),
+                        'subtitle': item.get('subtitle'),
+                        'eventType': item.get('eventType'),
+                        'amount': item.get('amount', {}).get('value'),
+                        'currency': item.get('amount', {}).get('currency'),
+                        'icon': item.get('icon'),
+                    }
+                    transactions.append(txn)
+                
+                # Check for next page
+                cursors = response.get('cursors', {})
+                after_cursor = cursors.get('after')
+                if not after_cursor:
+                    log.info(f"Timeline complete after {page} pages, {len(transactions)} transactions")
+                    break
+                    
+            except Exception as e:
+                log.error(f"Error fetching timeline page {page}: {e}")
+                break
+        
+        # Sort by timestamp descending (newest first)
+        transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        return transactions
+
+    def _build_history_from_transactions(self, transactions: List[Dict], current_total: float) -> List[Dict]:
+        """Build portfolio value history from transactions.
+        
+        Since TR doesn't provide historical portfolio values, we reconstruct them
+        by tracking cash flows (deposits, withdrawals, interest, dividends) over time.
+        
+        Transaction types are identified by 'title' and 'subtitle' fields:
+        - title='Einzahlung' (deposit) - positive cash inflow
+        - title='Zinsen' (interest) - positive cash inflow  
+        - subtitle='Fertig' with positive amount - completed transfer inflow
+        - subtitle='Bardividende' or 'Dividende' - positive cash inflow
+        - subtitle='Gesendet' with negative amount - outbound transfer
+        """
+        if not transactions:
+            return []
+        
+        # Group cash inflows/outflows by date
+        daily_flows: Dict[str, float] = {}
+        
+        for txn in transactions:
+            ts = txn.get('timestamp', '')
+            if not ts:
+                continue
+            
+            date_str = ts[:10]  # YYYY-MM-DD
+            title = txn.get('title', '') or ''
+            subtitle = txn.get('subtitle', '') or ''
+            amount = txn.get('amount')
+            
+            if amount is None:
+                continue
+            
+            amount = float(amount)
+            
+            # Determine if this is a cash flow event
+            flow = 0.0
+            
+            # Deposits - positive amounts with Einzahlung title
+            if title == 'Einzahlung' and amount > 0:
+                flow = amount
+            # Completed transfers (deposits from bank) - subtitle='Fertig' with positive amount
+            elif subtitle == 'Fertig' and amount > 0:
+                flow = amount
+            # Interest payments - positive amounts with Zinsen title
+            elif title == 'Zinsen' and amount > 0:
+                flow = amount
+            # Dividends - check subtitle
+            elif subtitle in {'Bardividende', 'Dividende'} and amount > 0:
+                flow = amount
+            # Withdrawals - 'Gesendet' (sent) with negative amounts
+            elif subtitle == 'Gesendet' and amount < 0:
+                flow = amount  # Already negative
+            
+            if flow != 0:
+                daily_flows[date_str] = daily_flows.get(date_str, 0) + flow
+        
+        if not daily_flows:
+            # No deposit/withdrawal transactions found, return minimal history
+            log.warning("No cash flow transactions found - using minimal history")
+            today = datetime.now().strftime('%Y-%m-%d')
+            return [{'date': today, 'value': current_total}]
+        
+        # Sort dates ascending
+        sorted_dates = sorted(daily_flows.keys())
+        
+        # Build history: start from first date and accumulate
+        # We'll show cumulative cash inflows over time
+        history = []
+        cumulative = 0.0
+        
+        for date_str in sorted_dates:
+            cumulative += daily_flows[date_str]
+            history.append({
+                'date': date_str,
+                'invested': cumulative,
+                'value': cumulative,  # We don't have market values, so use invested
+            })
+        
+        # Add current value as latest point
+        today = datetime.now().strftime('%Y-%m-%d')
+        if not history or history[-1]['date'] != today:
+            history.append({
+                'date': today,
+                'invested': cumulative,
+                'value': current_total,
+            })
+        else:
+            # Update today's value with actual current value
+            history[-1]['value'] = current_total
+        
+        log.info(f"Built history with {len(history)} data points from {len(daily_flows)} cash flow days, total deposited: {cumulative:.2f}")
+        
+        return history
+    
+    def has_keyfile(self) -> bool:
+        """Check if keyfile exists (needed for reconnect)."""
+        return TR_KEYFILE.exists()
+    
+    def get_encrypted_credentials(self, phone_no: str, pin: str) -> str:
+        """Encrypt credentials for browser storage."""
+        return encrypt_credentials(phone_no, pin)
+    
+    def set_credentials_from_encrypted(self, encrypted: str) -> bool:
+        """Set credentials from encrypted browser storage."""
+        phone, pin = decrypt_credentials(encrypted)
+        if phone and pin:
+            self.phone_no = phone
+            self.pin = pin
+            return True
+        return False
+    
+    def clear_credentials(self):
+        """Clear credentials and keyfile."""
+        if TR_KEYFILE.exists():
+            TR_KEYFILE.unlink()
+        self.phone_no = None
+        self.pin = None
+        self.is_connected = False
+        self.api = None
+    
+    async def _initiate_web_login(self, phone_no: str, pin: str) -> Dict[str, Any]:
+        """
+        Initiate web login - this sends a 4-digit code to the TR app.
+        Returns countdown seconds for verification step.
+        """
+        try:
+            self.phone_no = phone_no
+            self.pin = pin
+            
+            # Create API instance
+            self.api = TradeRepublicApi(
+                phone_no=phone_no,
+                pin=pin,
+                keyfile=str(TR_KEYFILE)
+            )
+            
+            # Initiate web login (sends 4-digit code to app) - THIS IS SYNC, not async!
+            countdown = self.api.initiate_weblogin()
+            
+            return {
+                "success": True,
+                "message": f"Verification code sent to your Trade Republic app (expires in {countdown}s)",
+                "requires_code": True,
+                "countdown": countdown
+            }
+        except Exception as e:
+            log.error(f"Web login initiation failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _complete_web_login(self, code: str) -> Dict[str, Any]:
+        """
+        Complete web login with the 4-digit verification code.
+        Returns encrypted credentials for browser storage.
+        """
+        try:
+            if not self.api:
+                return {"success": False, "error": "No login in progress"}
+            
+            # Complete the web login with code - THIS IS SYNC, not async!
+            self.api.complete_weblogin(code)
+            
+            self.is_connected = True
+            
+            # Return encrypted credentials for browser storage
+            encrypted_creds = None
+            if self.phone_no and self.pin:
+                encrypted_creds = self.get_encrypted_credentials(self.phone_no, self.pin)
+            
+            return {
+                "success": True,
+                "message": "Successfully connected to Trade Republic",
+                "encrypted_credentials": encrypted_creds
+            }
+        except Exception as e:
+            log.error(f"Web login completion failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _fetch_portfolio(self) -> Dict[str, Any]:
+        """Fetch portfolio data from TR."""
+        try:
+            if not self.api or not self.is_connected:
+                return {"success": False, "error": "Not connected"}
+            
+            # Get compact portfolio (correct subscription type)
+            # WebSocket connects automatically on first subscribe
+            await self.api.compact_portfolio()
+            sub_id, sub_params, portfolio_response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            
+            log.info(f"Portfolio response: {portfolio_response}")
+            
+            # Get cash balance
+            await self.api.cash()
+            sub_id, sub_params, cash_response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            
+            log.info(f"Cash response: {cash_response}")
+            
+            self.portfolio_data = portfolio_response
+            self.cash_data = cash_response
+            
+            # Parse compact portfolio format
+            # compactPortfolio returns: {netValue, positions: [{instrumentId, netSize, averageBuyIn, netValue}]}
+            positions = portfolio_response.get('positions', [])
+            net_value = portfolio_response.get('netValue', 0)
+            
+            # Cash might be in different format
+            cash = 0
+            if isinstance(cash_response, dict):
+                cash = cash_response.get('value', cash_response.get('amount', 0))
+            
+            # Calculate totals from positions
+            total_invested = sum(
+                float(p.get('netSize', 0)) * float(p.get('averageBuyIn', 0)) 
+                for p in positions
+            )
+            total_value = float(net_value) if net_value else sum(
+                float(p.get('netValue', 0)) for p in positions
+            )
+            
+            total_profit = total_value - total_invested
+            total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+            
+            return {
+                "success": True,
+                "data": {
+                    "totalValue": total_value + cash,
+                    "investedAmount": total_invested,
+                    "cash": cash,
+                    "totalProfit": total_profit,
+                    "totalProfitPercent": total_profit_pct,
+                    "positions": [
+                        {
+                            "name": p.get('name', p.get('instrumentId', 'Unknown')),
+                            "isin": p.get('instrumentId', ''),
+                            "quantity": float(p.get('netSize', 0)),
+                            "averageBuyIn": float(p.get('averageBuyIn', 0)),
+                            "value": float(p.get('netValue', 0)),
+                            "profit": float(p.get('netValue', 0)) - (float(p.get('netSize', 0)) * float(p.get('averageBuyIn', 0))),
+                        }
+                        for p in positions
+                    ]
+                }
+            }
+        except Exception as e:
+            log.error(f"Portfolio fetch failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _fetch_all_data(self) -> Dict[str, Any]:
+        """Fetch all portfolio data with instrument names. Skip ticker prices (too slow)."""
+        try:
+            if not self.api or not self.is_connected:
+                return {"success": False, "error": "Not connected"}
+
+            log.info("Fetching compact portfolio...")
+            
+            # Get compact portfolio
+            await self.api.compact_portfolio()
+            sub_id, sub_params, portfolio_response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            
+            log.info(f"Got portfolio with {len(portfolio_response.get('positions', []))} positions")
+            
+            # Get cash balance - TR returns an array: [{amount, currencyId}, ...]
+            await self.api.cash()
+            sub_id, sub_params, cash_response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            log.info(f"Cash response type: {type(cash_response)}, value: {cash_response}")
+            
+            # Parse portfolio data
+            positions = portfolio_response.get('positions', [])
+            net_value = float(portfolio_response.get('netValue', 0))
+            
+            # Cash is an array of {amount, currencyId} - typically EUR as first element
+            cash = 0.0
+            if isinstance(cash_response, list) and len(cash_response) > 0:
+                # First element is usually the main cash balance
+                cash = float(cash_response[0].get('amount', 0))
+                log.info(f"Parsed cash from array: {cash} {cash_response[0].get('currencyId', 'EUR')}")
+            elif isinstance(cash_response, dict):
+                # Fallback if response format changes
+                cash = float(cash_response.get('amount', cash_response.get('value', 0)))
+            
+            log.info(f"Portfolio netValue from TR: {net_value}, cash: {cash}")
+            
+            # Fetch instrument names only (skip ticker - too slow and unreliable)
+            instrument_cache = self._load_instrument_cache()
+            enriched_positions = []
+            
+            for i, p in enumerate(positions):
+                isin = p.get('instrumentId', '')
+                qty = float(p.get('netSize', 0))
+                avg_buy = float(p.get('averageBuyIn', 0))
+                invested = qty * avg_buy
+                # TR provides netValue per position in compact_portfolio
+                position_value = float(p.get('netValue', 0))
+                
+                # Default name is ISIN, check cache first
+                name = instrument_cache.get(isin) or isin
+                
+                # Only hit the instrument endpoint if we don't already have a real name.
+                if name == isin:
+                    try:
+                        await self.api.instrument_details(isin)
+                        inst_sub_id, inst_params, inst_response = await self.api.recv()
+                        await self.api.unsubscribe(inst_sub_id)
+                        name = inst_response.get('shortName', inst_response.get('name', isin))
+                        if name and name != isin:
+                            instrument_cache[isin] = name
+                        log.info(f"[{i+1}/{len(positions)}] {isin}: {name}")
+                    except Exception as e:
+                        log.warning(f"[{i+1}/{len(positions)}] Could not get name for {isin}: {e}")
+                
+                # Use TR's netValue if available, otherwise calculate from invested
+                current_value = position_value if position_value > 0 else invested
+                current_price = current_value / qty if qty > 0 else avg_buy
+                profit = current_value - invested
+                
+                enriched_positions.append({
+                    "name": name,
+                    "isin": isin,
+                    "quantity": qty,
+                    "averageBuyIn": avg_buy,
+                    "currentPrice": current_price,
+                    "value": current_value,
+                    "invested": invested,
+                    "profit": profit,
+                })
+            
+            total_invested = sum(p['invested'] for p in enriched_positions)
+            total_current_value = sum(p['value'] for p in enriched_positions)
+            # Use TR's netValue if we have it, otherwise sum of positions
+            total_value = net_value if net_value > 0 else total_current_value
+            total_profit = total_value - total_invested
+            total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+            
+            log.info(f"Portfolio summary: invested={total_invested:.2f}, value={total_value:.2f}, profit={total_profit:.2f} ({total_profit_pct:.2f}%)")
+            
+            # Fetch timeline transactions (for history reconstruction)
+            log.info("Fetching timeline transactions...")
+            transactions = await self._fetch_timeline_transactions()
+            if transactions:
+                self._save_transactions_cache(transactions)
+            else:
+                # Try to load from cache if fetch failed
+                transactions = self._load_transactions_cache()
+            
+            # Build simple deposit-based history for now
+            # The accurate market-price-based history is calculated separately via 
+            # "Recalculate History" button to avoid slow sync times
+            history = self._build_history_from_transactions(transactions, total_value + cash)
+            
+            result = {
+                "success": True,
+                "data": {
+                    "totalValue": total_value + cash,
+                    "investedAmount": total_invested,
+                    "cash": cash,
+                    "totalProfit": total_profit,
+                    "totalProfitPercent": total_profit_pct,
+                    "positions": enriched_positions,
+                    "transactions": transactions,  # Keep ALL transactions
+                    "history": history,
+                }
+            }
+
+            # Persist instrument name cache for next sync.
+            if instrument_cache:
+                self._save_instrument_cache(instrument_cache)
+            
+            # Save to local cache
+            self._save_portfolio_cache(result)
+            
+            return result
+            
+        except Exception as e:
+            log.error(f"Fetch all data failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _save_portfolio_cache(self, data: Dict[str, Any]):
+        """Save portfolio data to local cache."""
+        cache_file = TR_CREDENTIALS_DIR / "portfolio_cache.json"
+        try:
+            import datetime
+            data['cached_at'] = datetime.datetime.now().isoformat()
+            with open(cache_file, 'w') as f:
+                json.dump(data, f)
+            log.info("Portfolio data cached")
+        except Exception as e:
+            log.error(f"Failed to cache portfolio: {e}")
+    
+    def _load_portfolio_cache(self) -> Optional[Dict[str, Any]]:
+        """Load portfolio data from local cache."""
+        cache_file = TR_CREDENTIALS_DIR / "portfolio_cache.json"
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                log.error(f"Failed to load cache: {e}")
+        return None
+    
+    async def _reconnect(self, encrypted_credentials: str = None) -> Dict[str, Any]:
+        """Reconnect using encrypted credentials from browser."""
+        try:
+            # Decrypt credentials from browser storage
+            if encrypted_credentials:
+                if not self.set_credentials_from_encrypted(encrypted_credentials):
+                    return {"success": False, "error": "Invalid stored credentials"}
+            
+            if not self.phone_no or not self.pin:
+                return {"success": False, "error": "No credentials available", "needs_reauth": True}
+            
+            if not TR_KEYFILE.exists():
+                return {"success": False, "error": "Session expired - please log in again", "needs_reauth": True}
+            
+            TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            
+            self.api = TradeRepublicApi(
+                phone_no=self.phone_no,
+                pin=self.pin,
+                keyfile=str(TR_KEYFILE)
+            )
+            
+            # Try to login with existing keyfile - THIS IS SYNC, not async!
+            self.api.login()
+            self.is_connected = True
+            
+            return {
+                "success": True,
+                "message": "Reconnected successfully"
+            }
+        except Exception as e:
+            log.error(f"Reconnect failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "needs_reauth": True
+            }
+
+
+# Global connection instance
+_connection: Optional[TRConnection] = None
+
+
+def get_connection() -> TRConnection:
+    """Get or create the TR connection instance."""
+    global _connection
+    if _connection is None:
+        _connection = TRConnection()
+    return _connection
+
+
+# Public API functions (sync wrappers)
+
+def has_saved_credentials() -> bool:
+    """Check if TR credentials are saved."""
+    return get_connection().has_credentials()
+
+
+def initiate_login(phone_no: str, pin: str) -> Dict[str, Any]:
+    """Start the login process - sends verification code to TR app."""
+    conn = get_connection()
+    return conn.run(conn._initiate_web_login(phone_no, pin))
+
+
+def complete_login(code: str) -> Dict[str, Any]:
+    """Complete login with the 4-digit verification code."""
+    conn = get_connection()
+    return conn.run(conn._complete_web_login(code))
+
+
+def fetch_portfolio() -> Dict[str, Any]:
+    """Fetch current portfolio data."""
+    conn = get_connection()
+    return conn.run_serialized(conn._fetch_portfolio())
+
+
+def fetch_all_data() -> Dict[str, Any]:
+    """Fetch all portfolio data including history.
+    
+    This ALWAYS fetches fresh data from TR when called.
+    The cache is only used for page loads (via get_cached_portfolio).
+    """
+    conn = get_connection()
+    return conn.run_serialized(conn._fetch_all_data())
+
+
+def get_cached_portfolio() -> Optional[Dict[str, Any]]:
+    """Get cached portfolio data without connecting."""
+    conn = get_connection()
+    return conn._load_portfolio_cache()
+
+
+def get_cached_transactions() -> List[Dict]:
+    """Get cached transactions without connecting."""
+    conn = get_connection()
+    return conn._load_transactions_cache()
+
+
+def reconnect(encrypted_credentials: str = None) -> Dict[str, Any]:
+    """Try to reconnect using encrypted credentials from browser."""
+    conn = get_connection()
+    return conn.run_serialized(conn._reconnect(encrypted_credentials))
+
+
+def disconnect():
+    """Disconnect and clear credentials."""
+    conn = get_connection()
+    conn.clear_credentials()
+
+
+def has_keyfile() -> bool:
+    """Check if keyfile exists for reconnect."""
+    return get_connection().has_keyfile()
+
+
+def is_connected() -> bool:
+    """Check if currently connected."""
+    return get_connection().is_connected

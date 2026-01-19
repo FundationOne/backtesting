@@ -1,8 +1,16 @@
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from scipy.signal import find_peaks
 import re
+
+_scipy_find_peaks = None
+
+
+def _find_peaks(*args, **kwargs):
+    global _scipy_find_peaks
+    if _scipy_find_peaks is None:
+        from scipy.signal import find_peaks as _scipy_find_peaks
+    return _scipy_find_peaks(*args, **kwargs)
 
 # Assuming the halving dates are known
 halving_dates = [
@@ -98,7 +106,7 @@ def find_support(data, window=20):
     :return: Pandas Series containing support levels, with the last support value carried forward.
     """
     # Find troughs (support) in the data
-    support_indices = find_peaks(-data, distance=window)[0]
+    support_indices = _find_peaks(-data, distance=window)[0]
     support_levels = data.iloc[support_indices]
     
     # Create a new Series to hold support levels with forward fill
@@ -117,7 +125,7 @@ def find_resistance(data, window=20):
     :return: Pandas Series containing resistance levels, with the last resistance value carried forward.
     """
     # Find peaks (resistance) in the data
-    resistance_indices = find_peaks(data, distance=window)[0]
+    resistance_indices = _find_peaks(data, distance=window)[0]
     resistance_levels = data.iloc[resistance_indices]
     
     # Create a new Series to hold resistance levels with forward fill
@@ -150,7 +158,7 @@ def find_double_top(data, window=20, tolerance=0.05):
     :param tolerance: Tolerance for the price difference between the two peaks.
     :return: Indices where a double top might be forming.
     """
-    potential_tops = find_peaks(data, distance=window)[0]
+    potential_tops = _find_peaks(data, distance=window)[0]
     double_tops = []
 
     for i in range(len(potential_tops)-1):
@@ -177,7 +185,7 @@ def find_head_and_shoulders(data, window=20):
     :param window: Lookback period for finding peaks.
     :return: Indices where a Head and Shoulders pattern might be forming.
     """
-    peaks_indices = find_peaks(data, distance=window)[0]
+    peaks_indices = _find_peaks(data, distance=window)[0]
     if len(peaks_indices) < 3:
         return []
 

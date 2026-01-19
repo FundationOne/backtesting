@@ -1,100 +1,160 @@
+"""APE•X - Portfolio & Backtesting Application"""
 import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output
 
-from backtesting_sim import layout as l1, register_callbacks as rc1
-from portfolio_sim import layout as l2, register_callbacks as rc2
-from riskbands import layout as l3, register_callbacks as rc3  # Importing Riskbands page
-from rule_gen_functionality import register_callbacks as rc_gpt
-from openai_key_functionality import openai_api_key_input as l_openai_key, register_callbacks as rc_openai_key
-from settings_functionality import settings_scale_toggle as l_settings_scale_toggle
+# Page imports
+from pages.backtesting_sim import layout as l1, register_callbacks as rc1
+from pages.portfolio_sim import layout as l2, register_callbacks as rc2
+from pages.riskbands import layout as l3, register_callbacks as rc3
+from pages.portfolio_analysis import layout as l4, register_callbacks as rc4
+
+# Component imports
+from components.settings_modal import (
+    settings_button, settings_modal, api_key_store, 
+    register_settings_callbacks
+)
+from components.rule_builder import register_rule_builder_callbacks
+from components.auth import login_modal, user_store, register_auth_callbacks
 
 print("STARTING APP")
 
-# Choose a theme closer to Apple's design aesthetic, like LUX or FLATLY
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX], suppress_callback_exceptions=True)
-sidebar = html.Div(
-    [
-        html.H2('APE•X', className='display-logo'),
-        html.Hr(),
-        html.P(
-            "Test your portfolio and backtesting strategies", className="lead"
-        ),
-        dbc.Nav(
-            [
-                dbc.NavLink("Backtesting", href="/backtesting", id="backtesting-link"),
-                dbc.NavLink("Investment Portfolio", href="/portfolio", id="portfolio-link"),
-                dbc.NavLink("Riskbands", href="/riskbands", id="riskbands-link"),  # Added Riskbands link
-                # dbc.NavLink("Model Training", href="/hyperparams", id="hyperparams-link"),
-            ],
-            vertical=True,
-            pills=True,
-        ),
-        html.Div(
-            [l_openai_key,
-             l_settings_scale_toggle], 
-            style={'position': 'absolute', 'bottom': '10px'})  # Fixes the input at the bottom
-    ],
-    style={
-        'position': 'fixed',
-        'height':'100vh',
-        'top': 0,
-        'left': 0,
-        'bottom': 0,
-        'width': '18%',
-        'padding': '20px',
-        'backgroundColor': '#f8f9fa'
-    },
+# Initialize app with modern Bootstrap and icons
+app = dash.Dash(
+    __name__, 
+    external_stylesheets=[
+        dbc.themes.BOOTSTRAP,
+        dbc.icons.BOOTSTRAP,
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    ], 
+    suppress_callback_exceptions=True,
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}]
 )
 
-content = html.Div(id="page-content", style={'marginLeft': '18%'})
+# Sidebar with modern styling
+sidebar = html.Div([
+    # Logo section
+    html.Div([
+        html.H2('APE•X', className='sidebar-logo'),
+        html.P("Portfolio & Backtesting", className="sidebar-tagline"),
+    ], className="sidebar-brand"),
+    
+    html.Hr(className="sidebar-divider"),
+    
+    # Navigation
+    dbc.Nav([
+        dbc.NavLink([
+            html.I(className="bi bi-graph-up me-2"), 
+            "Backtesting"
+        ], href="/backtesting", id="backtesting-link", className="nav-link-modern"),
+        
+        dbc.NavLink([
+            html.I(className="bi bi-wallet2 me-2"), 
+            "Investment Simulator"
+        ], href="/portfolio", id="portfolio-link", className="nav-link-modern"),
+        
+        dbc.NavLink([
+            html.I(className="bi bi-bar-chart-line me-2"), 
+            "Portfolio Analysis"
+        ], href="/compare", id="compare-link", className="nav-link-modern"),
+        
+        dbc.NavLink([
+            html.I(className="bi bi-shield-check me-2"), 
+            "Exit Strategy Riskbands"
+        ], href="/riskbands", id="riskbands-link", className="nav-link-modern"),
+    ], vertical=True, pills=True, className="sidebar-nav"),
+    
+    # Bottom section with settings + user
+    html.Div([
+        settings_button,
+        html.Div([
+            html.Div(id="current-user-label", className="small text-muted mb-1"),
+            dbc.Button(
+                [html.I(className="bi bi-box-arrow-right me-1"), "Logout"],
+                id="logout-btn",
+                color="secondary",
+                outline=True,
+                size="sm",
+                className="w-100"
+            ),
+        ], className="mt-2")
+    ], className='sidebar-bottom'),
+], className='sidebar')
 
-app.layout = html.Div([dcc.Location(id="url", refresh=False), sidebar, content])
+# Main content area
+content = html.Div(id="page-content", className='main-content')
 
-# Main callback
-@app.callback(Output('url', 'pathname'),
-              [Input('url', 'pathname')])
+# App layout
+app.layout = dbc.Container([
+    dcc.Location(id="url", refresh=False),
+    api_key_store,
+    user_store,  # User auth store
+    dcc.Store(id="portfolio-data-store", storage_type="session"),  # Portfolio data - avoid stale localStorage
+    dcc.Store(id="tr-encrypted-creds", storage_type="local"),  # TR credentials - MUST be in main layout for auth
+    login_modal,  # Login gate
+    settings_modal,
+    dbc.Row([
+        dbc.Col(sidebar, width=2, className='p-0 sidebar-col'),
+        dbc.Col(content, width=10, className='p-0'),
+    ], className='g-0')
+], fluid=True, className='app-container p-0')
+
+# Navigation callbacks
+@app.callback(
+    Output('url', 'pathname'),
+    [Input('url', 'pathname')]
+)
 def redirect_to_default(pathname):
     if pathname == "/" or pathname is None:
         return "/backtesting"
     return dash.no_update
 
-@app.callback(Output('page-content', 'children'),
-              [Input('url', 'pathname')])
+
+@app.callback(
+    Output('page-content', 'children'),
+    [Input('url', 'pathname')]
+)
 def render_page_content(pathname):
     if pathname == "/backtesting":
         return l1
     elif pathname == "/portfolio":
         return l2
+    elif pathname == "/compare":
+        return l4
     elif pathname == "/riskbands":
-        return l3  # Return Riskbands layout
-    # elif pathname == "/hyperparams":
-    #     return l3
+        return l3
     else:
-        return "404 Page Not Found"
+        return html.Div([
+            html.H3("404 - Page Not Found", className="text-center mt-5"),
+            html.P("The page you're looking for doesn't exist.", className="text-center text-muted"),
+        ])
+
 
 @app.callback(
     [Output("backtesting-link", "active"),
      Output("portfolio-link", "active"),
-     Output("riskbands-link", "active")],  # Updated to include riskbands-link
+     Output("compare-link", "active"),
+     Output("riskbands-link", "active")],
     [Input("url", "pathname")]
 )
 def set_active_link(pathname):
-    if pathname == "/backtesting":
-        return True, False, False
-    elif pathname == "/portfolio":
-        return False, True, False
-    elif pathname == "/riskbands":
-        return False, False, True  # Set Riskbands link active
-    return False, False, False
+    return (
+        pathname == "/backtesting",
+        pathname == "/portfolio",
+        pathname == "/compare",
+        pathname == "/riskbands",
+    )
 
-# Register all tab callbacks
-rc_openai_key(app)
-rc_gpt(app)
-rc3(app)  # Register Riskbands callbacks
-rc2(app)
-rc1(app)
+
+# Register all callbacks
+register_auth_callbacks(app)  # Auth first
+register_settings_callbacks(app)
+register_rule_builder_callbacks(app)
+rc4(app)  # Portfolio comparison callbacks
+rc3(app)  # Riskbands callbacks
+rc2(app)  # Portfolio simulation callbacks
+rc1(app)  # Backtesting callbacks
 
 # Run
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8888)
+    app.run_server(debug=True, port=8888, use_reloader=False)

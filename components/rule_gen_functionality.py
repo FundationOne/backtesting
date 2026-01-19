@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 import json
 
-from gpt_functionality import generate_rule
+from components.gpt_functionality import generate_rule
 
 # Natural language input for rule generation
 def create_rule_generation_button(index):

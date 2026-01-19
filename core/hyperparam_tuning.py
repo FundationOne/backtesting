@@ -11,7 +11,7 @@ import plotly.graph_objs as go
 import joblib
 import json
 from multiprocessing import Pool
-from conf import PREPROC_FILENAME
+from core.conf import PREPROC_FILENAME
 
 # Load the data
 btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')

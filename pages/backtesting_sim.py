@@ -7,14 +7,13 @@ import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import ta
 import os
-from utils import *
+from core.utils import *
 import yfinance as yf
 
 from pathlib import Path
-from conf import *
+from core.conf import *
 
-from gpt_functionality import context_description
-from rule_gen_functionality import *
+from components.gpt_functionality import context_description
 
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
@@ -319,209 +318,236 @@ def execute_strategy(btc_data, starting_investment, start_invested, start_date, 
 
 loading_component = dbc.Spinner(color="primary", children="Running Backtest...")
 
-layout = dbc.Container(
-    [
-        dbc.Row(
-            [
-                dbc.Col(
-                    dbc.Card([
-                        dbc.CardHeader([
-                            dbc.Row([
-                                dbc.Col(html.H5("Backtesting Parameters", className="mb-0"), 
-                                        width=11, 
-                                        className="d-flex align-items-center"),
-                                dbc.Col(
-                                    dbc.Button(
-                                        html.Span("▼", id="collapse-icon"),
-                                        id="collapse-button",
-                                        color="secondary",
-                                        n_clicks=0,
-                                        size="sm",
-                                    ),
-                                    width=1,
-                                    className="d-flex justify-content-end align-items-center"
-                                ),
-                            ], className="w-100 m-0"),
-                        ], className="d-flex align-items-center"),
-                        dbc.Collapse(
-                            dbc.CardBody([
-                                dbc.Row([
-                                    dbc.Label("Available Cash $", html_for="input-starting-investment", width=12),
-                                    dbc.Col(
-                                        dcc.Input(
-                                            id="input-starting-investment",
-                                            type="number",
-                                            value=10000,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Col(
-                                        dbc.Checkbox(
-                                            id='start-invested',
-                                            value=False,
-                                            label='Start with entire cash amount invested',
-                                            style={'marginLeft': '20px'}
-                                        ),
-                                        width="12"
-                                    )
-                                ], className="mb-3 align-items-center"),
-                                dbc.Row([
-                                    dbc.Label("One Trade Amount $", html_for="input-trade-amount", width=12),
-                                    dbc.Col(
-                                        dcc.Input(
-                                            id="input-trade-amount",
-                                            type="number",
-                                            value=100,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Label("Transaction Fee per Trade $", html_for="input-transaction-fee", width=12),
-                                    dbc.Col(
-                                        dcc.Input(
-                                            id="input-transaction-fee",
-                                            type="number",
-                                            value=0.01,
-                                            step=0.01,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Label("Starting Date", html_for="input-starting-date", width=12),
-                                    dbc.Col(
-                                        dcc.DatePickerSingle(
-                                            id="input-starting-date",
-                                            date='2018-01-01',
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '5px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Label("Taxation Method", html_for="taxation-method-dropdown", width=12),
-                                    dbc.Col(
-                                        dcc.Dropdown(
-                                            id="taxation-method-dropdown",
-                                            options=[{"label": "FIFO", "value": "FIFO"}],
-                                            value="FIFO",
-                                            clearable=False,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '10px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Label("Tax Amount (%)", html_for="input-tax-amount", width=12),
-                                    dbc.Col(
-                                        dcc.Input(
-                                            id="input-tax-amount",
-                                            type="number",
-                                            value=25,
-                                            min=0,
-                                            max=100,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                                dbc.Row([
-                                    dbc.Label("Holding Period (days after which gains are tax-free)", html_for="input-holding-period", width=12),
-                                    dbc.Col(
-                                        dcc.Input(
-                                            id="input-holding-period",
-                                            type="number",
-                                            value=999999,
-                                            min=0,
-                                            max=999999,
-                                            style={'width': '100%', 'textAlign': 'left', 'marginLeft': '20px'}
-                                        ),
-                                        width=12
-                                    ),
-                                ]),
-                            ]),
-                            id="collapse",
-                            is_open=True,
-                        ),
-                        dbc.CardHeader([
-                            dbc.Row([
-                                dbc.Col(html.H5("BUY / SELL RULES", className="mb-0"), 
-                                        width=11, 
-                                        className="d-flex align-items-center"),
-                                dbc.Col(
-                                    dbc.Button(
-                                        html.Span("?"),
-                                        id="open-info-modal",
-                                        color="secondary",
-                                        size="sm",
-                                    ),
-                                    width=1,
-                                    className="d-flex justify-content-end align-items-center"
-                                ),
-                            ], className="w-100 m-0 align-items-center"),
-                        ], className="d-flex align-items-center"),
-                        dbc.Modal([
-                            dbc.ModalHeader(dbc.ModalTitle("Information")),
-                            dbc.ModalBody(html.Div(context_description, style={"whiteSpace": "pre-line"})),
-                            dbc.ModalFooter(
-                                dbc.Button("Close", id="close-info-modal", className="ms-auto", n_clicks=0)
-                            ),
-                        ], id="info-modal", is_open=False, size="xl"),
-                        dbc.Row(id="trading-rules-container"),
-                        dbc.Row([
-                            dbc.Col(dbc.Button("Save Rules", id="open-save-rules-modal", className="me-2 btn-secondary", color="secondary", n_clicks=0), width={"size": 3, "offset": 1}),
-                            dbc.Col(dbc.Button("Load Rules", id="open-load-rules-modal", className="me-2 btn-secondary", color="secondary", n_clicks=0), width={"size": 3, "offset": 0}),
-                            dbc.Col(create_rule_generation_button(1), width={"size": 3, "offset": 1}),
-                            rule_generation_modal,
-                            dbc.Col(dbc.Button("Run Backtest", id="update-backtesting-button", className="me-2 mt-4", n_clicks=0), width={"size": 6, "offset": 3})
-                        ],className="mb-3", style={"marginTop":"20px"})
-                    ], className="mb-3", style={"border":"unset"}
-                    ), sm=12, md=4, style={"padding":"0px"}
-                ),
-                dbc.Col(
-                    dbc.Card(
-                        [
-                            dbc.CardBody([
-                                dcc.Loading(
-                                    id="loading-graph",
-                                    type="default",
-                                    children=dcc.Graph(id='backtesting-graph'),
-                                ),
-                                dcc.Loading(
-                                    id="loading-table",
-                                    type="default",
-                                    children=dash_table.DataTable(
-                                        id='backtesting-table',
-                                        style_table={'height': '400px', 'overflowY': 'auto'},
-                                        style_cell={'textAlign': 'left'},
-                                    )
-                                )
-                            ]),
-                        ]
-                    ),
-                    sm=12, md=8, style={"padding":"0px"}
-                ),
-            ]
-        ),
-        dcc.Store(id="saved-rules-store", storage_type="local"),
-        save_rules_modal(),
-        load_rules_modal(),
-    ],
-    fluid=True,
+# Import rule builder components
+from components.rule_builder import (
+    create_rule_builder_card, ai_rule_modal, info_modal, 
+    save_rules_modal, load_rules_modal, get_rules_from_ui
 )
 
+layout = dbc.Container([
+    # Page Header
+    html.Div([
+        html.H4([
+            html.I(className="bi bi-graph-up me-2"),
+            "Backtesting"
+        ], className="page-title"),
+        html.P("Test trading strategies against historical data", className="page-subtitle"),
+    ], className="page-header"),
+    
+    dbc.Row([
+        # Left Panel - Parameters & Rules
+        dbc.Col([
+            # Asset Selection Card
+            dbc.Card([
+                dbc.CardHeader([
+                    html.I(className="bi bi-coin me-2"),
+                    "Asset"
+                ], className="card-header-modern"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.Div([
+                                dbc.Button("Bitcoin", id="asset-btc-btn", color="primary", size="sm", className="me-1 asset-type-tab active"),
+                                dbc.Button("Stock/ETF", id="asset-stock-btn", color="link", size="sm", className="asset-type-tab"),
+                            ], className="asset-type-tabs mb-2"),
+                            dbc.Input(
+                                id="asset-symbol-input",
+                                type="text",
+                                placeholder="e.g. AAPL, SPY, MSFT",
+                                className="compact-input",
+                                style={"display": "none"}
+                            ),
+                            dcc.Store(id="selected-asset", data="BTC-USD"),
+                        ], width=12),
+                    ]),
+                ], className="py-2"),
+            ], className="card-modern mb-2"),
+            
+            # Parameters Card (Compact)
+            dbc.Card([
+                dbc.CardHeader([
+                    html.Div([
+                        html.I(className="bi bi-sliders me-2"),
+                        html.Span("Parameters"),
+                    ], className="d-flex align-items-center"),
+                    dbc.Button(
+                        html.I(className="bi bi-chevron-down", id="collapse-icon"),
+                        id="collapse-button",
+                        color="link",
+                        size="sm",
+                        className="ms-auto p-0"
+                    ),
+                ], className="card-header-modern d-flex justify-content-between"),
+                dbc.Collapse([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Cash ($)", className="input-label"),
+                                dbc.Input(
+                                    id="input-starting-investment",
+                                    type="number",
+                                    value=10000,
+                                    className="compact-input"
+                                ),
+                            ], width=6),
+                            dbc.Col([
+                                dbc.Label("Trade Size ($)", className="input-label"),
+                                dbc.Input(
+                                    id="input-trade-amount",
+                                    type="number",
+                                    value=100,
+                                    className="compact-input"
+                                ),
+                            ], width=6),
+                        ], className="mb-2"),
+                        
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Fee ($)", className="input-label"),
+                                dbc.Input(
+                                    id="input-transaction-fee",
+                                    type="number",
+                                    value=0.01,
+                                    step=0.01,
+                                    className="compact-input"
+                                ),
+                            ], width=6),
+                            dbc.Col([
+                                dbc.Label("Tax (%)", className="input-label"),
+                                dbc.Input(
+                                    id="input-tax-amount",
+                                    type="number",
+                                    value=25,
+                                    min=0, max=100,
+                                    className="compact-input"
+                                ),
+                            ], width=6),
+                        ], className="mb-2"),
+                        
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Start Date", className="input-label"),
+                                dcc.DatePickerSingle(
+                                    id="input-starting-date",
+                                    date='2018-01-01',
+                                    display_format="DD/MM/YYYY",
+                                    className="compact-date"
+                                ),
+                            ], width=6),
+                            dbc.Col([
+                                dbc.Label("Tax Method", className="input-label"),
+                                dcc.Dropdown(
+                                    id="taxation-method-dropdown",
+                                    options=[{"label": "FIFO", "value": "FIFO"}],
+                                    value="FIFO",
+                                    clearable=False,
+                                    className="compact-dropdown"
+                                ),
+                            ], width=6),
+                        ], className="mb-2"),
+                        
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Hold Period (days)", className="input-label"),
+                                dbc.Input(
+                                    id="input-holding-period",
+                                    type="number",
+                                    value=365,
+                                    className="compact-input"
+                                ),
+                            ], width=6),
+                            dbc.Col([
+                                html.Div([
+                                    dbc.Checkbox(
+                                        id='start-invested',
+                                        value=False,
+                                        className="me-2"
+                                    ),
+                                    html.Label("Start fully invested", className="form-check-label", style={"fontSize": "0.75rem", "marginTop": "0"}),
+                                ], className="d-flex align-items-center", style={"paddingTop": "20px"}),
+                            ], width=6),
+                        ]),
+                    ], className="compact-form"),
+                ], id="collapse", is_open=True),
+            ], className="card-modern mb-3"),
+            
+            # Rule Builder
+            create_rule_builder_card(),
+            
+            # Modals
+            ai_rule_modal,
+            info_modal,
+            save_rules_modal,
+            load_rules_modal,
+            dcc.Store(id="saved-rules-store", storage_type="local"),
+            
+        ], md=4, className="mb-3"),
+        
+        # Right Panel - Chart & Results
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dcc.Loading(
+                        id="loading-graph",
+                        type="circle",
+                        children=dcc.Graph(id='backtesting-graph', className="chart-container"),
+                    ),
+                ]),
+            ], className="card-modern mb-3"),
+            
+            dbc.Card([
+                dbc.CardHeader([
+                    html.I(className="bi bi-list-ul me-2"),
+                    "Transaction History"
+                ], className="card-header-modern"),
+                dbc.CardBody([
+                    dcc.Loading(
+                        id="loading-table",
+                        type="circle",
+                        children=dash_table.DataTable(
+                            id='backtesting-table',
+                            style_table={'height': '300px', 'overflowY': 'auto'},
+                            style_cell={'textAlign': 'left', 'padding': '8px', 'fontFamily': 'Inter, sans-serif', 'fontSize': '0.85rem'},
+                            style_header={'fontWeight': '600', 'backgroundColor': '#f8fafc'},
+                        )
+                    )
+                ]),
+            ], className="card-modern"),
+        ], md=8),
+    ]),
+], fluid=True)
+
 def register_callbacks(app):
+    # Asset picker callbacks
+    @app.callback(
+        [Output("asset-btc-btn", "className"),
+         Output("asset-stock-btn", "className"),
+         Output("asset-symbol-input", "style"),
+         Output("selected-asset", "data")],
+        [Input("asset-btc-btn", "n_clicks"),
+         Input("asset-stock-btn", "n_clicks"),
+         Input("asset-symbol-input", "value")],
+        [State("selected-asset", "data")],
+        prevent_initial_call=True
+    )
+    def toggle_asset_type(btc_clicks, stock_clicks, symbol_input, current_asset):
+        from dash import ctx
+        triggered = ctx.triggered_id
+        
+        if triggered == "asset-btc-btn":
+            return "me-1 asset-type-tab active", "asset-type-tab", {"display": "none"}, "BTC-USD"
+        elif triggered == "asset-stock-btn":
+            return "me-1 asset-type-tab", "asset-type-tab active", {"display": "block"}, symbol_input or "AAPL"
+        elif triggered == "asset-symbol-input" and symbol_input:
+            return "me-1 asset-type-tab", "asset-type-tab active", {"display": "block"}, symbol_input.upper()
+        
+        return "me-1 asset-type-tab active", "asset-type-tab", {"display": "none"}, current_asset or "BTC-USD"
+    
     @app.callback(
         [Output('backtesting-table', 'data'),
          Output('backtesting-table', 'columns'),
          Output('backtesting-graph', 'figure')],
-        [Input('update-backtesting-button', 'n_clicks')],  # Updated trigger
+        [Input('update-backtesting-button', 'n_clicks')],
         [State('input-starting-investment', 'value'),
          State('start-invested', 'value'),
         State('input-starting-date', 'date'),
@@ -532,9 +558,10 @@ def register_callbacks(app):
         State('input-transaction-fee', 'value'),
         State('taxation-method-dropdown', 'value'),
         State('input-tax-amount', 'value'),
-        State('input-holding-period', 'value')]
+        State('input-holding-period', 'value'),
+        State('selected-asset', 'data')]
     )
-    def update_backtesting(n_clicks, starting_investment, start_invested, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period):
+    def update_backtesting(n_clicks, starting_investment, start_invested, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period, selected_asset):
         if None in [starting_investment, start_date, children]:
             raise PreventUpdate
         
@@ -708,21 +735,12 @@ def register_callbacks(app):
         return [fig]
 
     @app.callback(
-        [Output("collapse", "is_open"), Output("collapse-icon", "style")],
+        [Output("collapse", "is_open"), Output("collapse-icon", "className")],
         [Input("collapse-button", "n_clicks")],
         [State("collapse", "is_open")],
     )
     def toggle_collapse(n, is_open):
         if n:
-            return not is_open, {"transform": "rotate(180deg)" if not is_open else "none"}
-        return is_open, {"transform": "none"}
-
-    @app.callback(
-        Output("info-modal", "is_open"),
-        [Input("open-info-modal", "n_clicks"), Input("close-info-modal", "n_clicks")],
-        [State("info-modal", "is_open")],
-    )
-    def toggle_modal(n1, n2, is_open):
-        if n1 or n2:
-            return not is_open
-        return is_open
+            new_class = "bi bi-chevron-up" if not is_open else "bi bi-chevron-down"
+            return not is_open, new_class
+        return is_open, "bi bi-chevron-down"

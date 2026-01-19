@@ -4,7 +4,33 @@ from dash import dcc, html, dash_table, Input, Output, State
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
-from matplotlib.colors import Normalize, LinearSegmentedColormap
+
+
+def _interpolate_rgb(c1, c2, t):
+    return (
+        int(c1[0] + (c2[0] - c1[0]) * t),
+        int(c1[1] + (c2[1] - c1[1]) * t),
+        int(c1[2] + (c2[2] - c1[2]) * t),
+    )
+
+
+def _value_to_rgba(value, vmin, vmax, alpha=0.8):
+    if vmax == vmin:
+        t = 0.5
+    else:
+        t = (value - vmin) / (vmax - vmin)
+        t = max(0.0, min(1.0, float(t)))
+
+    red = (255, 0, 0)
+    yellow = (204, 204, 0)
+    green = (0, 255, 0)
+
+    if t < 0.5:
+        r, g, b = _interpolate_rgb(red, yellow, t / 0.5)
+    else:
+        r, g, b = _interpolate_rgb(yellow, green, (t - 0.5) / 0.5)
+
+    return f"rgba({r},{g},{b},{alpha})"
 
 # Functions to generate scenarios and calculate values
 def generate_risk_band_scenarios(band_indices, max_length=7, total_combinations=100):
@@ -160,28 +186,42 @@ for i in range(num_bands):
         )
 
 # Define the layout for the riskbands page
-layout = html.Div(
-    [
-        dbc.Row([
-            # Input fields on the left
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H5("Risk Band Stop Loss Prices and Probabilities", style={"fontSize": "16px"}),
-                        html.Hr(),
-                        *risk_band_inputs,
-                        # Heatmap below the inputs
-                        html.Div([
-                            dcc.Graph(id='heatmap-graph')
-                        ])
+layout = html.Div([
+    # Page Header  
+    html.Div([
+        html.H4([
+            html.I(className="bi bi-shield-check me-2"),
+            "Risk Bands"
+        ], className="page-title"),
+        html.P("Simulate multi-band exit strategies with stop-loss scenarios", className="page-subtitle")
+    ], className="page-header"),
+    
+    dbc.Row([
+        # Input fields on the left
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader([
+                    html.I(className="bi bi-sliders me-2"),
+                    "Band Configuration"
+                ], className="card-header-modern"),
+                dbc.CardBody([
+                    *risk_band_inputs,
+                    # Heatmap below the inputs
+                    html.Div([
+                        dcc.Graph(id='heatmap-graph')
                     ])
-                ], style={"border": "unset"})
-            ], sm=12, md=4, style={"padding": "5px"}),
-            # Chart and table on the right
+                ])
+            ], className="card-modern")
+        ], sm=12, md=4, className="mb-3"),
+        # Chart and table on the right
             dbc.Col([
                 dbc.Card([
+                    dbc.CardHeader([
+                        html.I(className="bi bi-graph-up me-2"),
+                        "Scenario Analysis"
+                    ], className="card-header-modern"),
                     dbc.CardBody([
-                        dcc.Graph(id='scenario-graph'),
+                        dcc.Graph(id='scenario-graph', className="chart-container"),
                         # Totals Div
                         html.Div(id='totals-div', style={"marginTop": "20px"}),
                         dash_table.DataTable(
@@ -192,24 +232,18 @@ layout = html.Div(
                                 {'name': 'Total Value Times Probability', 'id': 'Total Value Times Probability'}
                             ],
                             data=df_dash.to_dict('records'),
-                            style_table={'height': '600px', 'overflowY': 'auto'},
-                            style_cell={'textAlign': 'left', 'padding': '5px', "fontSize": "12px"},
-                            style_header={
-                                'backgroundColor': 'rgb(230, 230, 230)',
-                                'fontWeight': 'bold',
-                                "fontSize": "12px"
-                            },
+                            style_table={'height': '400px', 'overflowY': 'auto'},
+                            style_cell={'textAlign': 'left', 'padding': '8px', 'fontFamily': 'Inter, sans-serif', 'fontSize': '0.85rem'},
+                            style_header={'fontWeight': '600', 'backgroundColor': '#f8fafc'},
                             page_size=20,
-                            sort_action='native',  # Enable sorting
-                            sort_mode='single',    # Allow sorting by a single column at a time
+                            sort_action='native',
+                            sort_mode='single',
                         )
                     ])
-                ])
-            ], sm=12, md=8, style={"padding": "5px"})
-        ], style={"marginTop": "10px"})
-    ],
-    className="container"
-)
+                ], className="card-modern")
+            ], sm=12, md=8)
+        ])
+    ])
 
 # Register the callbacks for the riskbands page
 def register_callbacks(app):
@@ -302,11 +336,6 @@ def register_callbacks(app):
         total_values = [line['total_value'] for line in lines]
         min_total_value = min(total_values)
         max_total_value = max(total_values)
-        norm = Normalize(vmin=min_total_value, vmax=max_total_value)
-
-        # Create a custom colormap (Red -> Orange -> Green)
-        colours = [(1, 0, 0), (0.8, 0.8, 0), (0, 1, 0)]  # Red, Orange, Green
-        cmap = LinearSegmentedColormap.from_list('RedOrangeGreen', colours, N=256)
 
         # Sort lines by number of steps
         lines = sorted(lines, key=lambda x: len(x['scenario']))
@@ -316,13 +345,7 @@ def register_callbacks(app):
 
         # Plot each line with appropriate color
         for line in lines:
-            rgba_color = cmap(norm(line['total_value']))
-            line_color = 'rgba({},{},{},{})'.format(
-                int(rgba_color[0]*255),
-                int(rgba_color[1]*255),
-                int(rgba_color[2]*255),
-                0.8  # Adjust transparency as needed
-            )
+            line_color = _value_to_rgba(line['total_value'], min_total_value, max_total_value, alpha=0.8)
             line_data = go.Scatter(
                 x=line['steps'],
                 y=line['bands'],
