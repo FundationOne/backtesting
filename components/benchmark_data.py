@@ -6,7 +6,7 @@ Pre-fetches and caches benchmark indices (S&P 500, DAX, MSCI World) for comparis
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Tuple
 import pandas as pd
 import yfinance as yf
 import threading
@@ -34,6 +34,50 @@ CACHE_VALIDITY_HOURS = 24
 _benchmark_cache: Dict[str, pd.DataFrame] = {}
 _cache_loaded = False
 _fetch_lock = threading.Lock()
+
+# In-memory memoization for DCA simulations (can be expensive on every callback).
+# Keyed by (symbols, history_sig, tx_sig)
+_sim_cache: Dict[Tuple[str, str, str], Dict[str, List[Dict]]] = {}
+
+
+def _signature_portfolio_history(portfolio_history: List[Dict]) -> str:
+    if not portfolio_history:
+        return "empty"
+    try:
+        last = portfolio_history[-1]
+        first = portfolio_history[0]
+        return "|".join([
+            str(len(portfolio_history)),
+            str(first.get("date")),
+            str(last.get("date")),
+            str(last.get("invested")),
+            str(last.get("value")),
+        ])
+    except Exception:
+        return "err"
+
+
+def _signature_transactions(transactions: List[Dict]) -> str:
+    if not transactions:
+        return "empty"
+    try:
+        # Use only cheap summary to avoid hashing huge payload.
+        last = transactions[-1]
+        first = transactions[0]
+        total_amt = 0.0
+        for t in transactions:
+            try:
+                total_amt += float(t.get("amount", 0) or 0)
+            except Exception:
+                continue
+        return "|".join([
+            str(len(transactions)),
+            str(first.get("timestamp")),
+            str(last.get("timestamp")),
+            f"{total_amt:.2f}",
+        ])
+    except Exception:
+        return "err"
 
 
 def _load_cache() -> Dict:
@@ -308,7 +352,11 @@ def simulate_benchmark_investment(
     return history
 
 
-def get_benchmark_simulation(portfolio_history: List[Dict], transactions: List[Dict]) -> Dict[str, List[Dict]]:
+def get_benchmark_simulation(
+    portfolio_history: List[Dict],
+    transactions: List[Dict],
+    symbols: Optional[Iterable[str]] = None,
+) -> Dict[str, List[Dict]]:
     """
     Get simulated benchmark portfolios for all benchmarks.
     
@@ -328,8 +376,18 @@ def get_benchmark_simulation(portfolio_history: List[Dict], transactions: List[D
         for h in portfolio_history
     ]
     
-    results = {}
-    for symbol in BENCHMARKS.keys():
+    symbols_list = list(symbols) if symbols is not None else list(BENCHMARKS.keys())
+    symbols_key = ",".join(symbols_list)
+    hist_sig = _signature_portfolio_history(portfolio_history)
+    tx_sig = _signature_transactions(transactions)
+
+    cache_key = (symbols_key, hist_sig, tx_sig)
+    cached = _sim_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    results: Dict[str, List[Dict]] = {}
+    for symbol in symbols_list:
         history = simulate_benchmark_investment(transactions, symbol, history_dates)
         if history:
             results[symbol] = history
@@ -340,7 +398,8 @@ def get_benchmark_simulation(portfolio_history: List[Dict], transactions: List[D
                 history[-1]['invested'],
                 history[-1]['value'],
             )
-    
+
+    _sim_cache[cache_key] = results
     return results
 
 

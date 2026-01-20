@@ -853,6 +853,7 @@ input.compact-input {
     min-height: 32px !important;
     border: 1px solid #e5e7eb !important;
     border-radius: 6px !important;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02) !important;
 }
 
 .compact-dropdown .Select-placeholder,
@@ -860,10 +861,32 @@ input.compact-input {
     line-height: 30px !important;
     padding: 0 10px !important;
     font-size: 0.8125rem !important;
+    color: var(--text-primary) !important;
 }
 
 .compact-dropdown .Select-input {
     height: 30px !important;
+}
+
+/* Compact dropdown - multi-select pills (keeps control height unchanged) */
+.compact-dropdown .Select--multi .Select-value {
+    background: rgba(99, 102, 241, 0.10) !important;
+    border: 1px solid rgba(99, 102, 241, 0.25) !important;
+    border-radius: 999px !important;
+    margin: 2px 4px 2px 0 !important;
+    padding: 0 6px !important;
+    box-shadow: none !important;
+}
+
+.compact-dropdown .Select--multi .Select-value-label {
+    color: var(--text-primary) !important;
+    font-size: 0.75rem !important;
+    line-height: 16px !important;
+}
+
+.compact-dropdown .Select--multi .Select-value-icon {
+    border-right: none !important;
+    color: var(--text-secondary) !important;
 }
 
 /* Date picker - compact */
@@ -1763,6 +1786,89 @@ hr {
     padding: 20px 24px;
 }
 
+/* Top summary "hero" panel (scoped variables; does not change sizing) */
+.portfolio-analysis-page .portfolio-top-summary {
+    --card-bg: #0f172a;
+    --text-primary: #f8fafc;
+    --text-secondary: rgba(226, 232, 240, 0.70);
+    --border-color: rgba(148, 163, 184, 0.14);
+    --shadow-sm: 0 10px 20px rgba(2, 6, 23, 0.30);
+}
+
+.portfolio-analysis-page .portfolio-top-summary .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .card-modern {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.96));
+}
+
+.portfolio-analysis-page .portfolio-top-summary .metric-card {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(148, 163, 184, 0.16);
+    min-height: 98px;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .metric-value {
+    color: #f8fafc !important;
+    font-size: clamp(0.7rem, 2.4vw, 1.05rem) !important;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .metric-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .metric-subtitle {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .portfolio-positions-inline {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.portfolio-analysis-page .portfolio-top-summary .portfolio-positions-value {
+    color: #f8fafc !important;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Reserve consistent space even when a card has no subtitle */
+.portfolio-analysis-page .portfolio-top-summary .metric-subtitle-placeholder {
+    min-height: 14px;
+    visibility: hidden;
+}
+
+/* Main portfolio value: keep it on one line and aligned */
+#portfolio-total-value,
+.portfolio-analysis-page .portfolio-top-summary .portfolio-hero-value {
+    color: #ffffff !important;
+    font-size: clamp(1.05rem, 4.5vw, 2rem) !important;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+}
+
+@media (max-width: 1100px) {
+    .portfolio-analysis-page .portfolio-top-summary .metric-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.04em;
+        line-height: 1.1;
+    }
+}
+
+.portfolio-analysis-page .portfolio-top-summary .metric-card:hover {
+    border-color: rgba(99, 102, 241, 0.45);
+}
+
 .portfolio-analysis-page .page-header {
     margin-bottom: 20px;
 }
@@ -1813,22 +1919,22 @@ hr {
 
 /* Metric Cards */
 .metric-card {
-    background: white;
+    background: var(--card-bg);
     border-radius: 10px;
     padding: 12px 16px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     height: 100%;
     transition: all 0.2s ease;
 }
 
 .metric-card:hover {
-    border-color: #d1d5db;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: var(--shadow-sm);
 }
 
 .metric-label {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.025em;
@@ -1838,31 +1944,31 @@ hr {
 .metric-value {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-primary);
     line-height: 1.2;
 }
 
 .metric-subtitle {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--text-secondary);
     margin-top: 2px;
 }
 
 /* Card Modern - For chart cards */
 .card-modern {
-    background: white;
+    background: var(--card-bg);
     border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
 
 .card-header-modern {
-    background: linear-gradient(to right, #f9fafb, #ffffff);
-    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(to right, rgba(99, 102, 241, 0.06), rgba(255, 255, 255, 0));
+    border-bottom: 1px solid var(--border-color);
     font-size: 0.875rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary);
     padding: 12px 16px;
 }
 
@@ -1872,7 +1978,7 @@ hr {
 }
 
 .holding-item:hover {
-    background: #f9fafb;
+    background: rgba(99, 102, 241, 0.05);
 }
 
 /* Benchmark Toggles */
@@ -1951,7 +2057,7 @@ hr {
 .portfolio-analysis-page .nav-tabs .nav-link {
     border: none;
     background: transparent;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.8125rem;
     font-weight: 500;
     padding: 6px 12px;
@@ -1960,13 +2066,13 @@ hr {
 }
 
 .portfolio-analysis-page .nav-tabs .nav-link:hover {
-    color: #374151;
-    background: #f3f4f6;
+    color: var(--text-primary);
+    background: rgba(99, 102, 241, 0.06);
 }
 
 .portfolio-analysis-page .nav-tabs .nav-link.active {
-    color: #6366f1;
-    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-color);
+    background: rgba(99, 102, 241, 0.12);
 }
 
 /* Range Buttons */

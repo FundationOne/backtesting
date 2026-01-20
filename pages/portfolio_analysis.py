@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 import math
+from collections import OrderedDict
 
 # Import the TR connector component
 from components.tr_connector import create_tr_connector_card, register_tr_callbacks
@@ -24,6 +25,34 @@ from components.benchmark_data import get_benchmark_data, initialize_benchmarks,
 
 # Initialize benchmark cache on module load
 initialize_benchmarks()
+
+
+# Small in-memory cache to avoid re-building identical figures on page refresh.
+# Keyed by (cached_at, chart_type, range, benchmarks, include_benchmarks).
+_FIG_CACHE: "OrderedDict[str, dict]" = OrderedDict()
+_FIG_CACHE_MAX = 24
+_DEBUG_WRITE_COMPARE_SUMMARY = False
+
+
+def _fig_cache_get(key: str):
+    try:
+        fig_dict = _FIG_CACHE.get(key)
+        if fig_dict is None:
+            return None
+        _FIG_CACHE.move_to_end(key)
+        return fig_dict
+    except Exception:
+        return None
+
+
+def _fig_cache_set(key: str, fig_dict: dict):
+    try:
+        _FIG_CACHE[key] = fig_dict
+        _FIG_CACHE.move_to_end(key)
+        while len(_FIG_CACHE) > _FIG_CACHE_MAX:
+            _FIG_CACHE.popitem(last=False)
+    except Exception:
+        pass
 
 
 def fetch_benchmark_data(symbol, start_date, end_date):
@@ -60,7 +89,14 @@ def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class
         html.Div([
             html.Div(title, className="metric-label"),
             html.Div(id=value_id, className=f"metric-value sensitive {color_class}", children="--"),
-            html.Div(id=subtitle_id, className="metric-subtitle sensitive", children="") if subtitle_id else None,
+            html.Div(
+                id=subtitle_id,
+                className="metric-subtitle sensitive",
+                children="",
+            ) if subtitle_id else html.Div(
+                className="metric-subtitle metric-subtitle-placeholder",
+                children="",
+            ),
         ], className="metric-content"),
     ], className="metric-card")
 
@@ -110,7 +146,7 @@ layout = dbc.Container([
                     {"label": "1Y", "value": "1y"},
                     {"label": "MAX", "value": "max"},
                 ],
-                value="max",
+                value="1y",
                 clearable=False,
                 className="compact-dropdown",
             )
@@ -160,49 +196,48 @@ layout = dbc.Container([
                         dbc.Col([
                             html.Div([
                                 html.Div("Portfolio Value", className="text-muted small"),
-                                html.Div(id="portfolio-total-value", className="display-6 fw-bold sensitive sensitive-strong", 
+                                html.Div(id="portfolio-total-value", className="fs-2 fw-bold portfolio-hero-value sensitive sensitive-strong", 
                                          children="€0.00"),
                                 html.Div(id="portfolio-total-change", className="fs-6 sensitive", children=""),
                                 html.Div(id="data-freshness", className="text-muted small mt-2", children=""),
+                                html.Div([
+                                    html.Span("Positions", className="text-muted small"),
+                                    html.Span(id="metric-positions", className="portfolio-positions-value sensitive", children="--"),
+                                ], className="portfolio-positions-inline"),
                             ], className="py-1"),
                         ], md=4, className="mb-2"),
                         dbc.Col([
                             dbc.Row([
                                 dbc.Col([
                                     create_metric_card("Invested", "metric-invested"),
-                                ], width=6, className="mb-2"),
+                                ], width=4, className="mb-2"),
                                 dbc.Col([
                                     create_metric_card("Profit/Loss", "metric-profit", "metric-profit-pct"),
-                                ], width=6, className="mb-2"),
+                                ], width=4, className="mb-2"),
                                 dbc.Col([
                                     create_metric_card("Cash", "metric-cash"),
-                                ], width=6),
-                                dbc.Col([
-                                    create_metric_card("Positions", "metric-positions"),
-                                ], width=6),
+                                ], width=4, className="mb-2"),
                             ]),
-                        ], md=4, className="mb-2"),
-                        dbc.Col([
                             dbc.Row([
                                 dbc.Col([
                                     create_metric_card("1M Return", "metric-1m-return"),
-                                ], width=6, className="mb-2"),
+                                ], width=3),
                                 dbc.Col([
                                     create_metric_card("3M Return", "metric-3m-return"),
-                                ], width=6, className="mb-2"),
+                                ], width=3),
                                 dbc.Col([
                                     create_metric_card("YTD Return", "metric-ytd-return"),
-                                ], width=6),
+                                ], width=3),
                                 dbc.Col([
                                     create_metric_card("Total Return", "metric-total-return"),
-                                ], width=6),
+                                ], width=3),
                             ]),
-                        ], md=4, className="mb-2"),
+                        ], md=8, className="mb-2"),
                     ]),
                 ]),
             ], className="card-modern h-100"),
         ], md=9, className="mb-3"),
-    ]),
+    ], className="portfolio-top-summary"),
     
     # Charts Row (Value/Drawdown + Performance)
     dbc.Row([
@@ -388,21 +423,7 @@ def register_callbacks(app):
         
         if cached and cached.get("success"):
             # ALWAYS use server cache. Browser storage is not authoritative and can be stale/wrong.
-            positions = cached.get('data', {}).get('positions', [])
-            history = cached.get('data', {}).get('history', [])
-            total_value = cached.get('data', {}).get('totalValue', 0)
-            
-            # If history is minimal, try to build proper market-price-based history
-            if len(history) < 50 and positions:
-                try:
-                    from components.portfolio_history import calculate_and_save_history
-                    success, message, new_history = calculate_and_save_history(force_rebuild=False)
-                    if success and new_history:
-                        # Reload updated cache
-                        cached = get_cached_portfolio()
-                except Exception as e:
-                    pass
-            
+            # Do not trigger history rebuilds here; page load must be fast and stable.
             return json.dumps(cached)
         
         return no_update
@@ -604,7 +625,7 @@ def register_callbacks(app):
             fig.update_layout(
                 showlegend=False, margin=dict(l=20, r=20, t=20, b=20),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                annotations=[dict(text="No data", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="#9ca3af")]
+                annotations=[dict(text="No data", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="#94a3b8")]
             )
             return fig
         
@@ -635,7 +656,7 @@ def register_callbacks(app):
                 values=values, labels=labels, hole=0.7,
                 marker=dict(colors=colors[:len(values)]),
                 textinfo="none",
-                hovertemplate="<b>%{label}</b><br>€%{value:,.2f}<br>%{percent}<extra></extra>",
+                hoverinfo="skip",
             ))
             
             fig.update_layout(
@@ -643,10 +664,9 @@ def register_callbacks(app):
                 margin=dict(l=10, r=10, t=10, b=10),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="white"),
                 annotations=[
-                    dict(text=center_name, x=0.5, y=0.55, font_size=11, showarrow=False, font_color="#d1d5db"),
-                    dict(text=center_value, x=0.5, y=0.45, font_size=18, showarrow=False, font_color="white", font_weight="bold"),
+                    dict(text=center_name, x=0.5, y=0.55, font_size=11, showarrow=False, font_color="#94a3b8"),
+                    dict(text=center_value, x=0.5, y=0.45, font_size=18, showarrow=False, font_color="#f8fafc", font_weight="bold"),
                 ]
             )
             return fig
@@ -1070,9 +1090,9 @@ def register_callbacks(app):
             return go.Figure()  # Return empty figure instead of raising exception
 
         fig = go.Figure()
-        # Ensure Plotly does not keep an old zoom/range when data changes.
-        # Changing uirevision forces a full redraw.
-        fig.update_layout(uirevision=datetime.now().isoformat())
+        selected_range = selected_range or "max"
+        benchmarks = benchmarks or []
+        cache_key = None
         
         if not data_json:
             fig.update_layout(
@@ -1094,15 +1114,25 @@ def register_callbacks(app):
         try:
             data = json.loads(data_json)
 
-            # Prefer server cache over browser localStorage (localStorage can be stale)
-            from components.tr_api import get_cached_portfolio
-            server_cache = get_cached_portfolio()
-            if server_cache and server_cache.get("success"):
-                history = server_cache.get("data", {}).get("history", [])
-                transactions = server_cache.get("data", {}).get("transactions", [])
-            else:
-                history = data.get("data", {}).get("history", [])
-                transactions = data.get("data", {}).get("transactions", [])
+            cached_at = data.get("cached_at") or ""
+            cache_key = "|".join([
+                str(cached_at),
+                str(chart_type),
+                str(selected_range),
+                "1" if include_benchmarks else "0",
+                ",".join(map(str, benchmarks)),
+            ])
+
+            cached_fig = _fig_cache_get(cache_key)
+            if cached_fig is not None:
+                return go.Figure(cached_fig)
+
+            # Ensure Plotly does not keep an old zoom/range when data changes.
+            # Use stable uirevision so reload doesn't force redraw spam.
+            fig.update_layout(uirevision=cache_key)
+
+            history = data.get("data", {}).get("history", [])
+            transactions = data.get("data", {}).get("transactions", [])
             
             if not history:
                 fig.update_layout(
@@ -1254,7 +1284,7 @@ def register_callbacks(app):
                 if benchmarks and transactions:
                     try:
                         from components.benchmark_data import get_benchmark_simulation
-                        bench_simulations = get_benchmark_simulation(history, transactions)
+                        bench_simulations = get_benchmark_simulation(history, transactions, symbols=benchmarks)
                     except Exception:
                         bench_simulations = {}
 
@@ -1331,61 +1361,39 @@ def register_callbacks(app):
                 hovermode="x unified",
             )
 
-            # Persist a lightweight numeric-only summary for end-to-end verification.
-            # (Avoids JSON serialization issues with datetimes inside Plotly figures.)
-            try:
-                from components.benchmark_data import CACHE_DIR
-                created_at = datetime.now().isoformat()
-                summary_payload = {
-                    "created_at": created_at,
-                    "chart_type": chart_type,
-                    "selected_range": selected_range,
-                    "benchmarks": benchmarks,
-                    "data_source": "server_cache" if (server_cache and server_cache.get("success")) else "browser_store",
-                    "history_points": int(len(history) if history else 0),
-                    "filtered_points": int(len(df)),
-                    "date_range": {
-                        "start": start_date.strftime("%Y-%m-%d") if isinstance(start_date, datetime) else str(start_date),
-                        "end": end_date.strftime("%Y-%m-%d") if isinstance(end_date, datetime) else str(end_date),
-                    },
-                    "df_last": {
-                        "date": df['date'].iloc[-1].strftime("%Y-%m-%d") if len(df) else None,
-                        "invested": float(df['invested'].iloc[-1]) if (len(df) and 'invested' in df.columns) else None,
-                        "value": float(df['value'].iloc[-1]) if (len(df) and 'value' in df.columns) else None,
-                    },
-                    "traces": [
-                        {
-                            "name": t.name,
-                            "n": int(len(t.y) if t.y is not None else 0),
-                            "first_y": (float(t.y[0]) if t.y is not None and len(t.y) else None),
-                            "last_y": (float(t.y[-1]) if t.y is not None and len(t.y) else None),
-                        }
-                        for t in fig.data
-                    ],
-                }
+            # Cache successful figure builds so reloads are instant.
+            if cache_key:
+                _fig_cache_set(cache_key, fig.to_dict())
 
-                # Write to user cache dir AND repo-local .debug (so we can always read it here).
-                CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                (CACHE_DIR / "last_compare_summary.json").write_text(
-                    json.dumps(summary_payload, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
+            # Optional debug snapshot (disabled by default to avoid disk I/O).
+            if _DEBUG_WRITE_COMPARE_SUMMARY:
                 try:
-                    repo_debug = Path(__file__).resolve().parents[1] / ".debug"
-                    repo_debug.mkdir(parents=True, exist_ok=True)
-                    (repo_debug / "last_compare_summary.json").write_text(
+                    from components.benchmark_data import CACHE_DIR
+                    created_at = datetime.now().isoformat()
+                    summary_payload = {
+                        "created_at": created_at,
+                        "chart_type": chart_type,
+                        "selected_range": selected_range,
+                        "benchmarks": benchmarks,
+                        "data_source": "portfolio_data_store",
+                        "history_points": int(len(history) if history else 0),
+                        "filtered_points": int(len(df)),
+                    }
+                    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    (CACHE_DIR / "last_compare_summary.json").write_text(
                         json.dumps(summary_payload, ensure_ascii=False, indent=2),
                         encoding="utf-8",
                     )
                 except Exception:
                     pass
-            except Exception:
-                pass
+
             return fig
             
         except Exception as e:
             # Avoid noisy prints; return empty figure.
             return fig
+
+
 
     # Main chart (Value / Drawdown)
     @app.callback(

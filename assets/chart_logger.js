@@ -6,6 +6,17 @@
   var POLL_MS = 500;
   var lastSignature = null;
 
+  function isChartDebugEnabled() {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.location && window.location.search && window.location.search.indexOf('debugCharts=1') !== -1) return true;
+      var v = window.localStorage ? window.localStorage.getItem('debugCharts') : null;
+      return v === '1' || v === 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
   function isFiniteNumber(v) {
     return typeof v === 'number' && isFinite(v);
   }
@@ -176,6 +187,7 @@
   }
 
   function attachMainLogger() {
+    if (!isChartDebugEnabled()) return false;
     var gd = getGraphDivById(TARGET_ID);
     if (!gd) return false;
 
@@ -203,6 +215,53 @@
     if (gd.__donutHoverAttached) return true;
     gd.__donutHoverAttached = true;
 
+    function getThemeColors() {
+      var container = document.getElementById(DONUT_ID);
+      var scope = (container && container.closest && container.closest('.portfolio-top-summary')) || document.documentElement;
+      var styles = scope ? window.getComputedStyle(scope) : null;
+      var textPrimary = styles ? styles.getPropertyValue('--text-primary').trim() : '';
+      var textSecondary = styles ? styles.getPropertyValue('--text-secondary').trim() : '';
+      var cardBg = styles ? styles.getPropertyValue('--card-bg').trim() : '';
+      return {
+        textPrimary: textPrimary || '#111827',
+        textSecondary: textSecondary || '#6b7280',
+        cardBg: cardBg || '#ffffff'
+      };
+    }
+
+    function applyTheme() {
+      if (typeof Plotly === 'undefined' || !Plotly.relayout) return;
+
+      // Avoid event recursion: Plotly.relayout can trigger plotly_afterplot.
+      if (gd.__donutThemeApplying) return;
+
+      var theme = getThemeColors();
+      var sig = theme.cardBg + '|' + theme.textPrimary + '|' + theme.textSecondary;
+
+      // Skip if already applied.
+      if (gd.__donutThemeSig === sig) return;
+      gd.__donutThemeSig = sig;
+
+      gd.__donutThemeApplying = true;
+      try {
+        var p = Plotly.relayout(gd, {
+          paper_bgcolor: theme.cardBg,
+          plot_bgcolor: theme.cardBg,
+          'annotations[0].font.color': theme.textSecondary,
+          'annotations[1].font.color': theme.textPrimary
+        });
+        // Clear flag after plot settles (promise if available; fallback timeout).
+        if (p && typeof p.then === 'function') {
+          p.then(function () { setTimeout(function () { gd.__donutThemeApplying = false; }, 0); })
+           .catch(function () { gd.__donutThemeApplying = false; });
+        } else {
+          setTimeout(function () { gd.__donutThemeApplying = false; }, 0);
+        }
+      } catch (e) {
+        gd.__donutThemeApplying = false;
+      }
+    }
+
     function getDefaultCenter() {
       var ann = (gd.layout && gd.layout.annotations) ? gd.layout.annotations : [];
       return {
@@ -221,6 +280,7 @@
     }
 
     var defaults = getDefaultCenter();
+    applyTheme();
 
     if (typeof gd.on === 'function') {
       gd.on('plotly_hover', function (eventData) {
@@ -239,7 +299,9 @@
       });
 
       gd.on('plotly_afterplot', function () {
+        if (gd.__donutThemeApplying) return;
         defaults = getDefaultCenter();
+        applyTheme();
       });
     }
 
@@ -248,8 +310,12 @@
   }
 
   // Poll until the graph exists (Dash mounts it asynchronously)
-  setInterval(function () {
-    attachMainLogger();
-    attachDonutHover();
+  var poll = setInterval(function () {
+    var donutOk = attachDonutHover();
+    var mainOk = attachMainLogger();
+    // If debug is off, mainOk stays false; don't keep polling once donut is attached.
+    if (donutOk && (!isChartDebugEnabled() || mainOk)) {
+      clearInterval(poll);
+    }
   }, POLL_MS);
 })();
