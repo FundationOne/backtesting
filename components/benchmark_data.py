@@ -23,6 +23,8 @@ BENCHMARKS = {
     "^GSPC": {"name": "S&P 500", "color": "#10b981"},
     "^GDAXI": {"name": "DAX", "color": "#f59e0b"},
     "URTH": {"name": "MSCI World", "color": "#3b82f6"},
+    "^IXIC": {"name": "NASDAQ", "color": "#8b5cf6"},
+    "^STOXX": {"name": "STOXX 600", "color": "#06b6d4"},
 }
 
 # Cache validity period (24 hours)

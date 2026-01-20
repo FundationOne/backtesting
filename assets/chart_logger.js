@@ -2,6 +2,7 @@
   'use strict';
 
   var TARGET_ID = 'main-portfolio-chart-v2';
+  var DONUT_ID = 'holdings-donut-chart';
   var POLL_MS = 500;
   var lastSignature = null;
 
@@ -157,12 +158,25 @@
     }
   }
 
-  function tryAttach() {
-    var container = document.getElementById(TARGET_ID);
-    if (!container) return false;
-
+  function getGraphDivById(elementId) {
+    var container = document.getElementById(elementId);
+    if (!container) return null;
     var plots = container.getElementsByClassName('js-plotly-plot');
-    var gd = plots && plots.length ? plots[0] : null;
+    return plots && plots.length ? plots[0] : null;
+  }
+
+  function formatCurrency(value) {
+    var n = Number(value);
+    if (!isFiniteNumber(n)) return '€0.00';
+    try {
+      return '€' + n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } catch (e) {
+      return '€' + n.toFixed(2);
+    }
+  }
+
+  function attachMainLogger() {
+    var gd = getGraphDivById(TARGET_ID);
     if (!gd) return false;
 
     if (gd.__chartLoggerAttached) return true;
@@ -182,8 +196,60 @@
     return true;
   }
 
+  function attachDonutHover() {
+    var gd = getGraphDivById(DONUT_ID);
+    if (!gd) return false;
+
+    if (gd.__donutHoverAttached) return true;
+    gd.__donutHoverAttached = true;
+
+    function getDefaultCenter() {
+      var ann = (gd.layout && gd.layout.annotations) ? gd.layout.annotations : [];
+      return {
+        name: (ann[0] && ann[0].text) ? ann[0].text : 'Portfolio',
+        value: (ann[1] && ann[1].text) ? ann[1].text : '€0.00'
+      };
+    }
+
+    function setCenterText(nameText, valueText) {
+      if (typeof Plotly !== 'undefined' && Plotly.relayout) {
+        Plotly.relayout(gd, {
+          'annotations[0].text': nameText,
+          'annotations[1].text': valueText
+        });
+      }
+    }
+
+    var defaults = getDefaultCenter();
+
+    if (typeof gd.on === 'function') {
+      gd.on('plotly_hover', function (eventData) {
+        try {
+          var pt = eventData && eventData.points ? eventData.points[0] : null;
+          if (!pt) return;
+          var label = pt.label || (pt.data && pt.data.name) || 'Position';
+          var value = (pt.value != null) ? pt.value : (pt.y != null ? pt.y : null);
+          setCenterText(String(label).slice(0, 24), formatCurrency(value));
+        } catch (e) {}
+      });
+
+      gd.on('plotly_unhover', function () {
+        defaults = getDefaultCenter();
+        setCenterText(defaults.name, defaults.value);
+      });
+
+      gd.on('plotly_afterplot', function () {
+        defaults = getDefaultCenter();
+      });
+    }
+
+    console.log('[ChartAsset] Attached donut hover to', DONUT_ID);
+    return true;
+  }
+
   // Poll until the graph exists (Dash mounts it asynchronously)
   setInterval(function () {
-    tryAttach();
+    attachMainLogger();
+    attachDonutHover();
   }, POLL_MS);
 })();

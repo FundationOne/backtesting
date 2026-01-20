@@ -1,0 +1,48 @@
+{
+  "created_at": "2026-01-20T10:23:09.989895",
+  "chart_type": "tab-performance",
+  "selected_range": "max",
+  "benchmarks": [
+    "^GSPC",
+    "^GDAXI",
+    "URTH"
+  ],
+  "data_source": "server_cache",
+  "history_points": 357,
+  "filtered_points": 357,
+  "date_range": {
+    "start": "2020-08-04",
+    "end": "2026-01-19"
+  },
+  "df_last": {
+    "date": "2026-01-19",
+    "invested": 791734.94,
+    "value": 871074.7
+  },
+  "traces": [
+    {
+      "name": "Portfolio",
+      "n": 357,
+      "first_y": 0.0,
+      "last_y": 10.021000209994524
+    },
+    {
+      "name": "S&P 500",
+      "n": 1371,
+      "first_y": 0.0,
+      "last_y": 109.88927132015331
+    },
+    {
+      "name": "DAX",
+      "n": 1391,
+      "first_y": 0.0,
+      "last_y": 98.11894500403038
+    },
+    {
+      "name": "MSCI World",
+      "n": 1371,
+      "first_y": 0.0,
+      "last_y": 110.35274267959446
+    }
+  ]
+}
