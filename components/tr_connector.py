@@ -101,8 +101,8 @@ def create_tr_connector_card():
                 ),
                 
                 dbc.Button([
-                    html.I(className="bi bi-check-circle me-2"),
-                    "Verify & Connect"
+                    html.I(className="bi bi-check-circle me-2", id="tr-verify-icon"),
+                    html.Span("Verify & Connect", id="tr-verify-text")
                 ], id="tr-verify-otp-btn", color="success", className="w-100 mb-2", size="sm", n_clicks=0),
                 
                 dbc.Button([
@@ -110,7 +110,12 @@ def create_tr_connector_card():
                     "Back"
                 ], id="tr-back-btn", color="link", className="w-100", size="sm", n_clicks=0),
                 
-                html.Div(id="tr-otp-feedback", className="mt-2"),
+                dcc.Loading(
+                    id="tr-otp-loading",
+                    type="circle",
+                    children=html.Div(id="tr-otp-feedback", className="mt-2"),
+                    color="#198754",
+                ),
             ], id="tr-otp-view", style={"display": "none"}),
             
             # === CONNECTED VIEW ===
@@ -192,6 +197,26 @@ def create_portfolio_summary(data):
 def register_tr_callbacks(app):
     """Register all Trade Republic connector callbacks."""
     
+    # Clientside callback for immediate button loading state
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (n_clicks > 0) {
+                // Find the button and update its appearance
+                var btn = document.getElementById('tr-verify-otp-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Connecting...';
+                }
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('tr-verify-otp-btn', 'data-loading'),  # Dummy output
+        Input('tr-verify-otp-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    
     # Check for saved credentials on load (check browser storage)
     @app.callback(
         Output('tr-saved-creds-section', 'style'),
@@ -271,7 +296,9 @@ def register_tr_callbacks(app):
          Output('tr-session-data', 'data'),
          Output('tr-portfolio-summary', 'children'),
          Output('tr-encrypted-creds', 'data', allow_duplicate=True),
-         Output('portfolio-data-store', 'data', allow_duplicate=True)],
+         Output('portfolio-data-store', 'data', allow_duplicate=True),
+         Output('tr-verify-otp-btn', 'disabled'),
+         Output('tr-verify-otp-btn', 'children')],
         [Input('tr-start-auth-btn', 'n_clicks'),
          Input('tr-verify-otp-btn', 'n_clicks'),
          Input('tr-back-btn', 'n_clicks'),
@@ -283,16 +310,14 @@ def register_tr_callbacks(app):
          State('tr-auth-step', 'data'),
          State('tr-encrypted-creds', 'data')],
         prevent_initial_call=True,
-        running=[
-            (Output('tr-verify-otp-btn', 'disabled'), True, False),
-            (Output('tr-verify-otp-btn', 'children'), [html.I(className="bi bi-arrow-repeat spin me-2"), "Connecting..."], [html.I(className="bi bi-check-circle me-2"), "Verify & Connect"]),
-            (Output('tr-start-auth-btn', 'disabled'), True, False),
-            (Output('tr-refresh-btn', 'disabled'), True, False),
-        ]
     )
     def handle_auth_flow(start_clicks, verify_clicks, back_clicks, disconnect_clicks, refresh_clicks,
                          phone, pin, otp, current_step, existing_encrypted_creds):
         triggered = ctx.triggered_id
+        
+        # Default button state (reset to normal)
+        btn_disabled = False
+        btn_children = [html.I(className="bi bi-check-circle me-2"), "Verify & Connect"]
         
         # Handle disconnect
         if triggered == 'tr-disconnect-btn':
@@ -302,7 +327,8 @@ def register_tr_callbacks(app):
                 "initial", "", "",
                 "connection-status disconnected", "Not Connected",
                 "", no_update, None,  # Clear encrypted creds on disconnect
-                no_update  # Keep cached portfolio data
+                no_update,  # Keep cached portfolio data
+                btn_disabled, btn_children
             )
         
         # Handle back button
@@ -312,7 +338,8 @@ def register_tr_callbacks(app):
                 "initial", "", "",
                 "connection-status disconnected", "Not Connected",
                 no_update, no_update, no_update,
-                no_update
+                no_update,
+                btn_disabled, btn_children
             )
         
         # Handle refresh
@@ -326,7 +353,8 @@ def register_tr_callbacks(app):
                 json.dumps(portfolio_data),
                 create_portfolio_summary(portfolio_data),
                 no_update,  # Keep existing creds
-                json.dumps(portfolio_data)
+                json.dumps(portfolio_data),
+                btn_disabled, btn_children
             )
         
         # Handle start authentication
@@ -339,7 +367,8 @@ def register_tr_callbacks(app):
                     "",
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
             
             if not pin or len(pin) != 4:
@@ -350,7 +379,8 @@ def register_tr_callbacks(app):
                     "",
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
             
             # Initiate login
@@ -362,7 +392,8 @@ def register_tr_callbacks(app):
                     "otp", "", "",
                     "connection-status connecting", "Awaiting code...",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
             else:
                 return (
@@ -372,7 +403,8 @@ def register_tr_callbacks(app):
                     "",
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
         
         # Handle OTP verification
@@ -384,7 +416,8 @@ def register_tr_callbacks(app):
                     dbc.Alert("Please enter the 4-digit code", color="danger", className="mb-0 small"),
                     "connection-status connecting", "Awaiting code...",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
             
             # Complete login
@@ -405,7 +438,8 @@ def register_tr_callbacks(app):
                     json.dumps(portfolio_data),
                     create_portfolio_summary(portfolio_data),
                     encrypted_creds,  # Store encrypted creds in browser
-                    json.dumps(portfolio_data)
+                    json.dumps(portfolio_data),
+                    btn_disabled, btn_children
                 )
             else:
                 return (
@@ -414,7 +448,8 @@ def register_tr_callbacks(app):
                     dbc.Alert(result.get("error", "Verification failed"), color="danger", className="mb-0 small"),
                     "connection-status connecting", "Awaiting code...",
                     no_update, no_update, no_update,
-                    no_update
+                    no_update,
+                    btn_disabled, btn_children
                 )
         
         raise PreventUpdate

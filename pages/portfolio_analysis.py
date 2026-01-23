@@ -69,6 +69,233 @@ def fetch_benchmark_data(symbol, start_date, end_date):
         return None
 
 
+def _guess_domain_from_name(name: str) -> str:
+    """Try to guess a company domain from its name for favicon lookup.
+    
+    Examples:
+        "Apple Inc" -> "apple.com"
+        "Microsoft Corporation" -> "microsoft.com"
+        "NVIDIA Corp" -> "nvidia.com"
+        "Alphabet Inc" -> "google.com" (special case)
+    """
+    if not name:
+        return ""
+    
+    # Common company suffixes to strip
+    suffixes = [
+        ' inc.', ' inc', ' corporation', ' corp.', ' corp', ' ltd.', ' ltd',
+        ' plc', ' ag', ' se', ' nv', ' sa', ' co.', ' co', ' group',
+        ' holding', ' holdings', ' international', ' intl', ' limited',
+        ' gmbh', ' kg', ' & co', '& co', ' class a', ' class b', ' class c',
+    ]
+    
+    name_lower = name.lower().strip()
+    
+    # Strip suffixes
+    for suffix in suffixes:
+        if name_lower.endswith(suffix):
+            name_lower = name_lower[:-len(suffix)].strip()
+    
+    # Remove special characters and spaces, keep only alphanumeric
+    import re
+    domain_base = re.sub(r'[^a-z0-9]', '', name_lower)
+    
+    if not domain_base:
+        return ""
+    
+    return f"{domain_base}.com"
+
+
+def get_position_logo(position):
+    """Get logo URL for a position. Returns tuple of (tr_url, favicon_url).
+    
+    Returns:
+        tr_url: Trade Republic image URL (or None)
+        favicon_url: Google Favicon URL as fallback (or None)
+    """
+    image_id = position.get("imageId", "")
+    name = position.get("name", "")
+    
+    tr_url = None
+    favicon_url = None
+    
+    # Primary: Use Trade Republic's image endpoint if we have imageId
+    if image_id:
+        tr_url = f"https://assets.traderepublic.com/img/{image_id}/light.min.png"
+    
+    # Secondary: Try Google Favicon based on guessed domain
+    domain = _guess_domain_from_name(name)
+    if domain:
+        favicon_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+    
+    return tr_url, favicon_url
+
+
+def create_position_icon(position, size=32):
+    """Create an icon element for a position with company logo or initials fallback.
+    
+    Uses a layered approach:
+    1. Try Trade Republic image
+    2. Try Google Favicon
+    3. Show colored initials as ultimate fallback
+    """
+    tr_url, favicon_url = get_position_logo(position)
+    asset_class = get_position_asset_class(position)
+    name = position.get("name", "?")
+    
+    # Asset class colors
+    class_colors = {
+        "etf": "#3b82f6",    # Blue
+        "stock": "#10b981",  # Green
+        "crypto": "#f59e0b", # Orange
+        "bond": "#8b5cf6",   # Purple
+    }
+    bg_color = class_colors.get(asset_class, "#6b7280")
+    
+    # Calculate initials for fallback
+    initials = "".join([word[0].upper() for word in name.split()[:2] if word])[:2]
+    if not initials:
+        initials = name[0].upper() if name else "?"
+    
+    # If we have TR image, use it with initials fallback on error
+    if tr_url:
+        return html.Div(
+            [
+                # Initials background (shows if image fails)
+                html.Div(
+                    initials,
+                    style={
+                        "position": "absolute",
+                        "top": "0",
+                        "left": "0",
+                        "width": "100%",
+                        "height": "100%",
+                        "display": "flex",
+                        "alignItems": "center",
+                        "justifyContent": "center",
+                        "color": "#fff",
+                        "fontSize": f"{size * 0.4}px",
+                        "fontWeight": "600",
+                        "backgroundColor": bg_color,
+                        "borderRadius": "8px",
+                    }
+                ),
+                # TR Image on top
+                html.Img(
+                    src=tr_url,
+                    style={
+                        "position": "absolute",
+                        "top": "0",
+                        "left": "0",
+                        "width": "100%",
+                        "height": "100%",
+                        "objectFit": "contain",
+                        "borderRadius": "8px",
+                        "backgroundColor": "#f8fafc",
+                    },
+                    className="position-logo",
+                ),
+            ],
+            style={
+                "position": "relative",
+                "width": f"{size}px",
+                "height": f"{size}px",
+                "minWidth": f"{size}px",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+                "border": "1px solid #e5e7eb",
+            }
+        )
+    elif favicon_url:
+        # Use Google Favicon with initials fallback
+        return html.Div(
+            [
+                # Initials background (shows if favicon fails/is generic)
+                html.Div(
+                    initials,
+                    style={
+                        "position": "absolute",
+                        "top": "0",
+                        "left": "0",
+                        "width": "100%",
+                        "height": "100%",
+                        "display": "flex",
+                        "alignItems": "center",
+                        "justifyContent": "center",
+                        "color": "#fff",
+                        "fontSize": f"{size * 0.4}px",
+                        "fontWeight": "600",
+                        "backgroundColor": bg_color,
+                        "borderRadius": "8px",
+                    }
+                ),
+                # Favicon image on top
+                html.Img(
+                    src=favicon_url,
+                    style={
+                        "position": "absolute",
+                        "top": "50%",
+                        "left": "50%",
+                        "transform": "translate(-50%, -50%)",
+                        "width": f"{int(size * 0.7)}px",
+                        "height": f"{int(size * 0.7)}px",
+                        "objectFit": "contain",
+                    },
+                    className="position-logo",
+                ),
+            ],
+            style={
+                "position": "relative",
+                "width": f"{size}px",
+                "height": f"{size}px",
+                "minWidth": f"{size}px",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+                "backgroundColor": "#f8fafc",
+                "border": "1px solid #e5e7eb",
+            }
+        )
+    else:
+        # No logo available - use SVG icon based on asset class
+        import base64
+        import urllib.parse
+        
+        # SVG icons for different asset types (Material Design icons style)
+        svg_icons = {
+            "stock": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M3 13h2v8H3v-8zm4-6h2v14H7V7zm4-4h2v18h-2V3zm4 8h2v10h-2V11zm4 3h2v7h-2v-7z"/></svg>',
+            "etf": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
+            "crypto": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>',
+            "bond": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>',
+        }
+        
+        svg_content = svg_icons.get(asset_class, svg_icons["stock"])
+        # Encode SVG as data URI
+        svg_encoded = urllib.parse.quote(svg_content)
+        svg_data_uri = f"data:image/svg+xml,{svg_encoded}"
+        
+        icon_size = int(size * 0.55)
+        
+        return html.Div(
+            html.Img(
+                src=svg_data_uri,
+                style={
+                    "width": f"{icon_size}px",
+                    "height": f"{icon_size}px",
+                }
+            ),
+            style={
+                "width": f"{size}px",
+                "height": f"{size}px",
+                "minWidth": f"{size}px",
+                "borderRadius": "8px",
+                "backgroundColor": bg_color,
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+            }
+        )
+
+
 # TR Connect Modal
 tr_connect_modal = dbc.Modal([
     dbc.ModalHeader([
@@ -102,78 +329,157 @@ def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class
 
 
 def get_position_asset_class(position):
-    for key in ("assetClass", "asset_class", "assetType", "type", "category", "instrumentType"):
+    """Get standardized asset class for a position.
+    
+    Uses TR's instrumentType field first, then falls back to heuristics based on name/ISIN.
+    TR instrumentType values: 'stock', 'fund', 'crypto', 'bond', 'derivative', etc.
+    """
+    # Check TR's instrumentType field first (most reliable)
+    instrument_type = position.get("instrumentType", "")
+    if instrument_type:
+        type_lower = instrument_type.lower()
+        if type_lower in ("fund", "etf", "etp"):
+            return "etf"
+        elif type_lower in ("crypto", "cryptocurrency"):
+            return "crypto"
+        elif type_lower in ("bond", "anleihe"):
+            return "bond"
+        elif type_lower in ("stock", "equity", "derivative", "warrant"):
+            return "stock"
+    
+    # Fallback: check other potential fields
+    for key in ("assetClass", "asset_class", "assetType", "type", "category"):
         value = position.get(key)
         if value:
-            return str(value)
-    return "Other"
+            value_lower = str(value).lower()
+            # Map to standard categories
+            if any(x in value_lower for x in ["etf", "fund", "etp", "index"]):
+                return "etf"
+            elif any(x in value_lower for x in ["crypto", "bitcoin", "coin", "krypto"]):
+                return "crypto"
+            elif any(x in value_lower for x in ["bond", "anleihe", "fixed", "renten"]):
+                return "bond"
+            elif any(x in value_lower for x in ["stock", "equity", "aktie", "share", "derivative", "warrant", "option"]):
+                return "stock"
+    
+    # Heuristic: check name for common patterns
+    name = position.get("name", "").lower()
+    isin = position.get("isin", "")
+    
+    # ETF patterns in name
+    if any(x in name for x in [" etf", "ishares", "vanguard", "xtrackers", "lyxor", "amundi", "spdr", "invesco"]):
+        return "etf"
+    
+    # Crypto patterns (common crypto ISINs start with certain prefixes or have crypto names)
+    if any(x in name for x in ["bitcoin", "ethereum", "crypto", "btc", "eth", "solana", "cardano"]):
+        return "crypto"
+    
+    # Bond patterns
+    if any(x in name for x in ["bond", "anleihe", "treasury", "bundesanleihe"]):
+        return "bond"
+    
+    # Default to stock for any position without clear classification
+    return "stock"
 
 
 # Layout for the analysis page
 layout = dbc.Container([
-    # Page Header
+    # Sticky Header Bar (Parqet-style thin bar)
     html.Div([
+        # Left side - Title and metadata
         html.Div([
-            html.H4([
-                html.I(className="bi bi-pie-chart me-2"),
-                "Portfolio Analysis"
-            ], className="mb-0"),
-            html.P("Trade Republic Portfolio Overview", className="text-muted mb-0 mt-1"),
-        ], className="d-flex flex-column"),
-        # Sync button + privacy toggle
+            html.Span([
+                html.I(className="bi bi-briefcase-fill me-2", style={"color": "#10b981"}),
+                "Trade Republic"
+            ], className="header-title"),
+            html.Span(id="header-meta", className="header-meta", children="Loading..."),
+        ], className="header-left"),
+        
+        # Right side - Controls
         html.Div([
+            # Sync button
             dbc.Button([
-                html.I(className="bi bi-arrow-repeat me-2"),
-                "Sync"
-            ], id="sync-tr-data-btn", color="outline-primary", size="sm", className="me-2", n_clicks=0),
+                html.I(className="bi bi-arrow-repeat"),
+            ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Sync"),
+            
+            # Privacy toggle
             dbc.Button([
-                html.I(className="bi bi-eye-slash me-2"),
-                "Hide Values"
-            ], id="toggle-privacy-btn", color="outline-secondary", size="sm", className="me-2", n_clicks=0),
-        ], className="d-flex align-items-center"),
-    ], className="page-header d-flex justify-content-between align-items-start"),
-
-    # Global filters
-    dbc.Row([
-        dbc.Col([
-            dcc.Dropdown(
-                id="global-timeframe",
-                options=[
-                    {"label": "1M", "value": "1m"},
-                    {"label": "3M", "value": "3m"},
-                    {"label": "6M", "value": "6m"},
-                    {"label": "YTD", "value": "ytd"},
-                    {"label": "1Y", "value": "1y"},
-                    {"label": "MAX", "value": "max"},
-                ],
-                value="1y",
-                clearable=False,
-                className="compact-dropdown",
-            )
-        ], md=2, className="mb-2"),
-        dbc.Col([
-            dcc.Dropdown(
-                id="asset-class-filter",
-                options=[{"label": "All Asset Classes", "value": "all"}],
-                value="all",
-                clearable=False,
-                className="compact-dropdown",
-            )
-        ], md=3, className="mb-2"),
-        dbc.Col([
-            dcc.Dropdown(
-                id="benchmark-selector",
-                options=[
-                    {"label": info["name"], "value": symbol}
-                    for symbol, info in BENCHMARKS.items()
-                ],
-                value=["^GSPC", "^GDAXI", "URTH"],
-                multi=True,
-                clearable=False,
-                className="compact-dropdown",
-            )
-        ], md=7, className="mb-2"),
-    ], className="mb-2"),
+                html.I(className="bi bi-eye-slash", id="privacy-icon"),
+            ], id="toggle-privacy-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Toggle values"),
+            
+            html.Div(className="header-divider"),
+            
+            # Asset Class Dropdown Button
+            html.Div([
+                dbc.Button([
+                    html.Span(id="asset-class-label", children="All Assets"),
+                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
+                ], id="asset-class-btn", color="link", className="header-dropdown-btn"),
+                dbc.Popover([
+                    dbc.PopoverBody([
+                        dbc.Checklist(
+                            id="asset-class-filter",
+                            options=[
+                                {"label": "ETFs", "value": "etf"},
+                                {"label": "Stocks", "value": "stock"},
+                                {"label": "Crypto", "value": "crypto"},
+                                {"label": "Bonds", "value": "bond"},
+                                {"label": "Cash", "value": "cash"},
+                            ],
+                            value=["etf", "stock", "crypto", "bond"],  # Cash excluded by default
+                            className="header-checklist",
+                        ),
+                    ], className="p-2"),
+                ], id="asset-class-popover", target="asset-class-btn", trigger="legacy", placement="bottom-end"),
+            ], className="header-dropdown-wrapper"),
+            
+            # Benchmark Dropdown Button  
+            html.Div([
+                dbc.Button([
+                    html.Span(id="benchmark-label", children="4 Benchmarks"),
+                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
+                ], id="benchmark-btn", color="link", className="header-dropdown-btn"),
+                dbc.Popover([
+                    dbc.PopoverBody([
+                        dbc.Checklist(
+                            id="benchmark-selector",
+                            options=[
+                                {"label": info["name"], "value": symbol}
+                                for symbol, info in BENCHMARKS.items()
+                            ],
+                            value=["^GSPC", "^GDAXI", "URTH", "^IXIC"],
+                            className="header-checklist",
+                        ),
+                    ], className="p-2"),
+                ], id="benchmark-popover", target="benchmark-btn", trigger="legacy", placement="bottom-end"),
+            ], className="header-dropdown-wrapper"),
+            
+            # Timeframe Dropdown Button
+            html.Div([
+                dbc.Button([
+                    html.Span(id="timeframe-label", children="1 Year"),
+                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
+                ], id="timeframe-btn", color="link", className="header-dropdown-btn"),
+                dbc.Popover([
+                    dbc.PopoverBody([
+                        dbc.RadioItems(
+                            id="global-timeframe",
+                            options=[
+                                {"label": "1 Month", "value": "1m"},
+                                {"label": "3 Months", "value": "3m"},
+                                {"label": "6 Months", "value": "6m"},
+                                {"label": "Year to Date", "value": "ytd"},
+                                {"label": "1 Year", "value": "1y"},
+                                {"label": "Max", "value": "max"},
+                            ],
+                            value="1y",
+                            className="header-radio-list",
+                        ),
+                    ], className="p-2"),
+                ], id="timeframe-popover", target="timeframe-btn", trigger="legacy", placement="bottom-end"),
+            ], className="header-dropdown-wrapper"),
+        ], className="header-right"),
+    ], className="sticky-header"),
     
     # Top Summary Row (Parqet-style)
     dbc.Row([
@@ -468,7 +774,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
         running=[
             (Output("sync-tr-data-btn", "disabled"), True, False),
-            (Output("sync-tr-data-btn", "children"), [html.I(className="bi bi-arrow-repeat spin me-2"), "Syncing..."], [html.I(className="bi bi-arrow-repeat me-2"), "Sync"]),
+            (Output("sync-tr-data-btn", "children"), html.I(className="bi bi-arrow-repeat spin"), html.I(className="bi bi-arrow-repeat")),
         ]
     )
     def sync_data(n_clicks, encrypted_creds, modal_open):
@@ -483,14 +789,14 @@ def register_callbacks(app):
         
         # Still not connected? Open login modal
         if not is_connected():
-            return no_update, [html.I(className="bi bi-arrow-repeat me-2"), "Sync"], False, True
+            return no_update, html.I(className="bi bi-arrow-repeat"), False, True
         
         # Connected — fetch data (uses server cache if fresh)
         data = fetch_all_data()
         if data.get("success"):
-            return json.dumps(data), [html.I(className="bi bi-check-circle me-2"), "Synced!"], False, False
+            return json.dumps(data), html.I(className="bi bi-check-circle"), False, False
         
-        return no_update, [html.I(className="bi bi-x-circle me-2"), "Sync Failed"], False, modal_open
+        return no_update, html.I(className="bi bi-x-circle"), False, modal_open
     
     # Update metrics when data changes
     @app.callback(
@@ -528,9 +834,12 @@ def register_callbacks(app):
             profit_pct = portfolio.get("totalProfitPercent", 0)
             cash = portfolio.get("cash", 0)
             positions = portfolio.get("positions", [])
-            selected_class = asset_class or "all"
-            if selected_class != "all":
-                positions = [p for p in positions if get_position_asset_class(p) == selected_class]
+            selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
+            all_classes = {"etf", "stock", "crypto", "bond", "cash"}
+            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
+            # Only filter if not all classes are selected and not default selection
+            if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
+                positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
             
             # Get sync timestamp
             cached_at = data.get("cached_at", "")
@@ -576,17 +885,18 @@ def register_callbacks(app):
                 
                 holdings_items.append(
                     html.Div([
+                        create_position_icon(pos, size=32),
                         html.Div([
                             html.Div(name[:30] + ("..." if len(name) > 30 else ""), 
                                      className="fw-medium small", title=name),
                             html.Div(f"{qty:.4g} × €{avg_buy:.2f}", className="text-muted small"),
-                        ], className="flex-grow-1"),
+                        ], className="flex-grow-1 ms-2"),
                         html.Div([
                             html.Div(f"€{value:,.2f}", className="small fw-medium text-end sensitive"),
                             html.Div(f"{'+'if pos_profit >= 0 else ''}€{pos_profit:,.2f}", 
                                      className=f"small {profit_color} text-end sensitive"),
                         ]),
-                    ], className="d-flex justify-content-between align-items-center py-2 border-bottom holding-item")
+                    ], className="d-flex align-items-center py-2 border-bottom holding-item")
                 )
             
             holdings_list = html.Div(holdings_items) if holdings_items else html.Div(
@@ -632,10 +942,13 @@ def register_callbacks(app):
         try:
             data = json.loads(data_json)
             positions = data.get("data", {}).get("positions", [])
-            selected_class = asset_class or "all"
-            if selected_class != "all":
-                positions = [p for p in positions if get_position_asset_class(p) == selected_class]
-            
+            selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
+            all_classes = {"etf", "stock", "crypto", "bond", "cash"}
+            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
+            # Only filter if not all classes are selected and not default selection
+            if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
+                positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
+
             if not positions:
                 fig.add_trace(go.Pie(values=[1], labels=["Empty"], hole=0.7, marker=dict(colors=["#374151"]), textinfo="none"))
                 fig.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
@@ -679,30 +992,78 @@ def register_callbacks(app):
     
     # Time return metrics
     @app.callback(
-        [Output("asset-class-filter", "options"),
-         Output("asset-class-filter", "value")],
+        Output("asset-class-filter", "value"),
         [Input("portfolio-data-store", "data"),
          State("asset-class-filter", "value")],
         prevent_initial_call=False
     )
-    def update_asset_class_options(data_json, current_value):
-        options = [{"label": "All Asset Classes", "value": "all"}]
-        selected = current_value or "all"
+    def update_asset_class_selection(data_json, current_value):
+        # Keep current selection, or default to all if nothing selected
+        if current_value:
+            return current_value
+        return ["etf", "stock", "crypto", "bond"]
 
+    # Update header dropdown labels
+    @app.callback(
+        Output("asset-class-label", "children"),
+        Input("asset-class-filter", "value"),
+        prevent_initial_call=False
+    )
+    def update_asset_class_label(selected):
+        if not selected:
+            return "No Assets"
+        all_types = ["etf", "stock", "crypto", "bond", "cash"]
+        default_types = ["etf", "stock", "crypto", "bond"]  # Without cash
+        if set(selected) == set(all_types):
+            return "All Assets"
+        if set(selected) == set(default_types):
+            return "All Assets"  # Default selection (no cash) also shows as All
+        if len(selected) == 1:
+            names = {"etf": "ETFs", "stock": "Stocks", "crypto": "Crypto", "bond": "Bonds", "cash": "Cash"}
+            return names.get(selected[0], selected[0])
+        return f"{len(selected)} Types"
+
+    @app.callback(
+        Output("benchmark-label", "children"),
+        Input("benchmark-selector", "value"),
+        prevent_initial_call=False
+    )
+    def update_benchmark_label(selected):
+        if not selected:
+            return "No Benchmarks"
+        if len(selected) == 1:
+            names = {"^GSPC": "S&P 500", "^GDAXI": "DAX", "URTH": "MSCI World", "^IXIC": "NASDAQ", "^STOXX": "STOXX 600"}
+            return names.get(selected[0], selected[0])
+        return f"{len(selected)} Benchmarks"
+
+    @app.callback(
+        Output("timeframe-label", "children"),
+        Input("global-timeframe", "value"),
+        prevent_initial_call=False
+    )
+    def update_timeframe_label(selected):
+        labels = {"1m": "1 Month", "3m": "3 Months", "6m": "6 Months", "ytd": "YTD", "1y": "1 Year", "max": "Max"}
+        return labels.get(selected, "1 Year")
+
+    # Update header metadata
+    @app.callback(
+        Output("header-meta", "children"),
+        Input("portfolio-data-store", "data"),
+        prevent_initial_call=False
+    )
+    def update_header_meta(data_json):
         if not data_json:
-            return options, "all"
-
+            return "Not connected"
         try:
             data = json.loads(data_json)
-            positions = data.get("data", {}).get("positions", [])
-            classes = sorted({get_position_asset_class(p) for p in positions if get_position_asset_class(p)})
-            options.extend([{"label": c, "value": c} for c in classes])
-            if selected not in {opt["value"] for opt in options}:
-                selected = "all"
-        except Exception:
-            selected = "all"
-
-        return options, selected
+            if not data.get("success"):
+                return "Not connected"
+            portfolio = data.get("data", {})
+            positions = portfolio.get("positions", [])
+            asset_classes = len(set(get_position_asset_class(p) for p in positions))
+            return f"{asset_classes} Asset Classes · {len(positions)} Holdings · EUR"
+        except:
+            return "Connected"
 
     @app.callback(
         [Output("metric-1m-return", "children"),
@@ -848,9 +1209,12 @@ def register_callbacks(app):
 
             portfolio = data.get("data", {})
             positions = portfolio.get("positions", [])
-            selected_class = asset_class or "all"
-            if selected_class != "all":
-                positions = [p for p in positions if get_position_asset_class(p) == selected_class]
+            selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
+            all_classes = {"etf", "stock", "crypto", "bond", "cash"}
+            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
+            # Only filter if not all classes are selected and not default selection
+            if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
+                positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
             transactions = portfolio.get("transactions", [])
 
             total_value = float(portfolio.get("totalValue", 0))
@@ -1007,6 +1371,7 @@ def register_callbacks(app):
                     "value": value,
                     "profit": profit_pos,
                     "profit_pct": profit_pct_pos,
+                    "position": pos,  # Keep full position for icon
                 })
             movers = sorted(movers, key=lambda x: x.get("profit_pct", 0), reverse=True)[:6]
 
@@ -1015,15 +1380,16 @@ def register_callbacks(app):
                 profit_cls = "text-success" if m["profit_pct"] >= 0 else "text-danger"
                 mover_items.append(
                     html.Div([
+                        create_position_icon(m["position"], size=28),
                         html.Div([
-                            html.Div(m["name"], className="fw-medium small"),
+                            html.Div(m["name"][:25] + ("..." if len(m["name"]) > 25 else ""), className="fw-medium small"),
                             html.Div(f"€{m['value']:,.2f}", className="text-muted small"),
-                        ]),
+                        ], className="ms-2 flex-grow-1"),
                         html.Div([
                             html.Div(f"{fmt_pct(m['profit_pct'])}", className=f"small fw-semibold {profit_cls}"),
                             html.Div(fmt_eur(m["profit"]), className=f"small {profit_cls}"),
                         ], className="text-end"),
-                    ], className="d-flex justify-content-between align-items-center py-2 border-bottom")
+                    ], className="d-flex align-items-center py-2 border-bottom")
                 )
 
             movers_list = html.Div(mover_items) if mover_items else html.Div("No movers", className="text-muted text-center py-3")
@@ -1084,7 +1450,97 @@ def register_callbacks(app):
     def update_range(selected_range):
         return selected_range or "max"
     
-    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks):
+    def _build_filtered_history(positions, position_histories, selected_classes, portfolio_data):
+        """Build aggregated history from per-position histories filtered by asset class.
+        
+        Args:
+            positions: List of position dicts with isin, instrumentType, quantity, averageBuyIn
+            position_histories: Dict of {isin: {history: [...], quantity, instrumentType, name}}
+            selected_classes: Set of asset classes to include
+            portfolio_data: Full portfolio data for fallback values
+            
+        Returns:
+            List of {date, value, invested} dicts representing filtered portfolio history
+        """
+        if not position_histories:
+            return []
+        
+        # Filter positions by asset class
+        filtered_isins = set()
+        for pos in positions:
+            isin = pos.get('isin', '')
+            asset_class = get_position_asset_class(pos)
+            if asset_class in selected_classes and isin in position_histories:
+                filtered_isins.add(isin)
+        
+        if not filtered_isins:
+            return []
+        
+        # Collect all dates across all filtered positions
+        all_dates = set()
+        for isin in filtered_isins:
+            pos_data = position_histories.get(isin, {})
+            for point in pos_data.get('history', []):
+                all_dates.add(point.get('date', ''))
+        
+        if not all_dates:
+            return []
+        
+        sorted_dates = sorted(all_dates)
+        
+        # Build position lookup with quantities and invested amounts
+        position_info = {}
+        for pos in positions:
+            isin = pos.get('isin', '')
+            if isin in filtered_isins:
+                position_info[isin] = {
+                    'quantity': pos.get('quantity', 0),
+                    'invested': pos.get('invested', pos.get('quantity', 0) * pos.get('averageBuyIn', 0)),
+                }
+        
+        # Aggregate value for each date
+        history = []
+        # Build price lookup per isin per date
+        price_lookup = {}
+        for isin in filtered_isins:
+            pos_data = position_histories.get(isin, {})
+            price_lookup[isin] = {}
+            last_price = None
+            for point in sorted(pos_data.get('history', []), key=lambda x: x.get('date', '')):
+                date = point.get('date', '')
+                price = point.get('price', 0)
+                if price > 0:
+                    last_price = price
+                price_lookup[isin][date] = last_price or price
+        
+        total_invested = sum(pi['invested'] for pi in position_info.values())
+        
+        for date in sorted_dates:
+            total_value = 0
+            for isin in filtered_isins:
+                qty = position_info.get(isin, {}).get('quantity', 0)
+                # Get price for this date, or interpolate from nearest known price
+                prices = price_lookup.get(isin, {})
+                price = prices.get(date)
+                if price is None:
+                    # Find nearest earlier price
+                    earlier_dates = [d for d in prices.keys() if d <= date]
+                    if earlier_dates:
+                        price = prices.get(max(earlier_dates), 0)
+                    else:
+                        price = 0
+                total_value += qty * (price or 0)
+            
+            if total_value > 0:
+                history.append({
+                    'date': date,
+                    'value': total_value,
+                    'invested': total_invested,
+                })
+        
+        return history
+    
+    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks, asset_class=None):
         # Only render chart on /compare page
         if not pathname or pathname != "/compare":
             return go.Figure()  # Return empty figure instead of raising exception
@@ -1093,6 +1549,12 @@ def register_callbacks(app):
         selected_range = selected_range or "max"
         benchmarks = benchmarks or []
         cache_key = None
+        
+        # Check if asset filter is active (not all assets selected)
+        all_classes = {"etf", "stock", "crypto", "bond", "cash"}
+        default_classes = {"etf", "stock", "crypto", "bond"}
+        selected_classes = set(asset_class) if asset_class else set()
+        asset_filter_active = selected_classes and selected_classes != all_classes and selected_classes != default_classes
         
         if not data_json:
             fig.update_layout(
@@ -1115,12 +1577,15 @@ def register_callbacks(app):
             data = json.loads(data_json)
 
             cached_at = data.get("cached_at") or ""
+            # Include asset filter in cache key
+            asset_filter_str = ",".join(sorted(selected_classes)) if selected_classes else "all"
             cache_key = "|".join([
                 str(cached_at),
                 str(chart_type),
                 str(selected_range),
                 "1" if include_benchmarks else "0",
                 ",".join(map(str, benchmarks)),
+                asset_filter_str,
             ])
 
             cached_fig = _fig_cache_get(cache_key)
@@ -1133,6 +1598,17 @@ def register_callbacks(app):
 
             history = data.get("data", {}).get("history", [])
             transactions = data.get("data", {}).get("transactions", [])
+            positions = data.get("data", {}).get("positions", [])
+            position_histories = data.get("data", {}).get("positionHistories", {})
+            cached_series = data.get("data", {}).get("cachedSeries", {})
+            
+            # Determine if we should use cached series (when no filter active)
+            use_cached = bool(cached_series and cached_series.get('dates') and not asset_filter_active)
+            
+            # If asset filter is active and we have position histories, build filtered history
+            if asset_filter_active and position_histories:
+                history = _build_filtered_history(positions, position_histories, selected_classes, data.get("data", {}))
+                use_cached = False  # Must recalculate for filtered data
             
             if not history:
                 fig.update_layout(
@@ -1151,12 +1627,28 @@ def register_callbacks(app):
                 )
                 return fig
             
-            df = pd.DataFrame(history)
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date')
+            # Use cached series if available (much faster - no recalculation)
+            if use_cached:
+                # Build dataframe from cached series
+                df = pd.DataFrame({
+                    'date': pd.to_datetime(cached_series['dates']),
+                    'value': cached_series['values'],
+                    'invested': cached_series['invested'],
+                    'twr': cached_series['twr'],
+                    'drawdown': cached_series['drawdown'],
+                })
+            else:
+                # Recalculate from raw history (when filter is active)
+                df = pd.DataFrame(history)
+                df['date'] = pd.to_datetime(df['date'])
+                df = df.sort_values('date')
+                
+                # Resample to daily frequency to fill in missing days
+                df = df.set_index('date')
+                full_date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
+                df = df.reindex(full_date_range).ffill().reset_index().rename(columns={'index': 'date'})
             
-            # Filter by range
-            # Use portfolio history's last date for stable ranges (not wall-clock now)
+            # Filter by range - use portfolio history's last date for stable ranges
             end_date = df['date'].max().to_pydatetime()
             if selected_range == "1m":
                 start_date = end_date - timedelta(days=30)
@@ -1193,6 +1685,45 @@ def register_callbacks(app):
             # Calculate based on chart type
             # Now we have real portfolio values from market price calculations
 
+            def _calculate_twr_series(df):
+                """Calculate Time-Weighted Return series starting from 0%.
+                
+                TWR chains period returns to exclude the effect of cash flows.
+                Formula: For each period, calculate (end_value - cash_flow) / start_value - 1
+                Then chain: cumulative_twr = product(1 + period_return) - 1
+                
+                This gives a series that starts at 0% and shows true investment performance.
+                """
+                if len(df) < 2:
+                    return pd.Series([0.0] * len(df), index=df.index)
+                
+                values = df['value'].values
+                invested = df['invested'].values if 'invested' in df.columns else values
+                
+                # Calculate period returns, adjusting for cash flows
+                twr_cumulative = [0.0]  # Start at 0%
+                cumulative_factor = 1.0
+                
+                for i in range(1, len(df)):
+                    prev_value = values[i-1]
+                    curr_value = values[i]
+                    cash_flow = invested[i] - invested[i-1]  # Change in invested = cash flow
+                    
+                    if prev_value > 0:
+                        # Period return = (end_value - cash_flow) / start_value - 1
+                        # This removes the effect of the cash flow on the return
+                        adjusted_end = curr_value - cash_flow
+                        period_return = (adjusted_end / prev_value) - 1
+                        
+                        # Clamp extreme values to avoid chart issues
+                        period_return = max(-0.99, min(period_return, 10.0))
+                        
+                        cumulative_factor *= (1 + period_return)
+                    
+                    twr_cumulative.append((cumulative_factor - 1) * 100)
+                
+                return pd.Series(twr_cumulative, index=df.index)
+
             def _series_to_number_list(series):
                 # Convert pandas/numpy series to JSON-friendly python floats.
                 # Replace NaN/inf with None so Plotly can handle gaps.
@@ -1226,22 +1757,23 @@ def register_callbacks(app):
                 y_prefix = "€"
                 fill_color = "rgba(99, 102, 241, 0.1)"
             elif chart_type == "tab-performance":
-                # Return vs invested at that time (matches benchmark simulation semantics)
-                invested_series = df['invested'] if 'invested' in df.columns else None
-                if invested_series is not None:
-                    y_data = (df['value'] / invested_series.replace(0, pd.NA) - 1) * 100
+                # Time-Weighted Return (TWR) - use cached if available, else calculate
+                if use_cached and 'twr' in df.columns:
+                    y_data = df['twr']
                 else:
-                    first_val = df['value'].iloc[0]
-                    y_data = (df['value'] / first_val - 1) * 100
+                    y_data = _calculate_twr_series(df)
                 y_title = "Return (%)"
                 y_prefix = ""
-                fill_color = None
+                fill_color = None  # We'll handle fill separately for positive/negative
             else:  # drawdown
-                # Drawdown from peak portfolio value
-                rolling_max = df['value'].expanding().max().replace(0, pd.NA)
-                y_data = (df['value'] - rolling_max) / rolling_max * 100
-                if 'invested' in df.columns:
-                    y_data = y_data.where(df['invested'].replace(0, pd.NA).notna())
+                # Drawdown from peak portfolio value - use cached if available
+                if use_cached and 'drawdown' in df.columns:
+                    y_data = df['drawdown']
+                else:
+                    rolling_max = df['value'].expanding().max().replace(0, pd.NA)
+                    y_data = (df['value'] - rolling_max) / rolling_max * 100
+                    if 'invested' in df.columns:
+                        y_data = y_data.where(df['invested'].replace(0, pd.NA).notna())
                 y_title = "Drawdown (%)"
                 y_prefix = ""
                 fill_color = "rgba(239, 68, 68, 0.2)"
@@ -1249,19 +1781,85 @@ def register_callbacks(app):
             # Portfolio line
             if chart_type == "tab-value":
                 portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
-            else:
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=_series_to_number_list(y_data),
+                    mode='lines',
+                    name='Portfolio',
+                    line=dict(color='#6366f1', width=2),
+                    fill='tozeroy' if fill_color else None,
+                    fillcolor=fill_color,
+                    hovertemplate=portfolio_hover,
+                ))
+                
+                # Add invested/added capital line (shows money added over time)
+                if 'invested' in df.columns:
+                    invested_hover = "<b>Added Capital</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
+                    fig.add_trace(go.Scatter(
+                        x=x_dates,
+                        y=_series_to_number_list(df['invested']),
+                        mode='lines',
+                        name='Added Capital',
+                        line=dict(color='#f59e0b', width=2),
+                        hovertemplate=invested_hover,
+                    ))
+            elif chart_type == "tab-performance":
+                # Performance chart with green above 0% and red below 0% (Parqet style)
                 portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
-
-            fig.add_trace(go.Scatter(
-                x=x_dates,
-                y=_series_to_number_list(y_data),
-                mode='lines',
-                name='Portfolio',
-                line=dict(color='#6366f1', width=2),
-                fill='tozeroy' if fill_color else None,
-                fillcolor=fill_color,
-                hovertemplate=portfolio_hover,
-            ))
+                y_values = _series_to_number_list(y_data)
+                
+                # Create positive and negative series for fill
+                y_positive = [max(0, v) if v is not None else None for v in y_values]
+                y_negative = [min(0, v) if v is not None else None for v in y_values]
+                
+                # Green fill for positive returns
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=y_positive,
+                    mode='lines',
+                    name='Portfolio',
+                    line=dict(color='#10b981', width=0),
+                    fill='tozeroy',
+                    fillcolor='rgba(16, 185, 129, 0.4)',
+                    hoverinfo='skip',
+                    showlegend=False,
+                ))
+                
+                # Red fill for negative returns
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=y_negative,
+                    mode='lines',
+                    name='Portfolio (negative)',
+                    line=dict(color='#ef4444', width=0),
+                    fill='tozeroy',
+                    fillcolor='rgba(239, 68, 68, 0.4)',
+                    hoverinfo='skip',
+                    showlegend=False,
+                ))
+                
+                # Main portfolio line on top
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=y_values,
+                    mode='lines',
+                    name='Portfolio',
+                    line=dict(color='#6366f1', width=2),
+                    hovertemplate=portfolio_hover,
+                ))
+            else:
+                # Drawdown chart
+                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=_series_to_number_list(y_data),
+                    mode='lines',
+                    name='Portfolio',
+                    line=dict(color='#6366f1', width=2),
+                    fill='tozeroy' if fill_color else None,
+                    fillcolor=fill_color,
+                    hovertemplate=portfolio_hover,
+                ))
             
             if include_benchmarks and chart_type in ["tab-performance", "tab-value"]:
                 # Add benchmarks (value + performance)
@@ -1292,15 +1890,18 @@ def register_callbacks(app):
                     sim_data = bench_simulations.get(bench)
                     if sim_data:
                         sim_df = pd.DataFrame(sim_data)
-                        sim_df['date'] = pd.to_datetime(sim_df['date'])
+                        sim_df['date'] = pd.to_datetime(sim_df['date']).dt.tz_localize(None)
 
-                        # Filter to same date range
-                        sim_df = sim_df[(sim_df['date'] >= pd.Timestamp(start_date)) & (sim_df['date'] <= pd.Timestamp(end_date))]
+                        # Filter to same date range (ensure timezone-naive comparison)
+                        start_ts = pd.Timestamp(start_date).tz_localize(None) if pd.Timestamp(start_date).tz is not None else pd.Timestamp(start_date)
+                        end_ts = pd.Timestamp(end_date).tz_localize(None) if pd.Timestamp(end_date).tz is not None else pd.Timestamp(end_date)
+                        sim_df = sim_df[(sim_df['date'] >= start_ts) & (sim_df['date'] <= end_ts)]
                         if len(sim_df) == 0:
                             continue
 
                         if chart_type == "tab-performance":
-                            bench_y = (sim_df['value'] / sim_df['invested'].replace(0, pd.NA) - 1) * 100
+                            # Use same TWR calculation as portfolio - starts at 0%
+                            bench_y = _calculate_twr_series(sim_df)
                             hovertemplate = f"<b>{benchmark_names.get(bench, bench)}</b><br>%{{x|%d %b %Y}}<br>%{{y:,.2f}}%<extra></extra>"
                         else:
                             bench_y = sim_df['value']
@@ -1357,6 +1958,9 @@ def register_callbacks(app):
                     title=y_title,
                     tickprefix=y_prefix if chart_type == "tab-value" else "",
                     ticksuffix="%" if chart_type != "tab-value" else "",
+                    zeroline=True if chart_type == "tab-performance" else False,
+                    zerolinecolor="#9ca3af",
+                    zerolinewidth=1,
                 ),
                 hovermode="x unified",
             )
@@ -1401,11 +2005,12 @@ def register_callbacks(app):
         [Input("portfolio-data-store", "data"),
          Input("chart-tabs", "active_tab"),
          Input("selected-range", "data"),
-         Input("benchmark-selector", "value")],
+         Input("benchmark-selector", "value"),
+         Input("asset-class-filter", "value")],
         State("url", "pathname"),
         prevent_initial_call=False
     )
-    def update_chart(data_json, chart_type, selected_range, benchmarks, pathname):
+    def update_chart(data_json, chart_type, selected_range, benchmarks, asset_class, pathname):
         return build_portfolio_chart(
             data_json,
             chart_type,
@@ -1413,6 +2018,7 @@ def register_callbacks(app):
             benchmarks,
             pathname,
             include_benchmarks=True,
+            asset_class=asset_class,
         )
 
     # Performance chart (benchmarks only here)
@@ -1420,11 +2026,12 @@ def register_callbacks(app):
         Output("performance-chart", "figure"),
         [Input("portfolio-data-store", "data"),
          Input("selected-range", "data"),
-         Input("benchmark-selector", "value")],
+         Input("benchmark-selector", "value"),
+         Input("asset-class-filter", "value")],
         State("url", "pathname"),
         prevent_initial_call=False
     )
-    def update_performance_chart(data_json, selected_range, benchmarks, pathname):
+    def update_performance_chart(data_json, selected_range, benchmarks, asset_class, pathname):
         return build_portfolio_chart(
             data_json,
             "tab-performance",
@@ -1432,6 +2039,7 @@ def register_callbacks(app):
             benchmarks,
             pathname,
             include_benchmarks=True,
+            asset_class=asset_class,
         )
 
     # Privacy mode toggle (clientside so it reacts instantly)

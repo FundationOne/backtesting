@@ -244,6 +244,184 @@ class TRConnection:
         
         return transactions
 
+    async def _fetch_portfolio_aggregate_history(self, timeframe: str = "max") -> List[Dict]:
+        """Fetch aggregate portfolio history from TR.
+        
+        Uses the portfolioAggregateHistory API to get real portfolio value over time.
+        Timeframe options: 1d, 1w, 1m, 3m, 1y, max
+        """
+        if not self.api or not self.is_connected:
+            log.error("Cannot fetch portfolio history - not connected")
+            return []
+        
+        try:
+            log.info(f"Fetching portfolio aggregate history (timeframe={timeframe})...")
+            await self.api.portfolio_history(timeframe)
+            sub_id, sub_params, response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            
+            # Response should contain historical data points
+            # Expected format: {aggregates: [{time, value, invested}, ...]}
+            aggregates = response.get('aggregates', [])
+            log.info(f"Got {len(aggregates)} aggregate history points")
+            
+            history = []
+            for agg in aggregates:
+                ts = agg.get('time', agg.get('timestamp', ''))
+                if ts:
+                    # Convert timestamp to date string
+                    date_str = ts[:10] if len(ts) >= 10 else ts
+                    history.append({
+                        'date': date_str,
+                        'value': float(agg.get('close', agg.get('value', 0))),
+                        'invested': float(agg.get('invested', agg.get('averageBuyIn', 0))),
+                    })
+            
+            return history
+        except Exception as e:
+            log.error(f"Error fetching portfolio history: {e}")
+            return []
+
+    async def _fetch_position_history(self, isin: str, timeframe: str = "max") -> List[Dict]:
+        """Fetch price history for a single position/instrument.
+        
+        Uses the aggregateHistory API to get historical prices for an ISIN.
+        NOTE: This is unreliable - many instruments fail. Use _build_position_histories_from_yahoo instead.
+        """
+        if not self.api or not self.is_connected:
+            log.error("Cannot fetch position history - not connected")
+            return []
+        
+        try:
+            log.info(f"Fetching history for {isin}...")
+            await self.api.performance_history(isin, timeframe, exchange="LSX")
+            sub_id, sub_params, response = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            
+            aggregates = response.get('aggregates', response.get('expectedHistoryLight', []))
+            log.info(f"Got {len(aggregates)} history points for {isin}")
+            
+            history = []
+            for agg in aggregates:
+                ts = agg.get('time', agg.get('date', ''))
+                if ts:
+                    date_str = ts[:10] if len(ts) >= 10 else ts
+                    # Price data - close price
+                    close_price = float(agg.get('close', agg.get('price', 0)))
+                    history.append({
+                        'date': date_str,
+                        'price': close_price,
+                    })
+            
+            return history
+        except Exception as e:
+            log.error(f"Error fetching history for {isin}: {e}")
+            return []
+
+    def _build_position_histories_from_yahoo(
+        self, transactions: List[Dict], positions: List[Dict]
+    ) -> Dict[str, Dict]:
+        """Build per-position price histories using Yahoo Finance.
+        
+        This is more reliable than TR's performance_history API which fails for many instruments.
+        Uses the same approach as portfolio_history.py but integrated into TR sync.
+        
+        Returns:
+            Dict of {isin: {history: [{date, price}], quantity, instrumentType, name}}
+        """
+        from components.portfolio_history import (
+            extract_isin_from_icon,
+            get_prices_for_dates,
+        )
+        
+        # Build position lookup
+        pos_lookup = {p.get('isin', ''): p for p in positions}
+        isin_to_name = {p.get('isin', ''): p.get('name', '') for p in positions}
+        
+        # Buy/sell transaction subtitles (German)
+        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 'Bonusaktien', 'Tausch'}
+        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order'}
+        
+        # Find all ISINs that have transactions
+        isins_with_transactions = set()
+        all_dates = set()
+        
+        for txn in transactions:
+            subtitle = txn.get("subtitle", "")
+            icon = txn.get("icon", "")
+            timestamp = txn.get("timestamp", "")
+            
+            if not timestamp:
+                continue
+            
+            isin = extract_isin_from_icon(icon)
+            if not isin:
+                continue
+            
+            if subtitle in BUY_SUBTITLES or subtitle in SELL_SUBTITLES:
+                isins_with_transactions.add(isin)
+                try:
+                    date = datetime.fromisoformat(timestamp.replace("+0000", "+00:00")).replace(tzinfo=None)
+                    all_dates.add(date.date())
+                except:
+                    pass
+        
+        if not isins_with_transactions or not all_dates:
+            return {}
+        
+        # Generate history dates (monthly + transaction dates + today)
+        start_date = min(all_dates)
+        end_date = datetime.now().date()
+        
+        history_dates = set()
+        current = start_date.replace(day=1)
+        while current <= end_date:
+            history_dates.add(current)
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+        
+        history_dates.update(all_dates)
+        history_dates.add(end_date)
+        sorted_dates = sorted(history_dates)
+        
+        # Fetch prices for each ISIN
+        position_histories = {}
+        
+        for isin in isins_with_transactions:
+            name = isin_to_name.get(isin, isin)
+            pos = pos_lookup.get(isin, {})
+            
+            log.info(f"Fetching Yahoo prices for {name} ({isin})...")
+            
+            dates_as_dt = [datetime.combine(d, datetime.min.time()) for d in sorted_dates]
+            prices = get_prices_for_dates(isin, name, dates_as_dt)
+            
+            if prices:
+                # Build price history list
+                price_history = []
+                for date_str in sorted(prices.keys()):
+                    price = prices.get(date_str)
+                    if price and price > 0:
+                        price_history.append({
+                            'date': date_str,
+                            'price': price,
+                        })
+                
+                if price_history:
+                    position_histories[isin] = {
+                        'history': price_history,
+                        'quantity': pos.get('quantity', 0),
+                        'instrumentType': pos.get('instrumentType', ''),
+                        'name': name,
+                    }
+                    log.info(f"  Got {len(price_history)} price points for {name}")
+            else:
+                log.warning(f"  No Yahoo prices for {name} ({isin})")
+        
+        return position_histories
+
     def _build_history_from_transactions(self, transactions: List[Dict], current_total: float) -> List[Dict]:
         """Build portfolio value history from transactions.
         
@@ -553,7 +731,14 @@ class TRConnection:
                 position_value = float(p.get('netValue', 0))
                 
                 # Default name is ISIN, check cache first
-                name = instrument_cache.get(isin) or isin
+                cached_info = instrument_cache.get(isin, {})
+                if isinstance(cached_info, str):
+                    # Old cache format - just name string
+                    cached_info = {"name": cached_info}
+                
+                name = cached_info.get("name") or isin
+                instrument_type = cached_info.get("typeId", "")
+                image_id = cached_info.get("imageId", "")
                 
                 # Only hit the instrument endpoint if we don't already have a real name.
                 if name == isin:
@@ -562,9 +747,15 @@ class TRConnection:
                         inst_sub_id, inst_params, inst_response = await self.api.recv()
                         await self.api.unsubscribe(inst_sub_id)
                         name = inst_response.get('shortName', inst_response.get('name', isin))
+                        instrument_type = inst_response.get('typeId', inst_response.get('type', ''))
+                        image_id = inst_response.get('imageId', '')
                         if name and name != isin:
-                            instrument_cache[isin] = name
-                        log.info(f"[{i+1}/{len(positions)}] {isin}: {name}")
+                            instrument_cache[isin] = {
+                                "name": name,
+                                "typeId": instrument_type,
+                                "imageId": image_id,
+                            }
+                        log.info(f"[{i+1}/{len(positions)}] {isin}: {name} (type={instrument_type}, img={image_id})")
                     except Exception as e:
                         log.warning(f"[{i+1}/{len(positions)}] Could not get name for {isin}: {e}")
                 
@@ -582,6 +773,8 @@ class TRConnection:
                     "value": current_value,
                     "invested": invested,
                     "profit": profit,
+                    "instrumentType": instrument_type,  # e.g., "stock", "fund", "crypto", "bond"
+                    "imageId": image_id,  # TR's image identifier
                 })
             
             total_invested = sum(p['invested'] for p in enriched_positions)
@@ -602,10 +795,25 @@ class TRConnection:
                 # Try to load from cache if fetch failed
                 transactions = self._load_transactions_cache()
             
-            # Build simple deposit-based history for now
-            # The accurate market-price-based history is calculated separately via 
-            # "Recalculate History" button to avoid slow sync times
-            history = self._build_history_from_transactions(transactions, total_value + cash)
+            # Try to fetch real portfolio aggregate history from TR API
+            aggregate_history = await self._fetch_portfolio_aggregate_history("max")
+            
+            if aggregate_history and len(aggregate_history) > 5:
+                # Use real TR aggregate history if available
+                history = aggregate_history
+                log.info(f"Using TR aggregate history with {len(history)} points")
+            else:
+                # Fallback: Build deposit-based history from transactions
+                log.info("Falling back to transaction-based history")
+                history = self._build_history_from_transactions(transactions, total_value + cash)
+            
+            # Build per-position price histories using Yahoo Finance (more reliable than TR API)
+            # This enables asset class filtering on charts
+            log.info("Building per-position price histories from Yahoo Finance...")
+            position_histories = self._build_position_histories_from_yahoo(
+                transactions, enriched_positions
+            )
+            log.info(f"Built position histories for {len(position_histories)} instruments")
             
             result = {
                 "success": True,
@@ -618,6 +826,7 @@ class TRConnection:
                     "positions": enriched_positions,
                     "transactions": transactions,  # Keep ALL transactions
                     "history": history,
+                    "positionHistories": position_histories,  # Per-position price histories
                 }
             }
 
@@ -639,12 +848,78 @@ class TRConnection:
                 "error": str(e)
             }
     
+    def _calculate_and_cache_twr_series(self, history: List[Dict]) -> Dict[str, List]:
+        """Pre-calculate TWR series for caching. This avoids recalculation on every chart render.
+        
+        Returns dict with:
+            - dates: list of date strings (YYYY-MM-DD)
+            - values: list of portfolio values
+            - invested: list of invested amounts  
+            - twr: list of TWR percentages (starting at 0%)
+            - drawdown: list of drawdown percentages
+        """
+        if not history or len(history) < 2:
+            return {}
+        
+        import pandas as pd
+        
+        # Sort and build dataframe
+        sorted_history = sorted(history, key=lambda x: x.get('date', ''))
+        df = pd.DataFrame(sorted_history)
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date')
+        
+        # Fill gaps with daily frequency
+        df = df.set_index('date')
+        full_date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
+        df = df.reindex(full_date_range).ffill().reset_index().rename(columns={'index': 'date'})
+        
+        # Calculate TWR series (Time-Weighted Return)
+        values = df['value'].values
+        invested = df['invested'].values if 'invested' in df.columns else values
+        
+        twr_cumulative = [0.0]  # Start at 0%
+        cumulative_factor = 1.0
+        
+        for i in range(1, len(df)):
+            prev_value = values[i-1]
+            curr_value = values[i]
+            cash_flow = invested[i] - invested[i-1]  # Change in invested = cash flow
+            
+            if prev_value > 0:
+                adjusted_end = curr_value - cash_flow
+                period_return = (adjusted_end / prev_value) - 1
+                period_return = max(-0.99, min(period_return, 10.0))  # Clamp
+                cumulative_factor *= (1 + period_return)
+            
+            twr_cumulative.append((cumulative_factor - 1) * 100)
+        
+        # Calculate drawdown series
+        rolling_max = df['value'].expanding().max().replace(0, pd.NA)
+        drawdown = ((df['value'] - rolling_max) / rolling_max * 100).fillna(0).tolist()
+        
+        return {
+            'dates': df['date'].dt.strftime('%Y-%m-%d').tolist(),
+            'values': [float(v) if pd.notna(v) else None for v in df['value'].tolist()],
+            'invested': [float(v) if pd.notna(v) else None for v in invested.tolist()],
+            'twr': [float(v) if v is not None else 0.0 for v in twr_cumulative],
+            'drawdown': [float(v) if pd.notna(v) else 0.0 for v in drawdown],
+        }
+    
     def _save_portfolio_cache(self, data: Dict[str, Any]):
-        """Save portfolio data to local cache."""
+        """Save portfolio data to local cache with pre-calculated series."""
         cache_file = TR_CREDENTIALS_DIR / "portfolio_cache.json"
         try:
             import datetime
             data['cached_at'] = datetime.datetime.now().isoformat()
+            
+            # Pre-calculate TWR and drawdown series for faster chart rendering
+            history = data.get('data', {}).get('history', [])
+            if history:
+                cached_series = self._calculate_and_cache_twr_series(history)
+                data['data']['cachedSeries'] = cached_series
+                log.info(f"Pre-calculated chart series with {len(cached_series.get('dates', []))} data points")
+            
             with open(cache_file, 'w') as f:
                 json.dump(data, f)
             log.info("Portfolio data cached")

@@ -514,7 +514,8 @@ def build_portfolio_history(
     positions: List[Dict],
     current_total: float,
     cash: float = 0,
-    progress_callback=None
+    progress_callback=None,
+    return_position_histories: bool = False
 ) -> List[Dict]:
     """
     Build accurate portfolio value history using transaction data and market prices.
@@ -530,9 +531,12 @@ def build_portfolio_history(
         current_total: Current total portfolio value
         cash: Current cash balance
         progress_callback: Optional callback(step, total, message) for progress updates
+        return_position_histories: If True, also return per-position price histories
         
     Returns:
         List of {date, invested, value} dicts
+        OR if return_position_histories is True:
+        Tuple of (history_list, position_histories_dict)
     """
     log.info("Building portfolio value history from transactions and market prices...")
     
@@ -714,6 +718,40 @@ def build_portfolio_history(
         progress_callback(100, 100, f"Done! Generated {len(history)} data points.")
     
     log.info(f"Built portfolio history with {len(history)} data points")
+    
+    if return_position_histories:
+        # Build per-position histories for asset class filtering
+        # Format: {isin: {history: [{date, price}], quantity, instrumentType, name}}
+        position_histories = {}
+        
+        # Build position lookup for metadata
+        pos_lookup = {p.get('isin', ''): p for p in positions}
+        
+        for isin in holdings_changes.keys():
+            pos = pos_lookup.get(isin, {})
+            prices = isin_prices.get(isin, {})
+            
+            # Build price history list
+            price_history = []
+            for date_str in sorted(prices.keys()):
+                price = prices.get(date_str)
+                if price and price > 0:
+                    price_history.append({
+                        'date': date_str,
+                        'price': price,
+                    })
+            
+            if price_history:
+                position_histories[isin] = {
+                    'history': price_history,
+                    'quantity': pos.get('quantity', 0),
+                    'instrumentType': pos.get('instrumentType', ''),
+                    'name': pos.get('name', isin),
+                }
+                log.info(f"Built position history for {pos.get('name', isin)}: {len(price_history)} points")
+        
+        return history, position_histories
+    
     return history
 
 
@@ -840,15 +878,22 @@ def calculate_and_save_history(force_rebuild: bool = False) -> Tuple[bool, str, 
     log.info(f"Portfolio totals: value={total_value:,.2f} EUR, invested={total_invested:,.2f} EUR, profit={total_profit:,.2f} EUR")
     
     # =========================================================================
-    # BUILD PORTFOLIO HISTORY
+    # BUILD PORTFOLIO HISTORY WITH PER-POSITION HISTORIES
     # =========================================================================
     log.info("Building new portfolio history...")
-    history = build_portfolio_history(
+    result = build_portfolio_history(
         transactions=transactions,
         positions=updated_positions,
         current_total=total_value + cash,
-        cash=cash
+        cash=cash,
+        return_position_histories=True
     )
+    
+    if isinstance(result, tuple):
+        history, position_histories = result
+    else:
+        history = result
+        position_histories = {}
     
     if not history:
         return False, "Failed to build history. Check logs for details.", []
@@ -858,6 +903,8 @@ def calculate_and_save_history(force_rebuild: bool = False) -> Tuple[bool, str, 
         history[-1]["value"] = round(total_value, 2)
     
     log.info(f"Portfolio history: {len(history)} points, first={history[0]['date']}, last={history[-1]['date']}")
+    if position_histories:
+        log.info(f"Position histories: {len(position_histories)} instruments with price data")
     
     # =========================================================================
     # SAVE ALL UPDATES TO CACHE
@@ -876,11 +923,12 @@ def calculate_and_save_history(force_rebuild: bool = False) -> Tuple[bool, str, 
         data["totalInvested"] = round(total_invested, 2)
         data["totalProfit"] = round(total_profit, 2)
         data["history"] = history
+        data["positionHistories"] = position_histories  # Per-position histories for filtering
         portfolio_data["data"] = data
         portfolio_data["cached_at"] = datetime.now().isoformat()
         portfolio_cache_file.write_text(json.dumps(portfolio_data, indent=2), encoding="utf-8")
         
-        log.info(f"Saved portfolio cache: totalValue={total_value + cash:,.2f} EUR")
+        log.info(f"Saved portfolio cache: totalValue={total_value + cash:,.2f} EUR, {len(position_histories)} position histories")
         
     except Exception as e:
         log.warning(f"Failed to save cache: {e}")

@@ -2109,3 +2109,198 @@ hr {
 .privacy-on .sensitive-strong {
     filter: blur(11px);
 }
+
+/* ===== Sticky Header Bar (Parqet-style) ===== */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(135deg, #1e1e2e 0%, #252536 100%);
+    border-radius: 10px;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sticky-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.sticky-header .header-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+}
+
+.sticky-header .header-meta {
+    color: #9ca3af;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sticky-header .header-meta::before {
+    content: "•";
+    color: #4b5563;
+}
+
+.sticky-header .header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sticky-header .header-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 8px;
+}
+
+.sticky-header .header-icon-btn {
+    color: #9ca3af !important;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    text-decoration: none !important;
+}
+
+.sticky-header .header-icon-btn:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sticky-header .header-dropdown-wrapper {
+    position: relative;
+}
+
+.sticky-header .header-dropdown-btn {
+    color: #e5e7eb !important;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    text-decoration: none !important;
+    display: flex;
+    align-items: center;
+}
+
+.sticky-header .header-dropdown-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff !important;
+}
+
+/* Popover styling for header dropdowns */
+.header-checklist,
+.header-radio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.header-checklist .form-check,
+.header-radio-list .form-check {
+    padding: 8px 12px;
+    margin: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.header-checklist .form-check:hover,
+.header-radio-list .form-check:hover {
+    background: #f3f4f6;
+}
+
+.header-checklist .form-check-label,
+.header-radio-list .form-check-label {
+    font-size: 0.85rem;
+    color: #374151;
+    cursor: pointer;
+    width: 100%;
+}
+
+.header-checklist .form-check-input,
+.header-radio-list .form-check-input {
+    margin-right: 10px;
+}
+
+.header-checklist .form-check-input:checked,
+.header-radio-list .form-check-input:checked {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+
+/* Popover override for clean look */
+.popover {
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+}
+
+.popover-body {
+    padding: 8px !important;
+    min-width: 160px;
+}
+
+/* Spin animation for sync button */
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Position Icons/Logos */
+.position-icon-wrapper {
+    flex-shrink: 0;
+    position: relative;
+}
+
+.position-logo {
+    transition: opacity 0.2s ease;
+}
+
+/* Handle image load errors gracefully */
+.position-logo:not([src]),
+.position-logo[src=""] {
+    opacity: 0;
+}
+
+/* Error state - hide broken image icon */
+.position-icon-wrapper img[src] {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* Holdings item hover */
+.holding-item {
+    transition: background 0.15s ease;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-left: -8px;
+    margin-right: -8px;
+    border-radius: 8px;
+}
+
+.holding-item:hover {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.holding-item:last-child {
+    border-bottom: none !important;
+}
