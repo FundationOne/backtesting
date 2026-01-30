@@ -1924,7 +1924,8 @@ def register_callbacks(app):
                 xaxis=dict(
                     showgrid=True, 
                     gridcolor="#f3f4f6", 
-                    tickformat="%b %Y" if selected_range in ["max", "1y"] else "%d %b"
+                    tickformat="%b %Y" if selected_range in ["max", "1y"] else "%d %b",
+                    hoverformat="%d %b %Y",  # Always show full date in hover tooltip
                 ),
                 yaxis=dict(
                     showgrid=True, 

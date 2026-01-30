@@ -290,6 +290,203 @@ class TRConnection:
         
         return unique_transactions
 
+    async def _fetch_transaction_details(self, transaction_id: str, retries: int = 2) -> Optional[Dict]:
+        """Fetch detailed info for a single transaction, including shares.
+        
+        Uses timeline_detail_v2 API to get full transaction details with quantity.
+        Includes retry logic for robustness.
+        """
+        if not self.api or not self.is_connected:
+            return None
+        
+        for attempt in range(retries + 1):
+            try:
+                await self.api.timeline_detail_v2(transaction_id)
+                sub_id, sub_params, response = await self.api.recv()
+                await self.api.unsubscribe(sub_id)
+                return response
+            except Exception as e:
+                if attempt < retries:
+                    await asyncio.sleep(0.5 * (attempt + 1))  # Backoff
+                    continue
+                log.debug(f"Error fetching detail for {transaction_id} after {retries+1} attempts: {e}")
+                return None
+        return None
+
+    async def _enrich_transactions_with_shares(self, transactions: List[Dict]) -> List[Dict]:
+        """Fetch shares/quantity for buy/sell transactions from TR.
+        
+        This calls timeline_detail_v2 for each transaction to get the actual
+        number of shares bought/sold. Includes rate limiting and validation.
+        
+        Returns transactions with 'shares' field populated.
+        """
+        if not self.api or not self.is_connected:
+            log.error("Cannot enrich transactions - not connected")
+            return transactions
+        
+        # Transaction subtitles that involve share changes
+        TRADE_SUBTITLES = {
+            'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order',
+            'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order',
+            'Bonusaktien', 'Aktiensplit', 'Reverse Split', 'Tausch', 'Spin-off'
+        }
+        
+        enriched = []
+        trade_count = 0
+        
+        for txn in transactions:
+            subtitle = txn.get('subtitle', '')
+            shares = txn.get('shares')
+            
+            # Re-enrich if shares is missing, None, 0, or suspiciously large (>1M = likely parse error)
+            needs_enrichment = shares is None or shares == 0 or shares > 1_000_000
+            
+            if subtitle in TRADE_SUBTITLES and needs_enrichment:
+                trade_count += 1
+                
+        log.info(f"Enriching {trade_count} trade transactions with share quantities...")
+        
+        fetched = 0
+        failed_streak = 0
+        for txn in transactions:
+            subtitle = txn.get('subtitle', '')
+            txn_id = txn.get('id')
+            shares = txn.get('shares')
+            
+            # Re-enrich if shares is missing, None, 0, or suspiciously large
+            needs_enrichment = shares is None or shares == 0 or shares > 1_000_000
+            
+            if subtitle in TRADE_SUBTITLES and txn_id and needs_enrichment:
+                details = await self._fetch_transaction_details(txn_id)
+                if details:
+                    new_shares = self._extract_shares_from_details(details)
+                    if new_shares and new_shares > 0:
+                        txn['shares'] = new_shares
+                        fetched += 1
+                        failed_streak = 0
+                        if fetched <= 5 or fetched % 50 == 0:
+                            title = txn.get('title', '')[:30]
+                            log.info(f"  [{fetched}/{trade_count}] {title}: {new_shares:.6f} shares")
+                    else:
+                        failed_streak += 1
+                        log.debug(f"  Could not extract shares for {txn.get('title', '')[:30]}")
+                else:
+                    failed_streak += 1
+                
+                # Rate limiting: small delay every 10 requests, longer if failures
+                if fetched % 10 == 0:
+                    await asyncio.sleep(0.1)
+                if failed_streak > 5:
+                    log.warning(f"  Multiple failures, adding delay...")
+                    await asyncio.sleep(1.0)
+                    failed_streak = 0
+            
+            enriched.append(txn)
+        
+        # Report enrichment completeness
+        success_rate = (fetched / trade_count * 100) if trade_count > 0 else 100
+        log.info(f"Enriched {fetched}/{trade_count} transactions ({success_rate:.1f}% success)")
+        
+        if success_rate < 80:
+            log.warning(f"⚠️ Low enrichment rate ({success_rate:.1f}%) - some share data may be missing")
+        
+        return enriched
+
+    def _extract_shares_from_details(self, details: Dict) -> Optional[float]:
+        """Extract share quantity from transaction detail response.
+        
+        Parses the 'sections' in the detail response to find share count.
+        Looks for fields like 'Aktien', 'Anteile' in German responses.
+        
+        IMPORTANT: TR returns shares as formatted text like "7,470352" which 
+        represents 7.470352 shares (German decimal format).
+        """
+        sections = details.get('sections', [])
+        
+        for section in sections:
+            section_title = section.get('title', '')
+            
+            # Look in transaction-related sections
+            if section_title in ['Transaktion', 'Geschäft', 'Übersicht', 'Order', 'Sparplan']:
+                for item in section.get('data', []):
+                    item_title = item.get('title', '')
+                    # Share count fields
+                    if item_title in ['Aktien', 'Anteile', 'Aktien hinzugefügt', 'Aktien entfernt', 'Stück']:
+                        detail = item.get('detail', {})
+                        
+                        # Try numeric value field first
+                        if isinstance(detail, dict):
+                            if 'value' in detail:
+                                try:
+                                    return float(detail['value'])
+                                except (ValueError, TypeError):
+                                    pass
+                            
+                            # Fall back to text parsing
+                            text = detail.get('text', '')
+                            if text:
+                                parsed = self._parse_german_number(text)
+                                if parsed is not None:
+                                    # Log for debugging
+                                    log.debug(f"Parsed shares from text '{text}' = {parsed}")
+                                    return parsed
+                        elif isinstance(detail, (int, float)):
+                            return float(detail)
+                        elif isinstance(detail, str):
+                            return self._parse_german_number(detail)
+        
+        # Also check for a top-level 'shares' or 'quantity' field
+        for key in ['shares', 'quantity', 'amount']:
+            if key in details and isinstance(details[key], (int, float)):
+                return float(details[key])
+        
+        return None
+
+    def _parse_german_number(self, text: str) -> Optional[float]:
+        """Parse a German-formatted number for share quantities.
+        
+        German format examples:
+        - "1.234,56" = 1234.56 (dot=thousands, comma=decimal)
+        - "7,470352" = 7.470352 (comma=decimal, for fractional shares)
+        - "1.234" could be 1234 (thousands) or 1.234 (decimal)
+        
+        For share quantities, we expect high precision (many decimal places),
+        so 6+ digits after separator likely means decimal, not thousands.
+        """
+        try:
+            # Remove any currency symbols and whitespace
+            text = text.strip().replace('€', '').replace('$', '').strip()
+            
+            # If both comma and dot present: German format (dot=thousands, comma=decimal)
+            if ',' in text and '.' in text:
+                # 1.234,56 -> 1234.56
+                text = text.replace('.', '').replace(',', '.')
+            elif ',' in text:
+                # Comma only: it's the decimal separator
+                # 7,470352 -> 7.470352
+                text = text.replace(',', '.')
+            elif '.' in text:
+                # Dot only: check if it looks like thousands or decimal
+                parts = text.split('.')
+                if len(parts) == 2:
+                    # If many digits after dot (>3), it's decimal, not thousands
+                    # e.g., "7.470352" is 7.470352, not 7,470,352
+                    if len(parts[1]) > 3:
+                        # Already in correct format
+                        pass
+                    elif len(parts[1]) == 3 and len(parts[0]) <= 3:
+                        # Ambiguous: "1.234" could be 1234 or 1.234
+                        # For shares, assume decimal (more common for small quantities)
+                        pass
+                    else:
+                        # Likely thousands separator: "1.234" = 1234
+                        text = text.replace('.', '')
+            
+            return float(text)
+        except (ValueError, AttributeError):
+            return None
+
     async def _fetch_portfolio_aggregate_history(self, timeframe: str = "max") -> List[Dict]:
         """Fetch aggregate portfolio history from TR.
         
@@ -467,108 +664,324 @@ class TRConnection:
         
         return position_histories
 
+    def _build_holdings_timeline(
+        self, 
+        transactions: List[Dict],
+        current_positions: List[Dict]
+    ) -> Dict[str, Dict[str, float]]:
+        """Build a timeline of holdings: how many shares of each ISIN on each date.
+        
+        CRITICAL: This walks FORWARD through time, starting from empty holdings.
+        See docs/SPECIFICATION.md "CRITICAL DECISIONS" section.
+        
+        Algorithm:
+        1. Start with EMPTY holdings (we owned nothing before first transaction)
+        2. Sort transactions by date ASCENDING (oldest first)
+        3. For each transaction:
+           - Buy: add shares to holdings[isin]
+           - Sell: subtract shares from holdings[isin]
+        4. Record quantity at each date with a change
+        
+        Args:
+            transactions: List of transactions with 'shares' field populated
+            current_positions: Current portfolio positions (for validation only)
+            
+        Returns:
+            {isin: {date_str: quantity}} - holdings at end of each date
+        """
+        from components.portfolio_history import extract_isin_from_icon
+        
+        # Transaction subtitles for buys and sells
+        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 
+                         'Bonusaktien', 'Aktiensplit', 'Spin-off'}
+        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order', 
+                          'Reverse Split'}
+        
+        # Collect all share changes: [(date, isin, delta)]
+        share_changes: List[Tuple[str, str, float]] = []
+        
+        for txn in transactions:
+            subtitle = txn.get('subtitle', '')
+            icon = txn.get('icon', '')
+            timestamp = txn.get('timestamp', '')
+            shares = txn.get('shares')
+            
+            if not timestamp or not shares:
+                continue
+            
+            date_str = timestamp[:10]
+            isin = extract_isin_from_icon(icon)
+            if not isin:
+                continue
+            
+            shares = float(shares)
+            
+            if subtitle in BUY_SUBTITLES:
+                share_changes.append((date_str, isin, shares))
+            elif subtitle in SELL_SUBTITLES:
+                share_changes.append((date_str, isin, -shares))
+        
+        if not share_changes:
+            log.warning("No share changes found in transactions")
+            # Fall back to current positions for today only
+            today = datetime.now().strftime('%Y-%m-%d')
+            timeline = {}
+            for pos in current_positions:
+                isin = pos.get('isin', '')
+                qty = pos.get('quantity', 0)
+                if isin and qty > 0:
+                    timeline[isin] = {today: qty}
+            return timeline
+        
+        # Sort by date ASCENDING (oldest first) - FORWARD walk
+        share_changes.sort(key=lambda x: x[0])
+        
+        # Get all unique dates plus today
+        all_dates = sorted(set(date for date, _, _ in share_changes))
+        today = datetime.now().strftime('%Y-%m-%d')
+        if today not in all_dates:
+            all_dates.append(today)
+            all_dates.sort()
+        
+        # Group changes by date: {date: {isin: total_delta}}
+        changes_by_date: Dict[str, Dict[str, float]] = {}
+        for date_str, isin, delta in share_changes:
+            if date_str not in changes_by_date:
+                changes_by_date[date_str] = {}
+            changes_by_date[date_str][isin] = changes_by_date[date_str].get(isin, 0) + delta
+        
+        # Walk FORWARD: start from empty, accumulate holdings
+        current_holdings: Dict[str, float] = {}  # {isin: quantity}
+        holdings_timeline: Dict[str, Dict[str, float]] = {}  # {isin: {date: quantity}}
+        
+        for date_str in all_dates:
+            # Apply changes for this date
+            if date_str in changes_by_date:
+                for isin, delta in changes_by_date[date_str].items():
+                    old_qty = current_holdings.get(isin, 0)
+                    new_qty = max(0, old_qty + delta)  # Can't go negative
+                    current_holdings[isin] = new_qty
+            
+            # Record current holdings at end of this date
+            for isin, qty in current_holdings.items():
+                if qty > 0:
+                    if isin not in holdings_timeline:
+                        holdings_timeline[isin] = {}
+                    holdings_timeline[isin][date_str] = qty
+        
+        # Validation: compare final holdings to current_positions
+        current_from_tr: Dict[str, float] = {}
+        for pos in current_positions:
+            isin = pos.get('isin', '')
+            qty = pos.get('quantity', 0)
+            if isin and qty > 0:
+                current_from_tr[isin] = qty
+        
+        mismatches = []
+        for isin in set(current_holdings.keys()) | set(current_from_tr.keys()):
+            calculated = current_holdings.get(isin, 0)
+            actual = current_from_tr.get(isin, 0)
+            if abs(calculated - actual) > 0.001:  # Allow small float errors
+                mismatches.append(f"{isin}: calculated={calculated:.4f}, actual={actual:.4f}")
+        
+        if mismatches:
+            log.warning(f"Holdings mismatch ({len(mismatches)} positions):")
+            for m in mismatches[:5]:  # Show first 5
+                log.warning(f"  {m}")
+            if len(mismatches) > 5:
+                log.warning(f"  ... and {len(mismatches) - 5} more")
+        else:
+            log.info(f"✅ Holdings validation passed - all positions match!")
+        
+        log.info(f"Built holdings timeline for {len(holdings_timeline)} ISINs over {len(all_dates)} dates")
+        
+        return holdings_timeline
+    
+    def _validate_sync_completeness(
+        self,
+        transactions: List[Dict],
+        positions: List[Dict]
+    ) -> Dict[str, Any]:
+        """Validate that sync produced complete and plausible data.
+        
+        Returns a validation report dict with:
+        - is_valid: bool - True if data looks good
+        - issues: List[str] - Any problems found
+        - stats: Dict - Statistics about the data
+        """
+        from components.portfolio_history import extract_isin_from_icon
+        
+        issues = []
+        stats = {
+            'total_transactions': len(transactions),
+            'total_positions': len(positions),
+            'trades_with_shares': 0,
+            'trades_without_shares': 0,
+            'positions_matched': 0,
+            'positions_mismatched': 0,
+        }
+        
+        # Check 1: Count trades with/without shares
+        TRADE_SUBTITLES = {
+            'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order',
+            'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order',
+            'Bonusaktien', 'Aktiensplit', 'Reverse Split', 'Tausch', 'Spin-off'
+        }
+        
+        trades = [t for t in transactions if t.get('subtitle') in TRADE_SUBTITLES]
+        with_shares = [t for t in trades if t.get('shares') and t.get('shares') > 0]
+        without_shares = [t for t in trades if not t.get('shares') or t.get('shares') == 0]
+        
+        stats['trades_with_shares'] = len(with_shares)
+        stats['trades_without_shares'] = len(without_shares)
+        
+        if len(without_shares) > 0:
+            pct = len(without_shares) / len(trades) * 100 if trades else 0
+            if pct > 20:
+                issues.append(f"{len(without_shares)} trades ({pct:.0f}%) missing share data")
+        
+        # Check 2: Calculate shares per ISIN and compare to positions
+        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 
+                        'Bonusaktien', 'Aktiensplit', 'Spin-off'}
+        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order', 
+                         'Reverse Split'}
+        
+        calculated: Dict[str, float] = {}
+        for txn in transactions:
+            subtitle = txn.get('subtitle', '')
+            shares = txn.get('shares', 0) or 0
+            isin = extract_isin_from_icon(txn.get('icon', ''))
+            if not isin or not shares:
+                continue
+            
+            if subtitle in BUY_SUBTITLES:
+                calculated[isin] = calculated.get(isin, 0) + shares
+            elif subtitle in SELL_SUBTITLES:
+                calculated[isin] = calculated.get(isin, 0) - shares
+        
+        actual: Dict[str, float] = {p.get('isin'): p.get('quantity', 0) for p in positions}
+        
+        for isin in set(calculated.keys()) | set(actual.keys()):
+            calc_qty = calculated.get(isin, 0)
+            actual_qty = actual.get(isin, 0)
+            if abs(calc_qty - actual_qty) < 0.01:
+                stats['positions_matched'] += 1
+            else:
+                stats['positions_mismatched'] += 1
+        
+        if stats['positions_mismatched'] > 0:
+            total = stats['positions_matched'] + stats['positions_mismatched']
+            pct = stats['positions_mismatched'] / total * 100 if total else 0
+            if pct > 30:
+                issues.append(f"{stats['positions_mismatched']} positions ({pct:.0f}%) have mismatched quantities")
+        
+        # Summary
+        is_valid = len(issues) == 0
+        
+        log.info(f"=== Sync Validation ===")
+        log.info(f"  Transactions: {stats['total_transactions']}")
+        log.info(f"  Trades with shares: {stats['trades_with_shares']}/{len(trades)}")
+        log.info(f"  Positions matched: {stats['positions_matched']}/{stats['positions_matched'] + stats['positions_mismatched']}")
+        
+        if issues:
+            log.warning(f"⚠️ Validation issues:")
+            for issue in issues:
+                log.warning(f"  - {issue}")
+        else:
+            log.info(f"✅ Sync validation passed!")
+        
+        return {
+            'is_valid': is_valid,
+            'issues': issues,
+            'stats': stats
+        }
+
     def _build_history_with_market_values(
         self, 
         transactions: List[Dict], 
         position_histories: Dict[str, Dict],
         invested_series: Dict[str, float],
-        current_total: float
+        current_total: float,
+        current_positions: List[Dict]
     ) -> List[Dict]:
-        """Build portfolio history with actual market values from position price histories.
+        """Build portfolio history with actual market values.
         
-        This method calculates:
-        - invested: cumulative capital deposited (from invested_series)
-        - value: sum of (holdings × price) for each position at each date
-        
-        The key insight is tracking holdings changes over time:
-        - Buy transactions increase holdings
-        - Sell transactions decrease holdings
-        - Market value = holdings × current price
+        STEP-BY-STEP APPROACH:
+        1. Build holdings timeline: quantity of each ISIN on each date
+        2. For each date: value = sum(quantity[isin][date] × price[isin][date])
+        3. Use invested_series for the "invested" (added capital) line
         
         Args:
-            transactions: All timeline transactions
+            transactions: All timeline transactions (with 'shares' field)
             position_histories: {isin: {history: [{date, price}], ...}} from Yahoo
             invested_series: {date: cumulative_invested} from deposits
-            current_total: Current live portfolio value
+            current_total: Current live portfolio value (from TR)
+            current_positions: Current portfolio positions with quantities
             
         Returns:
-            List of {date, invested, value} dicts
+            List of {date, invested, value} dicts sorted by date
         """
-        from components.portfolio_history import extract_isin_from_icon
-        
-        if not position_histories or not transactions:
-            log.warning("No position histories or transactions - cannot calculate market values")
+        if not position_histories:
+            log.warning("No position histories - cannot calculate market values")
             return self._build_history_from_transactions(transactions, current_total)
         
-        # Buy/sell transaction subtitles (German)
-        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 'Bonusaktien', 'Tausch'}
-        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order'}
+        # STEP 1: Build holdings timeline
+        holdings_timeline = self._build_holdings_timeline(transactions, current_positions)
         
-        # Track holdings changes: {isin: [(date_str, cost_change)]}
-        # Positive = buy, negative = sell
-        holdings_changes: Dict[str, List[Tuple[str, float]]] = {}
-        
-        for txn in transactions:
-            subtitle = txn.get("subtitle", "")
-            icon = txn.get("icon", "")
-            amount = txn.get("amount")
-            timestamp = txn.get("timestamp", "")
-            
-            if not timestamp or amount is None:
-                continue
-            
-            date_str = timestamp[:10]  # YYYY-MM-DD
-            isin = extract_isin_from_icon(icon)
-            if not isin:
-                continue
-            
-            cost = abs(float(amount))
-            
-            if subtitle in BUY_SUBTITLES:
-                holdings_changes.setdefault(isin, []).append((date_str, cost))
-            elif subtitle in SELL_SUBTITLES:
-                holdings_changes.setdefault(isin, []).append((date_str, -cost))
-        
-        # Build price lookup: {isin: {date_str: price}}
+        # STEP 2: Build price lookup from position_histories
+        # {isin: {date_str: price}}
         price_lookup: Dict[str, Dict[str, float]] = {}
+        isin_names: Dict[str, str] = {}
+        
         for isin, data in position_histories.items():
             price_lookup[isin] = {}
+            isin_names[isin] = data.get('name', isin)
             for point in data.get('history', []):
                 price_lookup[isin][point['date']] = point['price']
         
-        # Get all dates we need (union of invested_series dates and price dates)
-        all_dates = set(invested_series.keys())
-        for isin_prices in price_lookup.values():
-            all_dates.update(isin_prices.keys())
+        # STEP 3: Determine the date range
+        # Start from the FIRST deposit (when the user actually started investing)
+        # Don't show history for dates before the first capital was added
+        if not invested_series:
+            log.warning("No invested series - cannot determine start date")
+            return self._build_history_from_transactions(transactions, current_total)
         
-        # Add today
+        first_deposit_date = min(invested_series.keys())
         today = datetime.now().strftime('%Y-%m-%d')
-        all_dates.add(today)
         
+        # Collect all dates from holdings and prices, but only AFTER first deposit
+        all_dates = set()
+        
+        # Add invested series dates
+        for date in invested_series.keys():
+            if date >= first_deposit_date:
+                all_dates.add(date)
+        
+        # Add holdings timeline dates (only after first deposit)
+        for isin in holdings_timeline:
+            for date in holdings_timeline[isin].keys():
+                if date >= first_deposit_date:
+                    all_dates.add(date)
+        
+        # Add price dates (only after first deposit)
+        for isin in price_lookup:
+            for date in price_lookup[isin].keys():
+                if date >= first_deposit_date:
+                    all_dates.add(date)
+        
+        all_dates.add(today)
         sorted_dates = sorted(all_dates)
         
         if not sorted_dates:
             return self._build_history_from_transactions(transactions, current_total)
         
-        # Build cumulative holdings at each date (by cost basis)
-        # holdings_at_date[isin][date] = cumulative cost basis
-        holdings_at_date: Dict[str, Dict[str, float]] = {}
+        log.info(f"Calculating history from {first_deposit_date} to {today} ({len(sorted_dates)} dates)")
         
-        for isin, changes in holdings_changes.items():
-            holdings_at_date[isin] = {}
-            sorted_changes = sorted(changes, key=lambda x: x[0])
-            cumulative = 0.0
-            
-            for date_str, cost_change in sorted_changes:
-                cumulative += cost_change
-                cumulative = max(0, cumulative)  # Can't go negative
-                holdings_at_date[isin][date_str] = cumulative
-        
-        # Now build history with actual values
+        # STEP 4: Calculate value for each date
         history = []
         
         for date_str in sorted_dates:
-            # Get invested amount (use last known value <= this date)
+            # Get invested amount (cumulative deposits up to this date)
             invested = 0.0
             for inv_date in sorted(invested_series.keys()):
                 if inv_date <= date_str:
@@ -576,59 +989,37 @@ class TRConnection:
                 else:
                     break
             
-            # Calculate market value
+            # Calculate market value: sum(quantity × price) for each position
             total_value = 0.0
+            missing_prices = []
             
-            for isin in holdings_at_date.keys():
-                # Get holdings at this date (last known value)
-                cost_basis = 0.0
-                for hold_date in sorted(holdings_at_date[isin].keys()):
-                    if hold_date <= date_str:
-                        cost_basis = holdings_at_date[isin][hold_date]
-                    else:
-                        break
+            for isin in set(holdings_timeline.keys()) | set(price_lookup.keys()):
+                # Get quantity on this date
+                quantity = 0.0
+                if isin in holdings_timeline:
+                    for h_date in sorted(holdings_timeline[isin].keys()):
+                        if h_date <= date_str:
+                            quantity = holdings_timeline[isin][h_date]
+                        else:
+                            break
                 
-                if cost_basis <= 0:
+                if quantity <= 0:
                     continue
                 
-                # Get price at this date (or nearest earlier date)
-                prices = price_lookup.get(isin, {})
+                # Get price on this date (or nearest earlier)
                 price = None
-                first_price = None
-                first_price_date = None
-                
-                for p_date in sorted(prices.keys()):
-                    if first_price is None:
-                        first_price = prices[p_date]
-                        first_price_date = p_date
-                    if p_date <= date_str:
-                        price = prices[p_date]
-                    else:
-                        break
-                
-                if price and first_price and first_price > 0:
-                    # Get the first price on or after the first holding date
-                    first_hold_date = min(holdings_at_date[isin].keys()) if holdings_at_date[isin] else None
-                    if first_hold_date:
-                        baseline_price = first_price
-                        for p_date in sorted(prices.keys()):
-                            if p_date >= first_hold_date:
-                                baseline_price = prices[p_date]
-                                break
-                        
-                        if baseline_price > 0:
-                            # Calculate value using price ratio
-                            # This accounts for positions bought at different times
-                            growth = price / baseline_price
-                            position_value = cost_basis * growth
-                            total_value += position_value
+                if isin in price_lookup:
+                    for p_date in sorted(price_lookup[isin].keys()):
+                        if p_date <= date_str:
+                            price = price_lookup[isin][p_date]
                         else:
-                            total_value += cost_basis
-                    else:
-                        total_value += cost_basis
+                            break
+                
+                if price and price > 0:
+                    position_value = quantity * price
+                    total_value += position_value
                 else:
-                    # No price - use cost basis
-                    total_value += cost_basis
+                    missing_prices.append(isin_names.get(isin, isin))
             
             # Only add if we have meaningful data
             if invested > 0 or total_value > 0:
@@ -638,22 +1029,23 @@ class TRConnection:
                     'value': round(total_value, 2) if total_value > 0 else round(invested, 2),
                 })
         
-        # Ensure today has the live current_total value
-        if history and history[-1]['date'] == today:
-            history[-1]['value'] = round(current_total, 2)
-        elif history:
-            history.append({
-                'date': today,
-                'invested': history[-1]['invested'],
-                'value': round(current_total, 2),
-            })
+        # STEP 5: Ensure today has the accurate live value from TR
+        if history:
+            if history[-1]['date'] == today:
+                history[-1]['value'] = round(current_total, 2)
+            else:
+                history.append({
+                    'date': today,
+                    'invested': history[-1]['invested'] if history else 0,
+                    'value': round(current_total, 2),
+                })
         
         log.info(f"Built history with market values: {len(history)} data points")
         
-        # Debug: show sample
+        # Debug: show sample values
         if history:
-            sample = history[:2] + history[-2:] if len(history) > 4 else history
-            for h in sample:
+            samples = history[:2] + history[-2:] if len(history) > 4 else history
+            for h in samples:
                 log.info(f"  History sample: {h['date']}: invested={h['invested']:,.2f}, value={h['value']:,.2f}")
         
         return history
@@ -1201,52 +1593,39 @@ class TRConnection:
                 # Try to load from cache if fetch failed
                 transactions = self._load_transactions_cache()
             
-            # Build invested series from transactions (needed for all history methods)
+            # Enrich transactions with share quantities from TR (needed for holdings tracking)
+            # This calls timeline_detail_v2 for each trade transaction
+            log.info("Enriching transactions with share quantities...")
+            transactions = await self._enrich_transactions_with_shares(transactions)
+            
+            # Save enriched transactions to cache
+            if transactions:
+                self._save_transactions_cache(transactions)
+            
+            # VALIDATION: Check that sync produced complete data
+            validation = self._validate_sync_completeness(transactions, enriched_positions)
+            
+            # Build invested series from transactions (for the "added capital" line)
             invested_series = self._build_invested_series_from_transactions(transactions)
             log.info(f"Built invested series with {len(invested_series)} cash flow dates")
             
-            # Build per-position price histories using Yahoo Finance FIRST
-            # (needed for both TR history merge and fallback calculation)
+            # Build per-position price histories using Yahoo Finance
             log.info("Building per-position price histories from Yahoo Finance...")
             position_histories = self._build_position_histories_from_yahoo(
                 transactions, enriched_positions
             )
             log.info(f"Built position histories for {len(position_histories)} instruments")
             
-            # Try to fetch real portfolio aggregate history from TR API
-            aggregate_history = await self._fetch_portfolio_aggregate_history("max")
-            
-            if aggregate_history and len(aggregate_history) > 5:
-                # Use real TR aggregate history if available
-                history = aggregate_history
-                log.info(f"Using TR aggregate history with {len(history)} points")
-                
-                # DEBUG: Check what TR returns for invested values
-                sample = history[:3] + history[-3:] if len(history) > 6 else history
-                for h in sample:
-                    log.info(f"  TR history sample: date={h.get('date')}, value={h.get('value')}, invested={h.get('invested')}")
-                
-                # TR's aggregate history often has incorrect invested values (0 or same as value)
-                # Merge with transaction-derived invested amounts for accurate TWR calculation
-                if invested_series:
-                    # DEBUG: Show invested series sample
-                    sorted_dates = sorted(invested_series.keys())
-                    for d in sorted_dates[:3]:
-                        log.info(f"  Invested series sample: {d} = {invested_series[d]:,.2f}")
-                    
-                    history = self._merge_history_with_invested(history, invested_series)
-                    log.info(f"Merged history with transaction-derived invested values")
-                    
-                    # DEBUG: Check merged result
-                    sample = history[:3] + history[-3:] if len(history) > 6 else history
-                    for h in sample:
-                        log.info(f"  Merged history sample: date={h.get('date')}, value={h.get('value')}, invested={h.get('invested')}")
-            else:
-                # Fallback: Build history with actual market values from position histories
-                log.info("TR aggregate history unavailable - calculating market values from position prices...")
-                history = self._build_history_with_market_values(
-                    transactions, position_histories, invested_series, total_value + cash
-                )
+            # Build history with market values calculated from holdings × prices
+            # No longer using portfolioAggregateHistory as it fails for this account
+            log.info("Calculating portfolio history from holdings × prices...")
+            history = self._build_history_with_market_values(
+                transactions, 
+                position_histories, 
+                invested_series, 
+                total_value + cash,
+                enriched_positions  # Pass current positions for holdings baseline
+            )
             
             result = {
                 "success": True,

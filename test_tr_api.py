@@ -11,6 +11,51 @@ log = get_logger(__name__)
 
 TR_CREDENTIALS_DIR = Path.home() / ".pytr"
 
+async def test_timeline_detail():
+    """Test what timeline_detail_v2 actually returns for a savings plan."""
+    
+    # Load credentials
+    credentials_file = TR_CREDENTIALS_DIR / "credentials"
+    if not credentials_file.exists():
+        print("No credentials found. Please run main.py and connect first.")
+        return
+    
+    with open(credentials_file, "r") as f:
+        lines = f.readlines()
+    phone_no = lines[0].strip()
+    pin = lines[1].strip()
+    
+    keyfile = TR_CREDENTIALS_DIR / "keyfile.pem"
+    if not keyfile.exists():
+        print("No keyfile found. Please complete device setup first.")
+        return
+    
+    api = TradeRepublicApi(phone_no=phone_no, pin=pin, keyfile=keyfile)
+    
+    print("\n=== Testing timeline_detail_v2 ===\n")
+    
+    # Use the ID from the problematic transaction
+    txn_id = "f2ee2a6a-a833-4d81-94bd-9193eec423c1"
+    
+    print(f"Fetching details for transaction: {txn_id}")
+    await api.timeline_detail_v2(txn_id)
+    sub_id, sub_params, response = await api.recv()
+    await api.unsubscribe(sub_id)
+    
+    print(f"\nFull response:")
+    print(json.dumps(response, indent=2, default=str))
+    
+    # Look specifically at sections
+    sections = response.get('sections', [])
+    print(f"\n\n=== SECTIONS ===")
+    for section in sections:
+        print(f"\nSection: {section.get('title', 'NO TITLE')}")
+        for item in section.get('data', []):
+            title = item.get('title', '')
+            detail = item.get('detail', {})
+            text = detail.get('text', '') if isinstance(detail, dict) else detail
+            print(f"  {title}: {text}")
+
 async def test_portfolio_history():
     """Test the portfolio history and per-instrument history endpoints."""
     
@@ -148,4 +193,4 @@ async def test_portfolio_history():
     print("=== Testing Complete ===")
 
 if __name__ == "__main__":
-    asyncio.run(test_portfolio_history())
+    asyncio.run(test_timeline_detail())
