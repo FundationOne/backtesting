@@ -3,8 +3,9 @@
 ## Source of Truth
 - **Share quantities**: TR `timeline_detail_v2` per transaction
 - **Current positions**: TR `compact_portfolio`  
-- **Prices**: Yahoo Finance
+- **Prices**: Transaction prices from TR (`price = amount / shares`) - NOT Yahoo/external
 - **Invested**: Deposits - Withdrawals only
+- **Current value/profit**: Calculated from `qty × latest_transaction_price`, NOT TR's `netValue`
 
 ## Calculation Flow
 ```
@@ -13,17 +14,20 @@
 3. Enrich trades (TR timeline_detail_v2) → get shares for each buy/sell
 4. VALIDATE: compare calculated vs actual shares
 5. Build holdings timeline → walk forward, accumulate shares
-6. Fetch prices (Yahoo) → price per ISIN per date
+6. Build position histories → price = amount/shares per transaction
 7. Calculate values → qty × price for each date
 8. Build invested series → cumulative deposits
 9. Combine → history with (date, invested, value)
+10. UPDATE POSITIONS → recalculate currentPrice, value, profit from transaction prices
 ```
 
 ## Key Rules
 - Shares from TR, NEVER calculate from amount/price
+- Prices from transaction: `price = amount / shares` (exact EUR execution price)
 - Walk FORWARD from empty holdings
 - History starts from first deposit date
-- Today's value = TR current_total
+- Position profit = `(qty × latest_price) - invested` using OUR calculated prices
+- TR's `netValue` is often 0 → always use our calculated values
 
 ## Transaction Types
 **Buys** (add shares): Kauforder, Sparplan ausgeführt, Limit-Buy-Order, Bonusaktien, Aktiensplit  

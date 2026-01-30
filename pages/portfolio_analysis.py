@@ -69,77 +69,13 @@ def fetch_benchmark_data(symbol, start_date, end_date):
         return None
 
 
-def _guess_domain_from_name(name: str) -> str:
-    """Try to guess a company domain from its name for favicon lookup.
-    
-    Examples:
-        "Apple Inc" -> "apple.com"
-        "Microsoft Corporation" -> "microsoft.com"
-        "NVIDIA Corp" -> "nvidia.com"
-        "Alphabet Inc" -> "google.com" (special case)
-    """
-    if not name:
-        return ""
-    
-    # Common company suffixes to strip
-    suffixes = [
-        ' inc.', ' inc', ' corporation', ' corp.', ' corp', ' ltd.', ' ltd',
-        ' plc', ' ag', ' se', ' nv', ' sa', ' co.', ' co', ' group',
-        ' holding', ' holdings', ' international', ' intl', ' limited',
-        ' gmbh', ' kg', ' & co', '& co', ' class a', ' class b', ' class c',
-    ]
-    
-    name_lower = name.lower().strip()
-    
-    # Strip suffixes
-    for suffix in suffixes:
-        if name_lower.endswith(suffix):
-            name_lower = name_lower[:-len(suffix)].strip()
-    
-    # Remove special characters and spaces, keep only alphanumeric
-    import re
-    domain_base = re.sub(r'[^a-z0-9]', '', name_lower)
-    
-    if not domain_base:
-        return ""
-    
-    return f"{domain_base}.com"
-
-
-def get_position_logo(position):
-    """Get logo URL for a position. Returns tuple of (tr_url, favicon_url).
-    
-    Returns:
-        tr_url: Trade Republic image URL (or None)
-        favicon_url: Google Favicon URL as fallback (or None)
-    """
-    image_id = position.get("imageId", "")
-    name = position.get("name", "")
-    
-    tr_url = None
-    favicon_url = None
-    
-    # Primary: Use Trade Republic's image endpoint if we have imageId
-    if image_id:
-        tr_url = f"https://assets.traderepublic.com/img/{image_id}/light.min.png"
-    
-    # Secondary: Try Google Favicon based on guessed domain
-    domain = _guess_domain_from_name(name)
-    if domain:
-        favicon_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
-    
-    return tr_url, favicon_url
-
 
 def create_position_icon(position, size=32):
-    """Create an icon element for a position with company logo or initials fallback.
+    """Create a simple, clean icon element for a position with colored initials.
     
-    Uses a layered approach:
-    1. Try Trade Republic image
-    2. Try Google Favicon
-    3. Show colored initials as ultimate fallback
+    Uses a minimalistic approach with colored backgrounds based on asset class
+    and initials from the position name. No external images to avoid loading issues.
     """
-    tr_url, favicon_url = get_position_logo(position)
     asset_class = get_position_asset_class(position)
     name = position.get("name", "?")
     
@@ -149,151 +85,38 @@ def create_position_icon(position, size=32):
         "stock": "#10b981",  # Green
         "crypto": "#f59e0b", # Orange
         "bond": "#8b5cf6",   # Purple
+        "cash": "#6b7280",   # Gray
     }
     bg_color = class_colors.get(asset_class, "#6b7280")
     
-    # Calculate initials for fallback
-    initials = "".join([word[0].upper() for word in name.split()[:2] if word])[:2]
-    if not initials:
-        initials = name[0].upper() if name else "?"
-    
-    # If we have TR image, use it with initials fallback on error
-    if tr_url:
-        return html.Div(
-            [
-                # Initials background (shows if image fails)
-                html.Div(
-                    initials,
-                    style={
-                        "position": "absolute",
-                        "top": "0",
-                        "left": "0",
-                        "width": "100%",
-                        "height": "100%",
-                        "display": "flex",
-                        "alignItems": "center",
-                        "justifyContent": "center",
-                        "color": "#fff",
-                        "fontSize": f"{size * 0.4}px",
-                        "fontWeight": "600",
-                        "backgroundColor": bg_color,
-                        "borderRadius": "8px",
-                    }
-                ),
-                # TR Image on top
-                html.Img(
-                    src=tr_url,
-                    style={
-                        "position": "absolute",
-                        "top": "0",
-                        "left": "0",
-                        "width": "100%",
-                        "height": "100%",
-                        "objectFit": "contain",
-                        "borderRadius": "8px",
-                        "backgroundColor": "#f8fafc",
-                    },
-                    className="position-logo",
-                ),
-            ],
-            style={
-                "position": "relative",
-                "width": f"{size}px",
-                "height": f"{size}px",
-                "minWidth": f"{size}px",
-                "borderRadius": "8px",
-                "overflow": "hidden",
-                "border": "1px solid #e5e7eb",
-            }
-        )
-    elif favicon_url:
-        # Use Google Favicon with initials fallback
-        return html.Div(
-            [
-                # Initials background (shows if favicon fails/is generic)
-                html.Div(
-                    initials,
-                    style={
-                        "position": "absolute",
-                        "top": "0",
-                        "left": "0",
-                        "width": "100%",
-                        "height": "100%",
-                        "display": "flex",
-                        "alignItems": "center",
-                        "justifyContent": "center",
-                        "color": "#fff",
-                        "fontSize": f"{size * 0.4}px",
-                        "fontWeight": "600",
-                        "backgroundColor": bg_color,
-                        "borderRadius": "8px",
-                    }
-                ),
-                # Favicon image on top
-                html.Img(
-                    src=favicon_url,
-                    style={
-                        "position": "absolute",
-                        "top": "50%",
-                        "left": "50%",
-                        "transform": "translate(-50%, -50%)",
-                        "width": f"{int(size * 0.7)}px",
-                        "height": f"{int(size * 0.7)}px",
-                        "objectFit": "contain",
-                    },
-                    className="position-logo",
-                ),
-            ],
-            style={
-                "position": "relative",
-                "width": f"{size}px",
-                "height": f"{size}px",
-                "minWidth": f"{size}px",
-                "borderRadius": "8px",
-                "overflow": "hidden",
-                "backgroundColor": "#f8fafc",
-                "border": "1px solid #e5e7eb",
-            }
-        )
+    # Calculate initials for display
+    words = [w for w in name.split() if w]
+    if len(words) >= 2:
+        initials = (words[0][0] + words[1][0]).upper()
+    elif len(words) == 1 and len(words[0]) >= 2:
+        initials = words[0][:2].upper()
+    elif name:
+        initials = name[0].upper()
     else:
-        # No logo available - use SVG icon based on asset class
-        import base64
-        import urllib.parse
-        
-        # SVG icons for different asset types (Material Design icons style)
-        svg_icons = {
-            "stock": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M3 13h2v8H3v-8zm4-6h2v14H7V7zm4-4h2v18h-2V3zm4 8h2v10h-2V11zm4 3h2v7h-2v-7z"/></svg>',
-            "etf": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
-            "crypto": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>',
-            "bond": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>',
+        initials = "?"
+    
+    return html.Div(
+        initials,
+        style={
+            "width": f"{size}px",
+            "height": f"{size}px",
+            "minWidth": f"{size}px",
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "color": "#fff",
+            "fontSize": f"{size * 0.4}px",
+            "fontWeight": "600",
+            "backgroundColor": bg_color,
+            "borderRadius": "6px",
+            "flexShrink": "0",
         }
-        
-        svg_content = svg_icons.get(asset_class, svg_icons["stock"])
-        # Encode SVG as data URI
-        svg_encoded = urllib.parse.quote(svg_content)
-        svg_data_uri = f"data:image/svg+xml,{svg_encoded}"
-        
-        icon_size = int(size * 0.55)
-        
-        return html.Div(
-            html.Img(
-                src=svg_data_uri,
-                style={
-                    "width": f"{icon_size}px",
-                    "height": f"{icon_size}px",
-                }
-            ),
-            style={
-                "width": f"{size}px",
-                "height": f"{size}px",
-                "minWidth": f"{size}px",
-                "borderRadius": "8px",
-                "backgroundColor": bg_color,
-                "display": "flex",
-                "alignItems": "center",
-                "justifyContent": "center",
-            }
-        )
+    )
 
 
 # TR Connect Modal
@@ -880,6 +703,15 @@ def register_callbacks(app):
                 qty = pos.get("quantity", 0)
                 pos_profit = pos.get("profit", 0)
                 avg_buy = pos.get("averageBuyIn", 0)
+                invested = pos.get("invested", 0) or (qty * avg_buy if avg_buy > 0 else 0)
+                
+                # Calculate profit percentage properly
+                if invested > 0:
+                    profit_pct = (pos_profit / invested) * 100
+                elif value > 0:
+                    profit_pct = 0  # Can't calculate percentage without cost basis
+                else:
+                    profit_pct = 0
                 
                 profit_color = "text-success" if pos_profit >= 0 else "text-danger"
                 
@@ -889,11 +721,12 @@ def register_callbacks(app):
                         html.Div([
                             html.Div(name[:30] + ("..." if len(name) > 30 else ""), 
                                      className="fw-medium small", title=name),
-                            html.Div(f"{qty:.4g} × €{avg_buy:.2f}", className="text-muted small"),
+                            html.Div(f"{qty:.4g} × €{avg_buy:.2f}" if avg_buy > 0 else f"{qty:.4g} shares", 
+                                     className="text-muted small"),
                         ], className="flex-grow-1 ms-2"),
                         html.Div([
                             html.Div(f"€{value:,.2f}", className="small fw-medium text-end sensitive"),
-                            html.Div(f"{'+'if pos_profit >= 0 else ''}€{pos_profit:,.2f}", 
+                            html.Div(f"{'+'if profit_pct >= 0 else ''}{profit_pct:.1f}%", 
                                      className=f"small {profit_color} text-end sensitive"),
                         ]),
                     ], className="d-flex align-items-center py-2 border-bottom holding-item")
@@ -1540,7 +1373,7 @@ def register_callbacks(app):
         
         return history
     
-    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks, asset_class=None):
+    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks, asset_class=None, use_deposits=False):
         # Only render chart on /compare page
         if not pathname or pathname != "/compare":
             return go.Figure()  # Return empty figure instead of raising exception
@@ -1586,6 +1419,7 @@ def register_callbacks(app):
                 "1" if include_benchmarks else "0",
                 ",".join(map(str, benchmarks)),
                 asset_filter_str,
+                "deposits" if use_deposits else "trades",
             ])
 
             cached_fig = _fig_cache_get(cache_key)
@@ -1856,7 +1690,9 @@ def register_callbacks(app):
                 if benchmarks and transactions:
                     try:
                         from components.benchmark_data import get_benchmark_simulation
-                        bench_simulations = get_benchmark_simulation(history, transactions, symbols=benchmarks)
+                        bench_simulations = get_benchmark_simulation(
+                            history, transactions, symbols=benchmarks, use_deposits=use_deposits
+                        )
                     except Exception:
                         bench_simulations = {}
 
@@ -1875,7 +1711,7 @@ def register_callbacks(app):
 
                         if chart_type == "tab-performance":
                             # Use same TWR calculation as portfolio - starts at 0%
-                            bench_y = _calculate_twr_series(sim_df)
+                            bench_y = _calculate_twr_series_df(sim_df)
                             hovertemplate = f"<b>{benchmark_names.get(bench, bench)}</b><br>%{{x|%d %b %Y}}<br>%{{y:,.2f}}%<extra></extra>"
                         else:
                             bench_y = sim_df['value']
@@ -1986,6 +1822,8 @@ def register_callbacks(app):
         prevent_initial_call=False
     )
     def update_chart(data_json, chart_type, selected_range, benchmarks, asset_class, pathname):
+        # Use deposits for benchmark simulation if "cash" is included in asset filter
+        use_deposits = "cash" in (asset_class or [])
         return build_portfolio_chart(
             data_json,
             chart_type,
@@ -1994,6 +1832,7 @@ def register_callbacks(app):
             pathname,
             include_benchmarks=True,
             asset_class=asset_class,
+            use_deposits=use_deposits,
         )
 
     # Performance chart (benchmarks only here)
@@ -2007,6 +1846,8 @@ def register_callbacks(app):
         prevent_initial_call=False
     )
     def update_performance_chart(data_json, selected_range, benchmarks, asset_class, pathname):
+        # Use deposits for benchmark simulation if "cash" is included in asset filter
+        use_deposits = "cash" in (asset_class or [])
         return build_portfolio_chart(
             data_json,
             "tab-performance",
@@ -2015,6 +1856,7 @@ def register_callbacks(app):
             pathname,
             include_benchmarks=True,
             asset_class=asset_class,
+            use_deposits=use_deposits,
         )
 
     # Privacy mode toggle (clientside so it reacts instantly)

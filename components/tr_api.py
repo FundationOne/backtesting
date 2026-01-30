@@ -2371,6 +2371,35 @@ class TRConnection:
                 cash  # Pass current cash for reconciliation
             )
             
+            # UPDATE POSITIONS with current prices from position_histories
+            # TR's netValue is often 0, so we calculate currentPrice and profit ourselves
+            log.info("Updating positions with calculated current prices...")
+            for pos in enriched_positions:
+                isin = pos.get('isin', '')
+                qty = pos.get('quantity', 0)
+                invested = pos.get('invested', 0)
+                
+                if isin in position_histories and qty > 0:
+                    hist = position_histories[isin].get('history', [])
+                    if hist:
+                        # Get the most recent price
+                        latest_price = hist[-1].get('price', 0)
+                        if latest_price > 0:
+                            current_value = qty * latest_price
+                            pos['currentPrice'] = latest_price
+                            pos['value'] = current_value
+                            pos['profit'] = current_value - invested
+                            log.debug(f"Updated {pos.get('name', isin)}: price={latest_price:.4f}, value={current_value:.2f}, profit={pos['profit']:.2f}")
+            
+            # Recalculate totals with updated position values
+            total_current_value = sum(p['value'] for p in enriched_positions)
+            total_invested = sum(p['invested'] for p in enriched_positions)
+            total_value = total_current_value if total_current_value > 0 else net_value
+            total_profit = total_value - total_invested
+            total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+            
+            log.info(f"Updated portfolio summary: invested={total_invested:.2f}, value={total_value:.2f}, profit={total_profit:.2f} ({total_profit_pct:.2f}%)")
+            
             result = {
                 "success": True,
                 "data": {

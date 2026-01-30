@@ -236,6 +236,7 @@ def simulate_benchmark_investment(
     transactions: List[Dict],
     benchmark_symbol: str,
     history_dates: List[datetime],
+    use_deposits: bool = False,
 ) -> List[Dict]:
     """
     Simulate "what if" portfolio: if user had invested the same amounts
@@ -247,6 +248,8 @@ def simulate_benchmark_investment(
         transactions: User's transactions with 'timestamp', 'subtitle', 'amount'
         benchmark_symbol: Yahoo Finance symbol (e.g., "^GSPC")
         history_dates: List of dates to calculate values for
+        use_deposits: If True, use deposit amounts instead of buy/sell transactions.
+                      This simulates "what if ALL my capital went into this benchmark".
         
     Returns:
         List of {date, invested, value} matching portfolio history format
@@ -258,9 +261,14 @@ def simulate_benchmark_investment(
     BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 'Bonusaktien', 'Tausch'}
     SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order'}
     
+    # Deposit/withdrawal indicators
+    DEPOSIT_SUBTITLES = {'Fertig'}  # P2P received
+    WITHDRAWAL_SUBTITLES = {'Gesendet'}  # P2P sent / withdrawal
+    
     # Extract investment timeline: (date, amount) where + = buy, - = sell
     investment_timeline = []
     for txn in transactions:
+        title = txn.get("title", "")
         subtitle = txn.get("subtitle", "")
         amount = txn.get("amount", 0)
         timestamp = txn.get("timestamp", "")
@@ -273,10 +281,20 @@ def simulate_benchmark_investment(
         except:
             continue
         
-        if subtitle in BUY_SUBTITLES:
-            investment_timeline.append((date, abs(float(amount))))
-        elif subtitle in SELL_SUBTITLES:
-            investment_timeline.append((date, -abs(float(amount))))
+        if use_deposits:
+            # Use deposits/withdrawals instead of trades
+            if title == 'Einzahlung' and amount > 0:
+                investment_timeline.append((date, abs(float(amount))))
+            elif subtitle in DEPOSIT_SUBTITLES and amount > 0:
+                investment_timeline.append((date, abs(float(amount))))
+            elif subtitle in WITHDRAWAL_SUBTITLES and amount < 0:
+                investment_timeline.append((date, -abs(float(amount))))
+        else:
+            # Use actual buy/sell transactions
+            if subtitle in BUY_SUBTITLES:
+                investment_timeline.append((date, abs(float(amount))))
+            elif subtitle in SELL_SUBTITLES:
+                investment_timeline.append((date, -abs(float(amount))))
     
     if not investment_timeline:
         return []
@@ -356,6 +374,7 @@ def get_benchmark_simulation(
     portfolio_history: List[Dict],
     transactions: List[Dict],
     symbols: Optional[Iterable[str]] = None,
+    use_deposits: bool = False,
 ) -> Dict[str, List[Dict]]:
     """
     Get simulated benchmark portfolios for all benchmarks.
@@ -363,6 +382,8 @@ def get_benchmark_simulation(
     Args:
         portfolio_history: List of {date, invested, value} from actual portfolio
         transactions: User's transactions from TR
+        symbols: Optional list of benchmark symbols to simulate
+        use_deposits: If True, use deposit amounts instead of buy/sell transactions
         
     Returns:
         Dict mapping benchmark symbol to simulated history
@@ -380,20 +401,22 @@ def get_benchmark_simulation(
     symbols_key = ",".join(symbols_list)
     hist_sig = _signature_portfolio_history(portfolio_history)
     tx_sig = _signature_transactions(transactions)
+    deposits_key = "deposits" if use_deposits else "trades"
 
-    cache_key = (symbols_key, hist_sig, tx_sig)
+    cache_key = (symbols_key, hist_sig, tx_sig, deposits_key)
     cached = _sim_cache.get(cache_key)
     if cached is not None:
         return cached
 
     results: Dict[str, List[Dict]] = {}
     for symbol in symbols_list:
-        history = simulate_benchmark_investment(transactions, symbol, history_dates)
+        history = simulate_benchmark_investment(transactions, symbol, history_dates, use_deposits)
         if history:
             results[symbol] = history
             log.debug(
-                "Simulated %s: %s points, final invested=%s value=%s",
+                "Simulated %s (use_deposits=%s): %s points, final invested=%s value=%s",
                 symbol,
+                use_deposits,
                 len(history),
                 history[-1]['invested'],
                 history[-1]['value'],
