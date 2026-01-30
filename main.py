@@ -157,4 +157,4 @@ rc1(app)  # Backtesting callbacks
 
 # Run
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8888, use_reloader=False)
+    app.run_server(debug=True, port=8888, use_reloader=True)

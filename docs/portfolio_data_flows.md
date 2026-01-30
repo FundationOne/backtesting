@@ -284,6 +284,64 @@ The Portfolio Analysis page displays Trade Republic portfolio data including:
 
 ---
 
+## Critical Implementation Learnings
+
+### Learning 1: TR API Transaction Structure
+**Problem**: Transactions from TR API use `title`, `subtitle`, and `timestamp` fields - NOT `type` or `date`.
+**Example transaction structure**:
+```python
+{
+    'id': '...',
+    'timestamp': '2025-03-15T10:30:00.000Z',  # NOT 'date'
+    'title': 'Einzahlung',                     # Deposit indicator
+    'subtitle': 'Fertig',                      # Completion status
+    'amount': {'value': 1000.0, 'currency': 'EUR'},
+    'eventType': 'PAYMENT_INBOUND'
+}
+```
+**Cash flow detection logic**:
+- Deposits: `title == 'Einzahlung'` and `amount > 0`
+- Bank transfers: `subtitle == 'Fertig'` and `amount > 0`
+- Withdrawals: `subtitle == 'Gesendet'` and `amount < 0`
+- Interest: `title == 'Zinsen'` (NOT counted as invested capital)
+- Dividends: `subtitle in {'Bardividende', 'Dividende'}` (NOT counted as invested capital)
+
+### Learning 2: TR Aggregate History Has Bad Invested Values
+**Problem**: TR's `portfolioAggregateHistory` API returns `invested` values that are often 0 or equal to `value`.
+**Solution**: Build invested series from transaction history and merge it with the aggregate history:
+```python
+# In fetch_all_data():
+aggregate_history = await self._fetch_portfolio_aggregate_history("max")
+invested_series = self._build_invested_series_from_transactions(transactions)
+history = self._merge_history_with_invested(aggregate_history, invested_series)
+```
+
+### Learning 3: TWR Calculation Requires Accurate Invested Data
+**Problem**: Time-Weighted Return (TWR) calculation needs the change in invested amount between periods to identify cash flows.
+**Formula**: `period_return = (end_value - cash_flow) / start_value - 1`
+**Where**: `cash_flow = invested[i] - invested[i-1]`
+**Impact**: If invested == value, TWR will always be 0% (no apparent growth).
+
+### Learning 4: Dual Storage Architecture
+**Browser storage** (`localStorage`):
+- `portfolio-data-store`: Main portfolio data for UI rendering
+- `tr-encrypted-creds`: Encrypted credentials for auto-reconnect
+
+**Server storage** (`~/.pytr/`):
+- `portfolio_cache.json`: Persistent cache with pre-calculated TWR/drawdown series
+- `transactions_cache.json`: Raw transaction history
+- `keyfile.pem`: TR authentication key (required for reconnect)
+
+**Data flow**: Server cache → Browser storage → UI
+**Priority**: Browser storage takes precedence for display (allows offline viewing)
+
+### Learning 5: Dash Callback Output Count Must Match
+**Problem**: When adding new UI elements (like `tr-syncing-view`), ALL return statements in the callback must return the correct number of values.
+**Symptom**: Cryptic Dash errors about tuple length mismatch.
+**Fix**: Count outputs in callback decorator, ensure every return path has same count.
+
+---
+
 ## Current Cache Status (as of last check)
 
 ```

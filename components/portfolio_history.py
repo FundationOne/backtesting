@@ -441,19 +441,28 @@ def get_price_at_date(isin: str, name: str, date: datetime) -> Optional[float]:
 
 def get_prices_for_dates(isin: str, name: str, dates: List[datetime]) -> Dict[str, float]:
     """
-    Get prices for multiple dates efficiently.
+    Get prices for multiple dates efficiently with DELTA LOADING.
+    
+    Only fetches data points that are not already in the cache.
     Downloads missing data in batches, uses cache for existing.
+    
+    Delta loading strategy:
+    1. Check cache for existing data points
+    2. Identify gaps (missing dates)
+    3. Group gaps into ranges (to minimize API calls)
+    4. Fetch only the missing ranges
+    5. Merge new data into cache
     """
     if not dates:
         return {}
     
-    date_strs = [d.strftime("%Y-%m-%d") for d in dates]
+    date_strs = sorted(set(d.strftime("%Y-%m-%d") for d in dates))
     
     # Load cache
     cache = _load_json_cache(PRICE_CACHE_FILE)
     isin_cache = cache.get(isin, {})
     
-    # Find which dates we already have
+    # Find which dates we already have (delta loading)
     result = {}
     missing_dates = []
     
@@ -463,50 +472,101 @@ def get_prices_for_dates(isin: str, name: str, dates: List[datetime]) -> Dict[st
         else:
             missing_dates.append(date_str)
     
+    # Log cache hit/miss summary
+    cached_count = len(result)
     if not missing_dates:
+        log.info(f"  ✓ All {cached_count} prices from cache")
         return result
     
     # Get Yahoo symbol
     symbol = isin_to_symbol(isin, name)
     if not symbol:
+        if cached_count > 0:
+            log.info(f"  ✓ {cached_count} from cache (no symbol for remaining)")
         return result
     
-    # Download prices for the missing date range
-    min_date = min(missing_dates)
-    max_date = max(missing_dates)
+    log.info(f"  Fetching {len(missing_dates)} missing prices ({cached_count} cached)...")
     
-    try:
-        ticker = yf.Ticker(symbol)
-        start = datetime.strptime(min_date, "%Y-%m-%d") - timedelta(days=5)
-        end = datetime.strptime(max_date, "%Y-%m-%d") + timedelta(days=1)
-        
-        hist = ticker.history(start=start, end=end)
-        
-        if len(hist) == 0:
-            return result
-        
-        hist.index = hist.index.tz_localize(None)
-        hist = hist.sort_index()
-        
-        # For each missing date, find the closest valid price
-        for date_str in missing_dates:
-            target = pd.Timestamp(date_str)
+    # Group missing dates into ranges to minimize API calls
+    # (if gap > 30 days, create separate ranges)
+    missing_ranges = _group_dates_into_ranges(missing_dates, max_gap_days=30)
+    
+    total_new = 0
+    for range_start, range_end in missing_ranges:
+        try:
+            ticker = yf.Ticker(symbol)
+            start = datetime.strptime(range_start, "%Y-%m-%d") - timedelta(days=5)
+            end = datetime.strptime(range_end, "%Y-%m-%d") + timedelta(days=1)
             
-            # Get dates <= target
-            valid = hist[hist.index <= target]
-            if len(valid) > 0:
-                price = float(valid["Close"].iloc[-1])
-                result[date_str] = price
-                isin_cache[date_str] = price
-        
-        # Save updated cache
+            log.debug(f"Delta load: Fetching {range_start} to {range_end} for {symbol}")
+            hist = ticker.history(start=start, end=end)
+            
+            if len(hist) == 0:
+                continue
+            
+            hist.index = hist.index.tz_localize(None)
+            hist = hist.sort_index()
+            
+            # For each missing date in this range, find the closest valid price
+            for date_str in missing_dates:
+                if range_start <= date_str <= range_end:
+                    target = pd.Timestamp(date_str)
+                    
+                    # Get dates <= target
+                    valid = hist[hist.index <= target]
+                    if len(valid) > 0:
+                        price = float(valid["Close"].iloc[-1])
+                        result[date_str] = price
+                        isin_cache[date_str] = price
+                        total_new += 1
+                        
+        except Exception as e:
+            log.warning(f"Failed to fetch prices for {symbol} ({range_start} to {range_end}): {e}")
+    
+    # Save updated cache if we got new data
+    if total_new > 0:
         cache[isin] = isin_cache
         _save_json_cache(PRICE_CACHE_FILE, cache)
-        
-    except Exception as e:
-        log.warning(f"Failed to fetch prices for {symbol}: {e}")
+        log.info(f"  ✓ Got {total_new} new + {cached_count} cached = {total_new + cached_count} total")
+    elif cached_count > 0:
+        log.info(f"  ✓ {cached_count} from cache (fetch failed)")
     
     return result
+
+
+def _group_dates_into_ranges(dates: List[str], max_gap_days: int = 30) -> List[Tuple[str, str]]:
+    """Group a list of date strings into ranges for efficient fetching.
+    
+    If there's a gap > max_gap_days between dates, create separate ranges.
+    This avoids downloading years of data when only a few dates are needed.
+    
+    Args:
+        dates: Sorted list of date strings (YYYY-MM-DD)
+        max_gap_days: Maximum gap before starting a new range
+        
+    Returns:
+        List of (start_date, end_date) tuples
+    """
+    if not dates:
+        return []
+    
+    sorted_dates = sorted(dates)
+    ranges = []
+    range_start = sorted_dates[0]
+    prev_date = datetime.strptime(sorted_dates[0], "%Y-%m-%d")
+    
+    for date_str in sorted_dates[1:]:
+        curr_date = datetime.strptime(date_str, "%Y-%m-%d")
+        if (curr_date - prev_date).days > max_gap_days:
+            # Gap too large, close current range and start new one
+            ranges.append((range_start, prev_date.strftime("%Y-%m-%d")))
+            range_start = date_str
+        prev_date = curr_date
+    
+    # Add the last range
+    ranges.append((range_start, prev_date.strftime("%Y-%m-%d")))
+    
+    return ranges
 
 
 def build_portfolio_history(

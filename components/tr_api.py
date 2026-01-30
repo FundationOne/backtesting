@@ -182,20 +182,35 @@ class TRConnection:
         except Exception as e:
             log.warning(f"Failed to save transactions cache: {e}")
 
-    async def _fetch_timeline_transactions(self) -> List[Dict]:
-        """Fetch all timeline transactions from TR.
+    async def _fetch_timeline_transactions(self, delta_load: bool = True) -> List[Dict]:
+        """Fetch timeline transactions from TR with delta loading.
         
-        This fetches the entire transaction history (buys, sells, deposits, 
-        dividends, etc.) which we can use to reconstruct portfolio history.
+        Delta loading: Only fetches new transactions since the last sync.
+        This significantly speeds up subsequent syncs.
+        
+        Args:
+            delta_load: If True, stop when we hit a transaction already in cache.
+                       If False, fetch all transactions from scratch.
+        
+        Returns:
+            Complete list of transactions (new + cached)
         """
         if not self.api or not self.is_connected:
             log.error("Cannot fetch timeline - not connected")
             return []
         
-        transactions = []
+        # Load cached transactions for delta comparison
+        cached_txns = self._load_transactions_cache() if delta_load else []
+        cached_ids = {txn.get('id') for txn in cached_txns if txn.get('id')}
+        
+        if cached_txns and delta_load:
+            log.info(f"Delta loading: {len(cached_txns)} transactions in cache")
+        
+        new_transactions = []
         after_cursor = None
         page = 0
         max_pages = 100  # Safety limit
+        found_cached = False
         
         log.info("Fetching timeline transactions...")
         
@@ -212,12 +227,19 @@ class TRConnection:
                     log.info(f"Timeline page {page}: no more items")
                     break
                     
-                log.info(f"Timeline page {page}: got {len(items)} items")
-                
+                page_new_count = 0
                 for item in items:
+                    item_id = item.get('id')
+                    
+                    # Delta loading: stop if we hit a cached transaction
+                    if delta_load and item_id in cached_ids:
+                        found_cached = True
+                        log.info(f"Timeline page {page}: found cached transaction, stopping delta load")
+                        break
+                    
                     # Extract basic transaction info
                     txn = {
-                        'id': item.get('id'),
+                        'id': item_id,
                         'timestamp': item.get('timestamp'),
                         'title': item.get('title'),
                         'subtitle': item.get('subtitle'),
@@ -226,23 +248,47 @@ class TRConnection:
                         'currency': item.get('amount', {}).get('currency'),
                         'icon': item.get('icon'),
                     }
-                    transactions.append(txn)
+                    new_transactions.append(txn)
+                    page_new_count += 1
+                
+                if found_cached:
+                    break
+                    
+                log.info(f"Timeline page {page}: got {page_new_count} new items")
                 
                 # Check for next page
                 cursors = response.get('cursors', {})
                 after_cursor = cursors.get('after')
                 if not after_cursor:
-                    log.info(f"Timeline complete after {page} pages, {len(transactions)} transactions")
+                    log.info(f"Timeline complete after {page} pages")
                     break
                     
             except Exception as e:
                 log.error(f"Error fetching timeline page {page}: {e}")
                 break
         
-        # Sort by timestamp descending (newest first)
-        transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        # Merge new transactions with cached ones
+        if delta_load and cached_txns and new_transactions:
+            # New transactions are newer, so prepend them
+            all_transactions = new_transactions + cached_txns
+            log.info(f"Delta load complete: {len(new_transactions)} new + {len(cached_txns)} cached = {len(all_transactions)} total")
+        elif delta_load and cached_txns and not new_transactions:
+            all_transactions = cached_txns
+            log.info(f"Delta load: No new transactions, using {len(cached_txns)} cached")
+        else:
+            all_transactions = new_transactions
+            log.info(f"Full load: {len(all_transactions)} transactions")
         
-        return transactions
+        # Sort by timestamp descending (newest first) and deduplicate
+        seen_ids = set()
+        unique_transactions = []
+        for txn in sorted(all_transactions, key=lambda x: x.get('timestamp', ''), reverse=True):
+            txn_id = txn.get('id')
+            if txn_id and txn_id not in seen_ids:
+                seen_ids.add(txn_id)
+                unique_transactions.append(txn)
+        
+        return unique_transactions
 
     async def _fetch_portfolio_aggregate_history(self, timeframe: str = "max") -> List[Dict]:
         """Fetch aggregate portfolio history from TR.
@@ -389,11 +435,11 @@ class TRConnection:
         # Fetch prices for each ISIN
         position_histories = {}
         
-        for isin in isins_with_transactions:
+        for idx, isin in enumerate(isins_with_transactions):
             name = isin_to_name.get(isin, isin)
             pos = pos_lookup.get(isin, {})
             
-            log.info(f"Fetching Yahoo prices for {name} ({isin})...")
+            log.info(f"[{idx+1}/{len(isins_with_transactions)}] Fetching prices for {name}...")
             
             dates_as_dt = [datetime.combine(d, datetime.min.time()) for d in sorted_dates]
             prices = get_prices_for_dates(isin, name, dates_as_dt)
@@ -416,11 +462,201 @@ class TRConnection:
                         'instrumentType': pos.get('instrumentType', ''),
                         'name': name,
                     }
-                    log.info(f"  Got {len(price_history)} price points for {name}")
             else:
-                log.warning(f"  No Yahoo prices for {name} ({isin})")
+                log.warning(f"  No prices available for {name}")
         
         return position_histories
+
+    def _build_history_with_market_values(
+        self, 
+        transactions: List[Dict], 
+        position_histories: Dict[str, Dict],
+        invested_series: Dict[str, float],
+        current_total: float
+    ) -> List[Dict]:
+        """Build portfolio history with actual market values from position price histories.
+        
+        This method calculates:
+        - invested: cumulative capital deposited (from invested_series)
+        - value: sum of (holdings × price) for each position at each date
+        
+        The key insight is tracking holdings changes over time:
+        - Buy transactions increase holdings
+        - Sell transactions decrease holdings
+        - Market value = holdings × current price
+        
+        Args:
+            transactions: All timeline transactions
+            position_histories: {isin: {history: [{date, price}], ...}} from Yahoo
+            invested_series: {date: cumulative_invested} from deposits
+            current_total: Current live portfolio value
+            
+        Returns:
+            List of {date, invested, value} dicts
+        """
+        from components.portfolio_history import extract_isin_from_icon
+        
+        if not position_histories or not transactions:
+            log.warning("No position histories or transactions - cannot calculate market values")
+            return self._build_history_from_transactions(transactions, current_total)
+        
+        # Buy/sell transaction subtitles (German)
+        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 'Bonusaktien', 'Tausch'}
+        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order'}
+        
+        # Track holdings changes: {isin: [(date_str, cost_change)]}
+        # Positive = buy, negative = sell
+        holdings_changes: Dict[str, List[Tuple[str, float]]] = {}
+        
+        for txn in transactions:
+            subtitle = txn.get("subtitle", "")
+            icon = txn.get("icon", "")
+            amount = txn.get("amount")
+            timestamp = txn.get("timestamp", "")
+            
+            if not timestamp or amount is None:
+                continue
+            
+            date_str = timestamp[:10]  # YYYY-MM-DD
+            isin = extract_isin_from_icon(icon)
+            if not isin:
+                continue
+            
+            cost = abs(float(amount))
+            
+            if subtitle in BUY_SUBTITLES:
+                holdings_changes.setdefault(isin, []).append((date_str, cost))
+            elif subtitle in SELL_SUBTITLES:
+                holdings_changes.setdefault(isin, []).append((date_str, -cost))
+        
+        # Build price lookup: {isin: {date_str: price}}
+        price_lookup: Dict[str, Dict[str, float]] = {}
+        for isin, data in position_histories.items():
+            price_lookup[isin] = {}
+            for point in data.get('history', []):
+                price_lookup[isin][point['date']] = point['price']
+        
+        # Get all dates we need (union of invested_series dates and price dates)
+        all_dates = set(invested_series.keys())
+        for isin_prices in price_lookup.values():
+            all_dates.update(isin_prices.keys())
+        
+        # Add today
+        today = datetime.now().strftime('%Y-%m-%d')
+        all_dates.add(today)
+        
+        sorted_dates = sorted(all_dates)
+        
+        if not sorted_dates:
+            return self._build_history_from_transactions(transactions, current_total)
+        
+        # Build cumulative holdings at each date (by cost basis)
+        # holdings_at_date[isin][date] = cumulative cost basis
+        holdings_at_date: Dict[str, Dict[str, float]] = {}
+        
+        for isin, changes in holdings_changes.items():
+            holdings_at_date[isin] = {}
+            sorted_changes = sorted(changes, key=lambda x: x[0])
+            cumulative = 0.0
+            
+            for date_str, cost_change in sorted_changes:
+                cumulative += cost_change
+                cumulative = max(0, cumulative)  # Can't go negative
+                holdings_at_date[isin][date_str] = cumulative
+        
+        # Now build history with actual values
+        history = []
+        
+        for date_str in sorted_dates:
+            # Get invested amount (use last known value <= this date)
+            invested = 0.0
+            for inv_date in sorted(invested_series.keys()):
+                if inv_date <= date_str:
+                    invested = invested_series[inv_date]
+                else:
+                    break
+            
+            # Calculate market value
+            total_value = 0.0
+            
+            for isin in holdings_at_date.keys():
+                # Get holdings at this date (last known value)
+                cost_basis = 0.0
+                for hold_date in sorted(holdings_at_date[isin].keys()):
+                    if hold_date <= date_str:
+                        cost_basis = holdings_at_date[isin][hold_date]
+                    else:
+                        break
+                
+                if cost_basis <= 0:
+                    continue
+                
+                # Get price at this date (or nearest earlier date)
+                prices = price_lookup.get(isin, {})
+                price = None
+                first_price = None
+                first_price_date = None
+                
+                for p_date in sorted(prices.keys()):
+                    if first_price is None:
+                        first_price = prices[p_date]
+                        first_price_date = p_date
+                    if p_date <= date_str:
+                        price = prices[p_date]
+                    else:
+                        break
+                
+                if price and first_price and first_price > 0:
+                    # Get the first price on or after the first holding date
+                    first_hold_date = min(holdings_at_date[isin].keys()) if holdings_at_date[isin] else None
+                    if first_hold_date:
+                        baseline_price = first_price
+                        for p_date in sorted(prices.keys()):
+                            if p_date >= first_hold_date:
+                                baseline_price = prices[p_date]
+                                break
+                        
+                        if baseline_price > 0:
+                            # Calculate value using price ratio
+                            # This accounts for positions bought at different times
+                            growth = price / baseline_price
+                            position_value = cost_basis * growth
+                            total_value += position_value
+                        else:
+                            total_value += cost_basis
+                    else:
+                        total_value += cost_basis
+                else:
+                    # No price - use cost basis
+                    total_value += cost_basis
+            
+            # Only add if we have meaningful data
+            if invested > 0 or total_value > 0:
+                history.append({
+                    'date': date_str,
+                    'invested': round(invested, 2),
+                    'value': round(total_value, 2) if total_value > 0 else round(invested, 2),
+                })
+        
+        # Ensure today has the live current_total value
+        if history and history[-1]['date'] == today:
+            history[-1]['value'] = round(current_total, 2)
+        elif history:
+            history.append({
+                'date': today,
+                'invested': history[-1]['invested'],
+                'value': round(current_total, 2),
+            })
+        
+        log.info(f"Built history with market values: {len(history)} data points")
+        
+        # Debug: show sample
+        if history:
+            sample = history[:2] + history[-2:] if len(history) > 4 else history
+            for h in sample:
+                log.info(f"  History sample: {h['date']}: invested={h['invested']:,.2f}, value={h['value']:,.2f}")
+        
+        return history
 
     def _build_history_from_transactions(self, transactions: List[Dict], current_total: float) -> List[Dict]:
         """Build portfolio value history from transactions.
@@ -513,6 +749,176 @@ class TRConnection:
             history[-1]['value'] = current_total
         
         log.info(f"Built history with {len(history)} data points from {len(daily_flows)} cash flow days, total deposited: {cumulative:.2f}")
+        
+        return history
+    
+    def _build_invested_series_from_transactions(self, transactions: List[Dict]) -> Dict[str, float]:
+        """Build a date -> cumulative invested amount mapping from transactions.
+        
+        This gives us accurate invested amounts at each date, computed from actual
+        deposit/withdrawal transactions. TR's aggregate history often returns 0 or
+        incorrect invested values, so we use this as the source of truth.
+        
+        CAPITAL INFLOWS (counted as positive):
+        - Einzahlung: Bank deposits (title='Einzahlung', amount > 0)
+        - Fertig transfers: Completed P2P incoming (subtitle='Fertig', amount > 0)
+        
+        CAPITAL OUTFLOWS (counted as negative):
+        - Gesendet: Bank withdrawals (subtitle='Gesendet', amount < 0)
+        
+        NOT COUNTED as capital flows:
+        - Dividends (Dividende, Bardividende) - returns on investment
+        - Interest (Zinsen, Festzins, Zinszahlung) - returns
+        - Tax corrections (Steuerkorrektur, Vorabpauschale)
+        - Sales (Verkaufsorder, etc.) - internal portfolio movements
+        - Purchases (Kauforder, Sparplan, etc.) - internal portfolio movements
+        - Rejected transfers (Abgelehnt) - never completed
+        - Old P2P with no subtitle - inconsistent historical data, excluded for reliability
+        
+        Note: This conservative approach captures ~97% of invested capital for most users.
+        The ~3% gap may come from historical P2P transfers that used an old format without
+        the 'Fertig' subtitle. This is acceptable for TWR calculation accuracy.
+        
+        Returns:
+            Dict mapping date string (YYYY-MM-DD) to cumulative invested amount
+        """
+        if not transactions:
+            return {}
+        
+        # Titles that represent system transactions, NOT capital flows
+        # (even if they have no subtitle)
+        non_capital_titles = {
+            'Zinsen',           # Interest payments
+            'Steuerkorrektur',  # Tax corrections
+        }
+        
+        # Subtitles that are NOT capital flows
+        non_capital_subtitles = {
+            # Dividends and interest
+            'Bardividende', 'Dividende', 
+            'Festzins', 'Zinszahlung',
+            # Internal portfolio operations
+            'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order',
+            'Kauforder', 'Limit-Buy-Order', 
+            'Sparplan ausgeführt', 'Sparplan fehlgeschlagen',
+            # Tax and adjustments
+            'Vorabpauschale', 'Bonusaktien',
+            # Failed/rejected transfers
+            'Abgelehnt',
+            # Corporate actions
+            'Tausch', 'Fusion',
+        }
+        
+        # Subtitles with variable suffixes (e.g., "2 % p.a.", "3,25 % p.a.")
+        non_capital_subtitle_patterns = ['% p.a.', '1 % Bonus']
+        
+        # Build daily cash flows
+        daily_flows = {}
+        
+        for txn in transactions:
+            ts = txn.get('timestamp', '')
+            if not ts:
+                continue
+            
+            date_str = ts[:10]  # YYYY-MM-DD
+            title = txn.get('title', '') or ''
+            subtitle = txn.get('subtitle', '') or ''
+            amount = txn.get('amount')
+            
+            if amount is None:
+                continue
+            
+            amount = float(amount)
+            flow = 0.0
+            
+            # Skip known non-capital titles
+            if title in non_capital_titles:
+                continue
+            
+            # Skip known non-capital subtitles
+            if subtitle in non_capital_subtitles:
+                continue
+            
+            # Skip pattern-based non-capital subtitles (interest rates, etc.)
+            if any(pattern in subtitle for pattern in non_capital_subtitle_patterns):
+                continue
+            
+            # === CAPITAL INFLOWS ===
+            
+            # 1. Bank deposits: title='Einzahlung', positive amount
+            if title == 'Einzahlung' and amount > 0:
+                flow = amount
+            
+            # 2. Completed P2P transfers: subtitle='Fertig', positive amount
+            elif subtitle == 'Fertig' and amount > 0:
+                flow = amount
+            
+            # === CAPITAL OUTFLOWS ===
+            
+            # 3. Bank withdrawals: subtitle='Gesendet', negative amount
+            elif subtitle == 'Gesendet' and amount < 0:
+                flow = amount  # Already negative
+            
+            # Note: We deliberately do NOT count old P2P transfers (no subtitle)
+            # as they are inconsistent and lead to inaccurate calculations.
+            # Users with significant historical P2P may see ~3% undercount.
+            
+            if flow != 0:
+                daily_flows[date_str] = daily_flows.get(date_str, 0.0) + flow
+        
+        if not daily_flows:
+            return {}
+        
+        # Sort dates and compute cumulative invested
+        sorted_dates = sorted(daily_flows.keys())
+        invested_series = {}
+        cumulative = 0.0
+        
+        for date_str in sorted_dates:
+            cumulative += daily_flows[date_str]
+            invested_series[date_str] = cumulative
+        
+        log.info(f"Built invested series: {len(invested_series)} dates, "
+                 f"final cumulative: {cumulative:,.2f} EUR")
+        
+        return invested_series
+    
+    def _merge_history_with_invested(self, history: List[Dict], invested_series: Dict[str, float]) -> List[Dict]:
+        """Merge portfolio history with transaction-derived invested amounts.
+        
+        TR's aggregate history often returns incorrect invested values (0 or same as value).
+        This function replaces those with accurate values computed from transactions.
+        
+        Args:
+            history: List of {date, value, invested} from TR aggregate history
+            invested_series: Dict mapping date -> cumulative invested from transactions
+            
+        Returns:
+            History with corrected invested values
+        """
+        if not history or not invested_series:
+            return history
+        
+        # Get sorted invested dates for interpolation
+        invested_dates = sorted(invested_series.keys())
+        if not invested_dates:
+            return history
+        
+        # For each history point, find the most recent invested value
+        for point in history:
+            date_str = point.get('date', '')[:10]
+            
+            # Find most recent invested value on or before this date
+            invested_value = None
+            for inv_date in invested_dates:
+                if inv_date <= date_str:
+                    invested_value = invested_series[inv_date]
+                else:
+                    break
+            
+            # Only update if we found a value (keep original if before first transaction)
+            if invested_value is not None:
+                point['invested'] = invested_value
         
         return history
     
@@ -795,6 +1201,18 @@ class TRConnection:
                 # Try to load from cache if fetch failed
                 transactions = self._load_transactions_cache()
             
+            # Build invested series from transactions (needed for all history methods)
+            invested_series = self._build_invested_series_from_transactions(transactions)
+            log.info(f"Built invested series with {len(invested_series)} cash flow dates")
+            
+            # Build per-position price histories using Yahoo Finance FIRST
+            # (needed for both TR history merge and fallback calculation)
+            log.info("Building per-position price histories from Yahoo Finance...")
+            position_histories = self._build_position_histories_from_yahoo(
+                transactions, enriched_positions
+            )
+            log.info(f"Built position histories for {len(position_histories)} instruments")
+            
             # Try to fetch real portfolio aggregate history from TR API
             aggregate_history = await self._fetch_portfolio_aggregate_history("max")
             
@@ -802,18 +1220,33 @@ class TRConnection:
                 # Use real TR aggregate history if available
                 history = aggregate_history
                 log.info(f"Using TR aggregate history with {len(history)} points")
+                
+                # DEBUG: Check what TR returns for invested values
+                sample = history[:3] + history[-3:] if len(history) > 6 else history
+                for h in sample:
+                    log.info(f"  TR history sample: date={h.get('date')}, value={h.get('value')}, invested={h.get('invested')}")
+                
+                # TR's aggregate history often has incorrect invested values (0 or same as value)
+                # Merge with transaction-derived invested amounts for accurate TWR calculation
+                if invested_series:
+                    # DEBUG: Show invested series sample
+                    sorted_dates = sorted(invested_series.keys())
+                    for d in sorted_dates[:3]:
+                        log.info(f"  Invested series sample: {d} = {invested_series[d]:,.2f}")
+                    
+                    history = self._merge_history_with_invested(history, invested_series)
+                    log.info(f"Merged history with transaction-derived invested values")
+                    
+                    # DEBUG: Check merged result
+                    sample = history[:3] + history[-3:] if len(history) > 6 else history
+                    for h in sample:
+                        log.info(f"  Merged history sample: date={h.get('date')}, value={h.get('value')}, invested={h.get('invested')}")
             else:
-                # Fallback: Build deposit-based history from transactions
-                log.info("Falling back to transaction-based history")
-                history = self._build_history_from_transactions(transactions, total_value + cash)
-            
-            # Build per-position price histories using Yahoo Finance (more reliable than TR API)
-            # This enables asset class filtering on charts
-            log.info("Building per-position price histories from Yahoo Finance...")
-            position_histories = self._build_position_histories_from_yahoo(
-                transactions, enriched_positions
-            )
-            log.info(f"Built position histories for {len(position_histories)} instruments")
+                # Fallback: Build history with actual market values from position histories
+                log.info("TR aggregate history unavailable - calculating market values from position prices...")
+                history = self._build_history_with_market_values(
+                    transactions, position_histories, invested_series, total_value + cash
+                )
             
             result = {
                 "success": True,

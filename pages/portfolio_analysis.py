@@ -1684,45 +1684,16 @@ def register_callbacks(app):
             
             # Calculate based on chart type
             # Now we have real portfolio values from market price calculations
+            
+            # Import performance calculation module for consistent TWR calculations
+            from components.performance_calc import calculate_twr_series, rebase_twr_series
 
-            def _calculate_twr_series(df):
-                """Calculate Time-Weighted Return series starting from 0%.
-                
-                TWR chains period returns to exclude the effect of cash flows.
-                Formula: For each period, calculate (end_value - cash_flow) / start_value - 1
-                Then chain: cumulative_twr = product(1 + period_return) - 1
-                
-                This gives a series that starts at 0% and shows true investment performance.
-                """
-                if len(df) < 2:
-                    return pd.Series([0.0] * len(df), index=df.index)
-                
-                values = df['value'].values
-                invested = df['invested'].values if 'invested' in df.columns else values
-                
-                # Calculate period returns, adjusting for cash flows
-                twr_cumulative = [0.0]  # Start at 0%
-                cumulative_factor = 1.0
-                
-                for i in range(1, len(df)):
-                    prev_value = values[i-1]
-                    curr_value = values[i]
-                    cash_flow = invested[i] - invested[i-1]  # Change in invested = cash flow
-                    
-                    if prev_value > 0:
-                        # Period return = (end_value - cash_flow) / start_value - 1
-                        # This removes the effect of the cash flow on the return
-                        adjusted_end = curr_value - cash_flow
-                        period_return = (adjusted_end / prev_value) - 1
-                        
-                        # Clamp extreme values to avoid chart issues
-                        period_return = max(-0.99, min(period_return, 10.0))
-                        
-                        cumulative_factor *= (1 + period_return)
-                    
-                    twr_cumulative.append((cumulative_factor - 1) * 100)
-                
-                return pd.Series(twr_cumulative, index=df.index)
+            def _calculate_twr_series_df(df):
+                """Calculate TWR series for a dataframe using the performance_calc module."""
+                values = df['value'].tolist()
+                invested = df['invested'].tolist() if 'invested' in df.columns else values
+                twr = calculate_twr_series(values, invested)
+                return pd.Series(twr, index=df.index)
 
             def _series_to_number_list(series):
                 # Convert pandas/numpy series to JSON-friendly python floats.
@@ -1759,9 +1730,12 @@ def register_callbacks(app):
             elif chart_type == "tab-performance":
                 # Time-Weighted Return (TWR) - use cached if available, else calculate
                 if use_cached and 'twr' in df.columns:
-                    y_data = df['twr']
+                    # IMPORTANT: Rebase TWR to start from 0% at beginning of filtered range
+                    # The cached TWR is cumulative from portfolio inception, but when
+                    # showing a subset (e.g., 1y), we need to rebase so it starts at 0%
+                    y_data = pd.Series(rebase_twr_series(df['twr']), index=df.index)
                 else:
-                    y_data = _calculate_twr_series(df)
+                    y_data = _calculate_twr_series_df(df)
                 y_title = "Return (%)"
                 y_prefix = ""
                 fill_color = None  # We'll handle fill separately for positive/negative

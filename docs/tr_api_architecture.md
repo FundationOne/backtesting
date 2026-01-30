@@ -1,6 +1,6 @@
 # Trade Republic API Architecture & Data Flow
 
-**Last Updated:** 2026-01-22  
+**Last Updated:** 2026-01-30  
 **Status:** Working implementation - all features integrated into TR Sync
 
 ---
@@ -9,19 +9,24 @@
 
 This document captures the technical findings about Trade Republic (TR) API integration, what works, what doesn't, and the architectural decisions made. **READ THIS BEFORE MAKING CHANGES.**
 
-**Key Design Decision:** Everything happens in ONE TR Sync click. No separate recalculation steps.
+**Key Design Decisions:**
+1. Everything happens in ONE TR Sync click. No separate recalculation steps.
+2. Delta loading for transactions and prices to minimize API calls.
+3. Fallback to Yahoo Finance when TR API fails.
 
 ---
 
-## Requirements Status (2026-01-22)
+## Requirements Status (2026-01-30)
 
 | Requirement | Status | Implementation |
 |-------------|--------|----------------|
-| TWR calculation for all chart traces | ✅ Done | `_calculate_twr_series()` in `portfolio_analysis.py` - chains period returns, starts at 0% |
-| Added Capital line solid | ✅ Done | `line=dict(color='#f59e0b', width=2)` - solid by default |
-| Asset class filter impacts charts | ✅ Done | `_build_position_histories_from_yahoo()` in `tr_api.py` generates positionHistories during sync |
-| Asset type detection | ⚠️ Heuristic | TR doesn't provide `instrumentType`, using name-based heuristics in `get_position_asset_class()` |
-| Image/Logo loading | ✅ Done | Uses TR `imageId` when available, falls back to colored initials (no external API dependencies) |
+| TWR calculation for all chart traces | ✅ Done | Pre-calculated in `cachedSeries` during sync |
+| Added Capital line solid | ✅ Done | `line=dict(color='#f59e0b', width=2)` |
+| Asset class filter impacts charts | ✅ Done | `positionHistories` generated during sync |
+| Delta loading (transactions) | ✅ Done | `_fetch_timeline_transactions(delta_load=True)` |
+| Delta loading (prices) | ✅ Done | `get_prices_for_dates()` checks cache first |
+| Fallback when TR API fails | ✅ Done | `_build_history_with_market_values()` |
+| Image/Logo loading | ✅ Done | Uses TR `imageId`, falls back to initials |
 
 ---
 
@@ -62,16 +67,36 @@ The `pytr` library (`from pytr.api import TradeRepublicApi`) provides these meth
 
 All cached data is stored in `~/.pytr/` directory:
 
-| File | Contents | Updated By |
-|------|----------|------------|
-| `portfolio_cache.json` | Complete portfolio snapshot + positionHistories | TR Sync button |
-| `transactions_cache.json` | Full transaction history | TR Sync button |
-| `instrument_cache.json` | ISIN → name mapping | TR Sync button |
-| `benchmark_cache.json` | Benchmark index prices | Benchmark selection |
-| `price_cache.json` | Historical prices from Yahoo | TR Sync (via positionHistories) |
-| `isin_symbol_cache.json` | ISIN → Yahoo ticker mapping | TR Sync (via positionHistories) |
+| File | Contents | Written By | Read By |
+|------|----------|------------|---------|
+| `portfolio_cache.json` | Complete portfolio snapshot + positionHistories + cachedSeries | `tr_api.py` | `portfolio_analysis.py` |
+| `transactions_cache.json` | Full transaction history (for delta loading) | `tr_api.py` | `tr_api.py` |
+| `instrument_cache.json` | ISIN → name/type/imageId mapping | `tr_api.py` | `tr_api.py` |
+| `price_cache.json` | Historical prices: `{isin: {date: price}}` | `portfolio_history.py` | `portfolio_history.py` |
+| `isin_symbol_cache.json` | ISIN → Yahoo ticker mapping | `portfolio_history.py` | `portfolio_history.py` |
+| `benchmark_cache.json` | Benchmark index prices | `benchmark_data.py` | `portfolio_analysis.py` |
 
-### 2.2 portfolio_cache.json Structure
+### 2.2 Delta Loading Architecture
+
+**Transactions Delta Loading** (`tr_api.py`):
+```
+1. Load cached transaction IDs from transactions_cache.json
+2. Fetch new pages from TR API
+3. Stop when hitting a known transaction ID
+4. Merge: new + cached (deduplicate by ID)
+5. Save merged list to cache
+```
+
+**Price Delta Loading** (`portfolio_history.py`):
+```
+1. For each ISIN, check price_cache.json
+2. Identify which dates are missing
+3. Group missing dates into ranges (max 30-day gaps)
+4. Fetch only missing ranges from Yahoo
+5. Merge new prices into cache
+```
+
+### 2.3 portfolio_cache.json Structure
 
 ```json
 {
@@ -114,7 +139,7 @@ All cached data is stored in `~/.pytr/` directory:
 }
 ```
 
-### 2.3 Single-Step Data Flow (TR Sync)
+### 2.4 Single-Step Data Flow (TR Sync)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -122,13 +147,19 @@ All cached data is stored in `~/.pytr/` directory:
 │  (components/tr_api.py → portfolio_cache.json)                       │
 │                                                                      │
 │  1. Fetches current positions from TR                                │
-│  2. Fetches transaction history from TR                              │
-│  3. Fetches aggregate portfolio history from TR                      │
-│  4. Builds positionHistories from YAHOO FINANCE (not TR!)            │
-│     - Uses transactions to find all ISINs with activity              │
-│     - Fetches historical prices from Yahoo for each ISIN             │
-│     - Stores in positionHistories for chart filtering                │
-│  5. Saves everything to portfolio_cache.json                         │
+│  2. Fetches cash balance from TR                                     │
+│  3. Enriches positions with names (cache miss only)                  │
+│  4. Fetches transactions WITH DELTA LOADING:                         │
+│     - Stop when hitting cached transaction ID                        │
+│     - Merge new + cached transactions                                │
+│  5. Builds invested_series from deposits/withdrawals                 │
+│  6. Fetches Yahoo prices WITH DELTA LOADING:                         │
+│     - Only fetch dates not in price_cache                            │
+│  7. Tries TR portfolioAggregateHistory:                              │
+│     - SUCCESS: Merge with invested_series                            │
+│     - FAILS: Calculate market values from position histories         │
+│  8. Pre-calculates cachedSeries (dates, values, invested, twr, dd)   │
+│  9. Saves everything to portfolio_cache.json                         │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -136,8 +167,9 @@ All cached data is stored in `~/.pytr/` directory:
 │                      PORTFOLIO ANALYSIS PAGE                         │
 │  (pages/portfolio_analysis.py)                                       │
 │                                                                      │
-│  • Reads portfolio_cache.json                                        │
-│  • Uses positionHistories for asset class chart filtering            │
+│  • Reads portfolio_cache.json via portfolio-data-store               │
+│  • Uses cachedSeries for FAST chart rendering (no recalculation)     │
+│  • Uses positionHistories when asset filter is active                │
 │  • Uses heuristics for asset class detection (name-based)            │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -313,13 +345,16 @@ The initials approach is clean, works for any portfolio, and doesn't require mai
 
 ---
 
-## 9. Files Modified (2026-01-22)
+## 9. Files Modified (2026-01-30)
 
 | File | Change |
 |------|--------|
-| `components/tr_api.py` | Added `_build_position_histories_from_yahoo()` method to generate positionHistories during TR Sync |
-| `components/portfolio_history.py` | Added `return_position_histories` parameter (kept for manual recalculation if needed) |
-| `pages/portfolio_analysis.py` | Already had `_build_filtered_history()` - no changes needed |
+| `components/tr_api.py` | Added `_build_history_with_market_values()` fallback when TR API fails |
+| `components/tr_api.py` | Added delta loading to `_fetch_timeline_transactions()` |
+| `components/tr_api.py` | Reordered data flow: build invested_series and positionHistories before history |
+| `components/portfolio_history.py` | Improved delta loading logging for `get_prices_for_dates()` |
+| `docs/SPECIFICATION.md` | Complete rewrite with detailed data flow documentation |
+| `docs/tr_api_architecture.md` | Updated cache architecture and delta loading docs |
 
 ---
 

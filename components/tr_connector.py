@@ -110,13 +110,46 @@ def create_tr_connector_card():
                     "Back"
                 ], id="tr-back-btn", color="link", className="w-100", size="sm", n_clicks=0),
                 
-                dcc.Loading(
-                    id="tr-otp-loading",
-                    type="circle",
-                    children=html.Div(id="tr-otp-feedback", className="mt-2"),
-                    color="#198754",
-                ),
+                html.Div(id="tr-otp-feedback", className="mt-2"),
             ], id="tr-otp-view", style={"display": "none"}),
+            
+            # === SYNCING VIEW (Data fetch in progress) ===
+            html.Div([
+                html.Div([
+                    html.Div(className="sync-spinner-large"),
+                ], className="text-center mb-3"),
+                
+                html.H5("Syncing Portfolio Data", className="text-center text-primary fw-medium mb-2"),
+                
+                html.P([
+                    "Fetching your positions, transactions, and price history..."
+                ], className="text-center text-muted small mb-3"),
+                
+                # Progress steps indicator
+                html.Div([
+                    html.Div([
+                        html.I(className="bi bi-check-circle-fill text-success me-2"),
+                        html.Span("Connected to Trade Republic", className="small"),
+                    ], className="sync-step completed mb-2"),
+                    html.Div([
+                        html.Div(className="sync-step-spinner me-2"),
+                        html.Span("Fetching portfolio positions...", className="small", id="tr-sync-current-step"),
+                    ], className="sync-step active mb-2"),
+                    html.Div([
+                        html.I(className="bi bi-circle text-muted me-2"),
+                        html.Span("Loading transaction history", className="small text-muted"),
+                    ], className="sync-step pending mb-2"),
+                    html.Div([
+                        html.I(className="bi bi-circle text-muted me-2"),
+                        html.Span("Building price histories", className="small text-muted"),
+                    ], className="sync-step pending"),
+                ], className="sync-steps-container border rounded p-3 bg-light"),
+                
+                html.P([
+                    html.I(className="bi bi-info-circle me-1"),
+                    "This may take 30-60 seconds for large portfolios."
+                ], className="text-center text-muted small mt-3 mb-0"),
+            ], id="tr-syncing-view", style={"display": "none"}),
             
             # === CONNECTED VIEW ===
             html.Div([
@@ -197,16 +230,37 @@ def create_portfolio_summary(data):
 def register_tr_callbacks(app):
     """Register all Trade Republic connector callbacks."""
     
-    # Clientside callback for immediate button loading state
+    # Clientside callback for immediate syncing state when verify is clicked
     app.clientside_callback(
         """
         function(n_clicks) {
             if (n_clicks > 0) {
-                // Find the button and update its appearance
-                var btn = document.getElementById('tr-verify-otp-btn');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Connecting...';
+                // Get the OTP input value to validate
+                var otpInput = document.getElementById('tr-otp-input');
+                var otp = otpInput ? otpInput.value : '';
+                
+                // Only proceed if OTP is valid (4 digits)
+                if (otp && otp.length === 4) {
+                    // Update button to show connecting
+                    var btn = document.getElementById('tr-verify-otp-btn');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Verifying...';
+                    }
+                    
+                    // Hide OTP view and show syncing view
+                    var otpView = document.getElementById('tr-otp-view');
+                    var syncingView = document.getElementById('tr-syncing-view');
+                    if (otpView) otpView.style.display = 'none';
+                    if (syncingView) syncingView.style.display = 'block';
+                    
+                    // Update status text
+                    var statusText = document.getElementById('tr-status-text');
+                    var statusDiv = document.getElementById('tr-connection-status');
+                    if (statusText) statusText.textContent = 'Syncing data...';
+                    if (statusDiv) {
+                        statusDiv.className = 'connection-status syncing';
+                    }
                 }
             }
             return window.dash_clientside.no_update;
@@ -214,6 +268,60 @@ def register_tr_callbacks(app):
         """,
         Output('tr-verify-otp-btn', 'data-loading'),  # Dummy output
         Input('tr-verify-otp-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    
+    # Clientside callback for immediate syncing state when reconnect is clicked
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (n_clicks > 0) {
+                // Hide initial view and show syncing view
+                var initialView = document.getElementById('tr-initial-view');
+                var syncingView = document.getElementById('tr-syncing-view');
+                if (initialView) initialView.style.display = 'none';
+                if (syncingView) syncingView.style.display = 'block';
+                
+                // Update status text
+                var statusText = document.getElementById('tr-status-text');
+                var statusDiv = document.getElementById('tr-connection-status');
+                if (statusText) statusText.textContent = 'Reconnecting...';
+                if (statusDiv) {
+                    statusDiv.className = 'connection-status syncing';
+                }
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('tr-reconnect-link', 'data-loading'),  # Dummy output
+        Input('tr-reconnect-link', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    
+    # Clientside callback for immediate syncing state when refresh is clicked
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (n_clicks > 0) {
+                // Hide connected view and show syncing view
+                var connectedView = document.getElementById('tr-connected-view');
+                var syncingView = document.getElementById('tr-syncing-view');
+                if (connectedView) connectedView.style.display = 'none';
+                if (syncingView) syncingView.style.display = 'block';
+                
+                // Update status text
+                var statusText = document.getElementById('tr-status-text');
+                var statusDiv = document.getElementById('tr-connection-status');
+                if (statusText) statusText.textContent = 'Refreshing data...';
+                if (statusDiv) {
+                    statusDiv.className = 'connection-status syncing';
+                }
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('tr-refresh-btn', 'data-loading'),  # Dummy output
+        Input('tr-refresh-btn', 'n_clicks'),
         prevent_initial_call=True
     )
     
@@ -234,6 +342,7 @@ def register_tr_callbacks(app):
     @app.callback(
         [Output('tr-initial-view', 'style', allow_duplicate=True),
          Output('tr-otp-view', 'style', allow_duplicate=True),
+         Output('tr-syncing-view', 'style', allow_duplicate=True),
          Output('tr-connected-view', 'style', allow_duplicate=True),
          Output('tr-auth-step', 'data', allow_duplicate=True),
          Output('tr-auth-feedback', 'children', allow_duplicate=True),
@@ -258,6 +367,7 @@ def register_tr_callbacks(app):
             return (
                 {"display": "none"},  # hide initial
                 {"display": "none"},  # hide otp
+                {"display": "none"},  # hide syncing
                 {"display": "block"},  # show connected
                 "connected",
                 "",
@@ -274,6 +384,7 @@ def register_tr_callbacks(app):
             return (
                 {"display": "block"},  # show initial
                 {"display": "none"},
+                {"display": "none"},  # hide syncing
                 {"display": "none"},
                 "initial",
                 dbc.Alert(error_msg, color="warning", className="mb-0 small"),
@@ -286,8 +397,7 @@ def register_tr_callbacks(app):
     # Main auth flow handler - also outputs to portfolio-data-store to trigger modal close
     @app.callback(
         [Output('tr-initial-view', 'style'),
-         Output('tr-otp-view', 'style'),
-         Output('tr-connected-view', 'style'),
+         Output('tr-otp-view', 'style'),         Output('tr-syncing-view', 'style'),         Output('tr-connected-view', 'style'),
          Output('tr-auth-step', 'data'),
          Output('tr-auth-feedback', 'children'),
          Output('tr-otp-feedback', 'children'),
@@ -323,7 +433,7 @@ def register_tr_callbacks(app):
         if triggered == 'tr-disconnect-btn':
             disconnect()
             return (
-                {"display": "block"}, {"display": "none"}, {"display": "none"},
+                {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                 "initial", "", "",
                 "connection-status disconnected", "Not Connected",
                 "", no_update, None,  # Clear encrypted creds on disconnect
@@ -334,7 +444,7 @@ def register_tr_callbacks(app):
         # Handle back button
         if triggered == 'tr-back-btn':
             return (
-                {"display": "block"}, {"display": "none"}, {"display": "none"},
+                {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                 "initial", "", "",
                 "connection-status disconnected", "Not Connected",
                 no_update, no_update, no_update,
@@ -347,7 +457,7 @@ def register_tr_callbacks(app):
             portfolio_data = fetch_all_data()
             portfolio_data["cached_at"] = datetime.now().isoformat()
             return (
-                {"display": "none"}, {"display": "none"}, {"display": "block"},
+                {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"},
                 "connected", "", "",
                 "connection-status connected", "Connected",
                 json.dumps(portfolio_data),
@@ -361,7 +471,7 @@ def register_tr_callbacks(app):
         if triggered == 'tr-start-auth-btn':
             if not phone:
                 return (
-                    {"display": "block"}, {"display": "none"}, {"display": "none"},
+                    {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                     "initial", 
                     dbc.Alert("Please enter your phone number", color="danger", className="mb-0 small"),
                     "",
@@ -373,7 +483,7 @@ def register_tr_callbacks(app):
             
             if not pin or len(pin) != 4:
                 return (
-                    {"display": "block"}, {"display": "none"}, {"display": "none"},
+                    {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                     "initial",
                     dbc.Alert("Please enter your 4-digit TR PIN", color="danger", className="mb-0 small"),
                     "",
@@ -388,16 +498,16 @@ def register_tr_callbacks(app):
             
             if result.get("success"):
                 return (
-                    {"display": "none"}, {"display": "block"}, {"display": "none"},
+                    {"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"},
                     "otp", "", "",
-                    "connection-status connecting", "Awaiting code...",
+                    "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
                     btn_disabled, btn_children
                 )
             else:
                 return (
-                    {"display": "block"}, {"display": "none"}, {"display": "none"},
+                    {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                     "initial",
                     dbc.Alert(result.get("error", "Login failed"), color="danger", className="mb-0 small"),
                     "",
@@ -411,10 +521,10 @@ def register_tr_callbacks(app):
         if triggered == 'tr-verify-otp-btn':
             if not otp or len(otp) != 4:
                 return (
-                    {"display": "none"}, {"display": "block"}, {"display": "none"},
+                    {"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"},
                     "otp", "",
                     dbc.Alert("Please enter the 4-digit code", color="danger", className="mb-0 small"),
-                    "connection-status connecting", "Awaiting code...",
+                    "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
                     btn_disabled, btn_children
@@ -432,7 +542,7 @@ def register_tr_callbacks(app):
                 encrypted_creds = result.get("encrypted_credentials")
                 
                 return (
-                    {"display": "none"}, {"display": "none"}, {"display": "block"},
+                    {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"},
                     "connected", "", "",
                     "connection-status connected", "Connected",
                     json.dumps(portfolio_data),
@@ -443,10 +553,10 @@ def register_tr_callbacks(app):
                 )
             else:
                 return (
-                    {"display": "none"}, {"display": "block"}, {"display": "none"},
+                    {"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"},
                     "otp", "",
                     dbc.Alert(result.get("error", "Verification failed"), color="danger", className="mb-0 small"),
-                    "connection-status connecting", "Awaiting code...",
+                    "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
                     btn_disabled, btn_children
