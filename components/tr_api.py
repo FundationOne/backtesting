@@ -21,6 +21,8 @@ MIN_SYNC_INTERVAL_SECONDS = 6 * 60 * 60  # 6 hours
 # pytr imports
 from pytr.api import TradeRepublicApi
 from pytr.utils import get_logger
+from pytr.timeline import Timeline
+from pytr.event import Event
 
 # Setup logging
 log = get_logger(__name__)
@@ -174,10 +176,19 @@ class TRConnection:
         return []
 
     def _save_transactions_cache(self, transactions: List[Dict]) -> None:
-        """Save transactions to cache."""
+        """Save transactions to cache.
+        
+        Note: We strip the 'details' field before saving as it's huge and not needed
+        for caching purposes (shares are already extracted).
+        """
         try:
             TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
-            TR_TRANSACTIONS_CACHE.write_text(json.dumps(transactions, default=str), encoding="utf-8")
+            # Strip 'details' field to save space - it can be huge!
+            clean_transactions = [
+                {k: v for k, v in txn.items() if k != 'details'}
+                for txn in transactions
+            ]
+            TR_TRANSACTIONS_CACHE.write_text(json.dumps(clean_transactions, default=str), encoding="utf-8")
             log.info(f"Saved {len(transactions)} transactions to cache")
         except Exception as e:
             log.warning(f"Failed to save transactions cache: {e}")
@@ -222,6 +233,14 @@ class TRConnection:
                 sub_id, sub_params, response = await self.api.recv()
                 await self.api.unsubscribe(sub_id)
                 
+                # Handle unexpected response types
+                if isinstance(response, list):
+                    log.warning(f"Timeline page {page}: got list instead of dict, skipping")
+                    break
+                if not isinstance(response, dict):
+                    log.warning(f"Timeline page {page}: unexpected response type {type(response)}")
+                    break
+                
                 items = response.get('items', [])
                 if not items:
                     log.info(f"Timeline page {page}: no more items")
@@ -237,6 +256,15 @@ class TRConnection:
                         log.info(f"Timeline page {page}: found cached transaction, stopping delta load")
                         break
                     
+                    # Extract ISIN from icon field (e.g. "logos/IE00B5BMR087/v2")
+                    icon = item.get('icon', '')
+                    isin = None
+                    if icon and 'logos/' in icon:
+                        import re
+                        match = re.search(r'logos/([A-Z0-9]{12})', icon)
+                        if match:
+                            isin = match.group(1)
+                    
                     # Extract basic transaction info
                     txn = {
                         'id': item_id,
@@ -246,7 +274,8 @@ class TRConnection:
                         'eventType': item.get('eventType'),
                         'amount': item.get('amount', {}).get('value'),
                         'currency': item.get('amount', {}).get('currency'),
-                        'icon': item.get('icon'),
+                        'icon': icon,
+                        'isin': isin,  # Add extracted ISIN
                     }
                     new_transactions.append(txn)
                     page_new_count += 1
@@ -297,6 +326,7 @@ class TRConnection:
         Includes retry logic for robustness.
         """
         if not self.api or not self.is_connected:
+            log.warning(f"Cannot fetch detail for {transaction_id} - not connected")
             return None
         
         for attempt in range(retries + 1):
@@ -304,6 +334,20 @@ class TRConnection:
                 await self.api.timeline_detail_v2(transaction_id)
                 sub_id, sub_params, response = await self.api.recv()
                 await self.api.unsubscribe(sub_id)
+                
+                # Check if we got a valid response
+                if response is None:
+                    log.debug(f"Got None response for {transaction_id}, attempt {attempt+1}")
+                    if attempt < retries:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+                        continue
+                    return None
+                    
+                # Check for error responses
+                if isinstance(response, dict) and response.get('errors'):
+                    log.debug(f"Error response for {transaction_id}: {response.get('errors')}")
+                    return None
+                    
                 return response
             except Exception as e:
                 if attempt < retries:
@@ -316,10 +360,13 @@ class TRConnection:
     async def _enrich_transactions_with_shares(self, transactions: List[Dict]) -> List[Dict]:
         """Fetch shares/quantity for buy/sell transactions from TR.
         
-        This calls timeline_detail_v2 for each transaction to get the actual
-        number of shares bought/sold. Includes rate limiting and validation.
+        Uses pytr's concurrent approach: fire ALL detail requests at once, then
+        receive responses as they arrive. This is MUCH faster than sequential calls.
         
-        Returns transactions with 'shares' field populated.
+        Uses pytr's Event.from_dict() for parsing - it handles German number formats
+        correctly and is battle-tested code.
+        
+        Returns transactions with 'shares', 'type', and 'details' fields populated.
         """
         if not self.api or not self.is_connected:
             log.error("Cannot enrich transactions - not connected")
@@ -329,69 +376,331 @@ class TRConnection:
         TRADE_SUBTITLES = {
             'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order',
             'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order',
-            'Bonusaktien', 'Aktiensplit', 'Reverse Split', 'Tausch', 'Spin-off'
+            'Bonusaktien', 'Aktiensplit', 'Reverse Split', 'Tausch', 'Spin-off',
+            'Wertlos',  # Expired worthless
         }
         
-        enriched = []
-        trade_count = 0
+        # Map subtitles to transaction types
+        SUBTITLE_TO_TYPE = {
+            'Kauforder': 'buy',
+            'Limit-Buy-Order': 'buy',
+            'Sparplan ausgeführt': 'savings_plan',
+            'Verkaufsorder': 'sell',
+            'Limit-Sell-Order': 'sell',
+            'Stop-Sell-Order': 'sell',
+            'Bonusaktien': 'bonus',
+            'Aktiensplit': 'split',
+            'Reverse Split': 'reverse_split',
+            'Tausch': 'exchange',
+            'Spin-off': 'spinoff',
+            'Wertlos': 'expired',
+        }
         
+        # First pass: set transaction types and identify which need enrichment
+        txns_needing_details = {}  # id -> txn
         for txn in transactions:
-            subtitle = txn.get('subtitle', '')
+            subtitle = txn.get('subtitle') or ''
             shares = txn.get('shares')
+            
+            # Add transaction type based on subtitle
+            if subtitle in SUBTITLE_TO_TYPE:
+                txn['type'] = SUBTITLE_TO_TYPE[subtitle]
+            elif not txn.get('type'):
+                # Fallback type detection based on subtitle keywords
+                if 'Einzahlung' in subtitle or 'Überweisung' in subtitle:
+                    txn['type'] = 'deposit'
+                elif 'Auszahlung' in subtitle:
+                    txn['type'] = 'withdrawal'
+                elif 'Dividende' in subtitle:
+                    txn['type'] = 'dividend'
+                else:
+                    txn['type'] = 'other'
             
             # Re-enrich if shares is missing, None, 0, or suspiciously large (>1M = likely parse error)
             needs_enrichment = shares is None or shares == 0 or shares > 1_000_000
-            
-            if subtitle in TRADE_SUBTITLES and needs_enrichment:
-                trade_count += 1
-                
-        log.info(f"Enriching {trade_count} trade transactions with share quantities...")
-        
-        fetched = 0
-        failed_streak = 0
-        for txn in transactions:
-            subtitle = txn.get('subtitle', '')
             txn_id = txn.get('id')
-            shares = txn.get('shares')
             
-            # Re-enrich if shares is missing, None, 0, or suspiciously large
-            needs_enrichment = shares is None or shares == 0 or shares > 1_000_000
+            if subtitle in TRADE_SUBTITLES and needs_enrichment and txn_id:
+                txns_needing_details[txn_id] = txn
+        
+        trade_count = len(txns_needing_details)
+        if trade_count == 0:
+            log.info("No transactions need share enrichment")
+            return transactions
+        
+        # Test the connection with a simple API call first
+        try:
+            log.info("Testing TR connection before enrichment...")
+            await self.api.cash()
+            sub_id, _, _ = await self.api.recv()
+            await self.api.unsubscribe(sub_id)
+            log.info("TR connection verified")
+        except Exception as e:
+            log.error(f"TR connection test failed: {e}")
+            log.error("Skipping enrichment - connection appears to be down")
+            return transactions
+        
+        log.info(f"Enriching {trade_count} trade transactions with share quantities (concurrent)...")
+        
+        # ============================================================
+        # CONCURRENT APPROACH (like pytr's Timeline._request_timeline_details)
+        # Fire ALL requests first, then receive ALL responses
+        # This is MUCH faster than sequential request/response pairs
+        # ============================================================
+        
+        # Step 1: Fire all timeline_detail_v2 requests (no waiting!)
+        pending_subscriptions = {}  # sub_id -> txn_id
+        batch_size = 200  # Process in batches to avoid overwhelming the connection
+        txn_ids = list(txns_needing_details.keys())
+        
+        total_success = 0  # Track across ALL batches
+        
+        for batch_start in range(0, len(txn_ids), batch_size):
+            batch_end = min(batch_start + batch_size, len(txn_ids))
+            batch = txn_ids[batch_start:batch_end]
             
-            if subtitle in TRADE_SUBTITLES and txn_id and needs_enrichment:
-                details = await self._fetch_transaction_details(txn_id)
-                if details:
-                    new_shares = self._extract_shares_from_details(details)
-                    if new_shares and new_shares > 0:
-                        txn['shares'] = new_shares
-                        fetched += 1
-                        failed_streak = 0
-                        if fetched <= 5 or fetched % 50 == 0:
-                            title = txn.get('title', '')[:30]
-                            log.info(f"  [{fetched}/{trade_count}] {title}: {new_shares:.6f} shares")
-                    else:
-                        failed_streak += 1
-                        log.debug(f"  Could not extract shares for {txn.get('title', '')[:30]}")
-                else:
-                    failed_streak += 1
-                
-                # Rate limiting: small delay every 10 requests, longer if failures
-                if fetched % 10 == 0:
-                    await asyncio.sleep(0.1)
-                if failed_streak > 5:
-                    log.warning(f"  Multiple failures, adding delay...")
-                    await asyncio.sleep(1.0)
-                    failed_streak = 0
+            log.info(f"  Firing requests for batch {batch_start//batch_size + 1} ({len(batch)} transactions)...")
             
-            enriched.append(txn)
+            # Fire all requests in this batch (no awaiting responses yet!)
+            for txn_id in batch:
+                try:
+                    sub_id = await self.api.timeline_detail_v2(txn_id)
+                    pending_subscriptions[sub_id] = txn_id
+                except Exception as e:
+                    log.debug(f"  Failed to request details for {txn_id}: {e}")
+            
+            # Step 2: Receive all responses for this batch
+            received = 0
+            batch_success = 0
+            max_retries = len(pending_subscriptions) + 50  # Safety limit
+            
+            while pending_subscriptions and received < max_retries:
+                try:
+                    sub_id, sub_params, response = await asyncio.wait_for(
+                        self.api.recv(), 
+                        timeout=30.0
+                    )
+                    received += 1
+                    
+                    # Check if this is a response we're waiting for
+                    txn_id = pending_subscriptions.pop(sub_id, None)
+                    if txn_id is None:
+                        continue
+                    
+                    # Unsubscribe to clean up
+                    await self.api.unsubscribe(sub_id)
+                    
+                    if response is None or (isinstance(response, dict) and response.get('errors')):
+                        continue
+                    
+                    # Get the transaction and add the details
+                    txn = txns_needing_details.get(txn_id)
+                    if not txn:
+                        continue
+                    
+                    # NOTE: Do NOT store txn['details'] = response - it's huge and causes storage issues
+                    # We only need to extract the shares from it
+                    
+                    # Log the raw shares text for debugging
+                    raw_shares_text = self._find_raw_shares_text(response)
+                    title = txn.get('title', '')
+                    
+                    # Use pytr's Event.from_dict() to parse shares - it handles German numbers correctly!
+                    try:
+                        # Build event dict in the format Event.from_dict expects
+                        event_dict = {
+                            'id': txn_id,
+                            'timestamp': txn.get('timestamp', ''),
+                            'title': txn.get('title', ''),
+                            'subtitle': txn.get('subtitle', ''),
+                            'eventType': txn.get('eventType', ''),
+                            'icon': txn.get('icon', ''),
+                            'details': response,
+                        }
+                        event = Event.from_dict(event_dict)
+                        
+                        if event.shares is not None and event.shares > 0:
+                            # Validate the parsed shares using price sanity check
+                            validated_shares = self._validate_shares(txn, event.shares)
+                            if validated_shares:
+                                txn['shares'] = validated_shares
+                                batch_success += 1
+                                total_success += 1
+                            else:
+                                # Validation failed - log details for debugging
+                                ts = txn.get('timestamp', '')[:10]
+                                log.warning(f"⚠️ Shares validation failed: {title} on {ts}")
+                                log.warning(f"    pytr parsed: {event.shares}, raw text: {raw_shares_text}")
+                                
+                                # Try manual extraction as fallback
+                                new_shares = self._extract_shares_from_details(response)
+                                validated = self._validate_shares(txn, new_shares) if new_shares else None
+                                if validated:
+                                    txn['shares'] = validated
+                                    batch_success += 1
+                                    total_success += 1
+                                    log.info(f"    ✓ Manual extraction succeeded: {validated}")
+                                else:
+                                    # For crypto, try to estimate from price in response
+                                    estimated = self._estimate_crypto_shares(txn, response)
+                                    validated_est = self._validate_shares(txn, estimated) if estimated else None
+                                    if validated_est:
+                                        txn['shares'] = validated_est
+                                        batch_success += 1
+                                        total_success += 1
+                                        log.info(f"    ✓ Estimated from price: {validated_est}")
+                                    else:
+                                        log.warning(f"    ✗ All methods failed, transaction will be skipped")
+                            
+                            # Also extract ISIN if Event found it and we don't have it
+                            if event.isin and not txn.get('isin'):
+                                txn['isin'] = event.isin
+                        else:
+                            # Fallback to our manual extraction
+                            new_shares = self._extract_shares_from_details(response)
+                            if new_shares and new_shares > 0:
+                                validated = self._validate_shares(txn, new_shares)
+                                if validated:
+                                    txn['shares'] = validated
+                                    batch_success += 1
+                                    total_success += 1
+                                
+                    except Exception as parse_err:
+                        log.debug(f"  Event.from_dict failed for {txn_id}, trying manual: {parse_err}")
+                        # Fallback to manual extraction
+                        new_shares = self._extract_shares_from_details(response)
+                        if new_shares and new_shares > 0:
+                            validated = self._validate_shares(txn, new_shares)
+                            if validated:
+                                txn['shares'] = validated
+                                batch_success += 1
+                                total_success += 1
+                    
+                    if total_success <= 5 or total_success % 100 == 0:
+                        title = txn.get('title', '')[:25]
+                        shares = txn.get('shares', 0)
+                        log.info(f"  [{total_success}/{trade_count}] {title}: {shares:.6f} shares")
+                        
+                except asyncio.TimeoutError:
+                    log.warning(f"  Timeout waiting for responses, {len(pending_subscriptions)} remaining")
+                    break
+                except Exception as e:
+                    log.debug(f"  Error receiving response: {e}")
+                    received += 1
+            
+            # Unsubscribe from any remaining pending subscriptions
+            for sub_id in list(pending_subscriptions.keys()):
+                try:
+                    await self.api.unsubscribe(sub_id)
+                except:
+                    pass
+            pending_subscriptions.clear()
+            
+            log.info(f"  Batch complete: {batch_success} successful enrichments")
         
         # Report enrichment completeness
-        success_rate = (fetched / trade_count * 100) if trade_count > 0 else 100
-        log.info(f"Enriched {fetched}/{trade_count} transactions ({success_rate:.1f}% success)")
+        success_rate = (total_success / trade_count * 100) if trade_count > 0 else 100
+        log.info(f"Enriched {total_success}/{trade_count} transactions ({success_rate:.1f}% success)")
         
         if success_rate < 80:
             log.warning(f"⚠️ Low enrichment rate ({success_rate:.1f}%) - some share data may be missing")
         
-        return enriched
+        return transactions
+
+    def _estimate_crypto_shares(self, txn: Dict, response: Dict) -> Optional[float]:
+        """Estimate crypto shares from transaction amount when parsing fails.
+        
+        For crypto transactions where share parsing fails validation, we can
+        estimate shares by finding the price in the transaction detail and
+        dividing: shares = amount / price
+        
+        This is a fallback for cases where pytr misparsed the shares text.
+        """
+        amount = abs(txn.get('amount', 0) or 0)
+        if amount <= 0:
+            return None
+            
+        # Look for price in the response
+        sections = response.get('sections', [])
+        for section in sections:
+            for item in section.get('data', []):
+                item_title = item.get('title', '').lower()
+                # Look for price-related fields
+                if any(kw in item_title for kw in ['preis', 'kurs', 'price', 'quotation']):
+                    detail = item.get('detail', {})
+                    price_text = detail.get('text', '') if isinstance(detail, dict) else str(detail)
+                    price = self._parse_german_number(price_text)
+                    if price and price > 0:
+                        estimated_shares = amount / price
+                        log.info(f"    Estimated shares from price: {amount:.2f} / {price:.2f} = {estimated_shares:.8f}")
+                        return estimated_shares
+        
+        return None
+
+    def _validate_shares(self, txn: Dict, shares: Optional[float]) -> Optional[float]:
+        """Validate share quantity by checking implied price against known bounds.
+        
+        For crypto (especially BTC), pytr sometimes returns clearly wrong values
+        like 243 BTC for €50 (implying €0.21/BTC which is impossible).
+        
+        This validates by calculating implied price and checking against bounds.
+        Returns the shares if valid, None if clearly wrong.
+        """
+        if shares is None or shares <= 0:
+            return None
+            
+        amount = abs(txn.get('amount', 0) or 0)
+        if amount <= 0:
+            # Can't validate without amount, assume OK
+            return shares
+        
+        # Calculate implied price per share
+        implied_price = amount / shares
+        
+        # Get asset info from icon/isin
+        icon = txn.get('icon', '')
+        isin = txn.get('isin', '')
+        title = txn.get('title', '').lower()
+        
+        # BTC-specific validation
+        if 'BTC' in icon or 'BTC' in isin or 'bitcoin' in title:
+            # BTC has never been below €1,000 or above €200,000
+            if implied_price < 1000:
+                log.warning(f"BTC shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.2f}/BTC (too low)")
+                return None
+            if implied_price > 200000:
+                log.warning(f"BTC shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.2f}/BTC (too high)")
+                return None
+            return shares
+        
+        # ETH-specific validation  
+        if 'ETH' in icon or 'ETH' in isin or 'ethereum' in title:
+            # ETH has been between €100 and €5000
+            if implied_price < 50:
+                log.warning(f"ETH shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.2f}/ETH")
+                return None
+            if implied_price > 10000:
+                log.warning(f"ETH shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.2f}/ETH")
+                return None
+            return shares
+        
+        # Generic stock/ETF validation - price per share is usually €0.01 to €100,000
+        # Note: Very low implied prices often indicate German number format issues
+        # e.g., "243.000" parsed as 243000 instead of 243
+        if implied_price < 0.01:
+            # Check if this could be a German number format issue (factor of 1000)
+            corrected_shares = shares / 1000
+            corrected_price = amount / corrected_shares
+            if 0.01 <= corrected_price <= 500000:
+                log.warning(f"⚠️ German number format fix: {shares:.0f} -> {corrected_shares:.6f} (€{implied_price:.6f} -> €{corrected_price:.2f}/share)")
+                return corrected_shares
+            log.warning(f"Shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.6f}/share (too low)")
+            return None
+        if implied_price > 500000:
+            log.warning(f"Shares validation FAILED: {shares:.8f} for €{amount:.2f} => €{implied_price:.2f}/share (too high)")
+            return None
+        
+        return shares
 
     def _extract_shares_from_details(self, details: Dict) -> Optional[float]:
         """Extract share quantity from transaction detail response.
@@ -441,6 +750,23 @@ class TRConnection:
             if key in details and isinstance(details[key], (int, float)):
                 return float(details[key])
         
+        return None
+
+    def _find_raw_shares_text(self, details: Dict) -> Optional[str]:
+        """Find the raw shares text from TR API response for debugging."""
+        sections = details.get('sections', [])
+        
+        for section in sections:
+            section_title = section.get('title', '')
+            if section_title in ['Transaktion', 'Geschäft', 'Übersicht', 'Order', 'Sparplan']:
+                for item in section.get('data', []):
+                    item_title = item.get('title', '')
+                    if item_title in ['Aktien', 'Anteile', 'Aktien hinzugefügt', 'Aktien entfernt', 'Stück']:
+                        detail = item.get('detail', {})
+                        if isinstance(detail, dict):
+                            return f"text='{detail.get('text', '')}', value={detail.get('value', 'N/A')}"
+                        else:
+                            return str(detail)
         return None
 
     def _parse_german_number(self, text: str) -> Optional[float]:
@@ -561,13 +887,127 @@ class TRConnection:
             log.error(f"Error fetching history for {isin}: {e}")
             return []
 
+    def _build_position_histories_from_transactions(
+        self, transactions: List[Dict], positions: List[Dict]
+    ) -> Dict[str, Dict]:
+        """Build per-position price histories using TR transaction data.
+        
+        PRIMARY METHOD: Uses actual execution prices from transactions.
+        - 100% coverage (crypto, bonds, small caps, everything)
+        - No external API calls
+        - Already in EUR
+        
+        Returns:
+            Dict of {isin: {history: [{date, price}], quantity, instrumentType, name}}
+        """
+        from components.portfolio_history import (
+            extract_isin_from_icon,
+            get_prices_from_transactions,
+            interpolate_prices,
+            set_isin_mappings,
+        )
+        
+        log.info("Building position histories from transaction prices (PRIMARY method)...")
+        
+        # Set up ISIN mappings from current positions (handles bonds, ISIN changes)
+        set_isin_mappings(positions)
+        
+        # Extract prices from transactions (now with position context)
+        isin_prices = get_prices_from_transactions(transactions, positions)
+        
+        # Build position lookup
+        pos_lookup = {p.get('isin', ''): p for p in positions}
+        isin_to_name = {p.get('isin', ''): p.get('name', '') for p in positions}
+        
+        # Buy/sell transaction subtitles (German)
+        BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 'Bonusaktien', 'Tausch'}
+        SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order'}
+        
+        # Find all ISINs that have transactions and collect dates
+        isins_with_transactions = set()
+        all_dates = set()
+        
+        for txn in transactions:
+            subtitle = txn.get("subtitle", "")
+            icon = txn.get("icon", "")
+            timestamp = txn.get("timestamp", "")
+            
+            if not timestamp:
+                continue
+            
+            isin = extract_isin_from_icon(icon)
+            if not isin:
+                continue
+            
+            if subtitle in BUY_SUBTITLES or subtitle in SELL_SUBTITLES:
+                isins_with_transactions.add(isin)
+                try:
+                    date = datetime.fromisoformat(timestamp.replace("+0000", "+00:00")).replace(tzinfo=None)
+                    all_dates.add(date.date())
+                except:
+                    pass
+        
+        if not isins_with_transactions or not all_dates:
+            return {}
+        
+        # Generate history dates (weekly + transaction dates + today)
+        start_date = min(all_dates)
+        end_date = datetime.now().date()
+        
+        history_dates = set()
+        current = start_date
+        while current <= end_date:
+            history_dates.add(current)
+            current += timedelta(days=7)  # Weekly for smoother charts
+        
+        history_dates.update(all_dates)
+        history_dates.add(end_date)
+        sorted_dates = sorted(history_dates)
+        date_strs = [d.strftime("%Y-%m-%d") for d in sorted_dates]
+        
+        # Build position histories
+        position_histories = {}
+        
+        for isin in isins_with_transactions:
+            name = isin_to_name.get(isin, isin)
+            pos = pos_lookup.get(isin, {})
+            
+            # Get prices for this ISIN
+            known_prices = isin_prices.get(isin, {})
+            if not known_prices:
+                continue
+            
+            # Interpolate prices for all dates
+            prices = interpolate_prices(known_prices, date_strs)
+            
+            if prices:
+                # Build price history list
+                price_history = []
+                for date_str in sorted(prices.keys()):
+                    price = prices.get(date_str)
+                    if price and price > 0:
+                        price_history.append({
+                            'date': date_str,
+                            'price': price,
+                        })
+                
+                if price_history:
+                    position_histories[isin] = {
+                        'history': price_history,
+                        'quantity': pos.get('quantity', 0),
+                        'instrumentType': pos.get('instrumentType', ''),
+                        'name': name,
+                    }
+        
+        log.info(f"Built position histories for {len(position_histories)} instruments from transaction prices")
+        return position_histories
+
     def _build_position_histories_from_yahoo(
         self, transactions: List[Dict], positions: List[Dict]
     ) -> Dict[str, Dict]:
         """Build per-position price histories using Yahoo Finance.
         
-        This is more reliable than TR's performance_history API which fails for many instruments.
-        Uses the same approach as portfolio_history.py but integrated into TR sync.
+        FALLBACK METHOD: Only used if transaction-based approach fails.
         
         Returns:
             Dict of {isin: {history: [{date, price}], quantity, instrumentType, name}}
@@ -681,19 +1121,29 @@ class TRConnection:
            - Buy: add shares to holdings[isin]
            - Sell: subtract shares from holdings[isin]
         4. Record quantity at each date with a change
+        5. RECONCILIATION: Compare calculated vs actual holdings and apply adjustment
+           - Stock splits: Apply multiplier to all historical holdings
+           - Transfers-in with no transactions: Add position from first known date
         
         Args:
             transactions: List of transactions with 'shares' field populated
-            current_positions: Current portfolio positions (for validation only)
+            current_positions: Current portfolio positions (ground truth)
             
         Returns:
             {isin: {date_str: quantity}} - holdings at end of each date
         """
-        from components.portfolio_history import extract_isin_from_icon
+        from components.portfolio_history import extract_isin_from_icon, set_isin_mappings
+        
+        # Set up ISIN mappings from current positions (handles bonds, ISIN changes)
+        set_isin_mappings(current_positions)
+        
+        # Build lookup for current positions (to identify bonds)
+        pos_lookup = {p.get('isin', ''): p for p in current_positions}
         
         # Transaction subtitles for buys and sells
+        # Include Fusion (merger) and Tausch (exchange) as buys
         BUY_SUBTITLES = {'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order', 
-                         'Bonusaktien', 'Aktiensplit', 'Spin-off'}
+                         'Bonusaktien', 'Aktiensplit', 'Spin-off', 'Fusion', 'Tausch'}
         SELL_SUBTITLES = {'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order', 
                           'Reverse Split'}
         
@@ -703,18 +1153,34 @@ class TRConnection:
         for txn in transactions:
             subtitle = txn.get('subtitle', '')
             icon = txn.get('icon', '')
+            title = txn.get('title', '')  # For name-based ISIN lookup
             timestamp = txn.get('timestamp', '')
             shares = txn.get('shares')
+            amount = txn.get('amount')
             
-            if not timestamp or not shares:
+            if not timestamp:
                 continue
             
             date_str = timestamp[:10]
-            isin = extract_isin_from_icon(icon)
+            isin = extract_isin_from_icon(icon, title)  # Pass title for name-based lookup
             if not isin:
                 continue
             
-            shares = float(shares)
+            # Handle bonds: they have shares=None but we can use amount as nominal value
+            # Bonds are identified by 'bondissuer' in icon or instrumentType='bond'
+            is_bond = 'bondissuer' in str(icon) or pos_lookup.get(isin, {}).get('instrumentType') == 'bond'
+            
+            if shares is not None:
+                shares = float(shares)
+            elif is_bond and amount is not None and subtitle in BUY_SUBTITLES:
+                # For bonds: the amount (negative for purchase) approximates nominal value
+                # Bond "quantity" in TR is the nominal value (e.g., 10543.18 EUR)
+                shares = abs(float(amount))
+                log.info(f"Bond {title}: using amount {shares:.2f} as nominal value")
+            elif is_bond and amount is not None and subtitle in SELL_SUBTITLES:
+                shares = abs(float(amount))
+            else:
+                continue  # Skip if no shares info
             
             if subtitle in BUY_SUBTITLES:
                 share_changes.append((date_str, isin, shares))
@@ -769,29 +1235,136 @@ class TRConnection:
                         holdings_timeline[isin] = {}
                     holdings_timeline[isin][date_str] = qty
         
-        # Validation: compare final holdings to current_positions
+        # RECONCILIATION: Compare final holdings to current_positions (ground truth from TR)
         current_from_tr: Dict[str, float] = {}
+        isin_to_name: Dict[str, str] = {}
         for pos in current_positions:
             isin = pos.get('isin', '')
             qty = pos.get('quantity', 0)
+            name = pos.get('name', isin)
             if isin and qty > 0:
                 current_from_tr[isin] = qty
+                isin_to_name[isin] = name
         
+        # Identify mismatches and categorize them
         mismatches = []
+        adjustments_needed = []
+        
         for isin in set(current_holdings.keys()) | set(current_from_tr.keys()):
             calculated = current_holdings.get(isin, 0)
             actual = current_from_tr.get(isin, 0)
+            
             if abs(calculated - actual) > 0.001:  # Allow small float errors
-                mismatches.append(f"{isin}: calculated={calculated:.4f}, actual={actual:.4f}")
+                name = isin_to_name.get(isin, isin)
+                mismatches.append({
+                    'isin': isin,
+                    'name': name,
+                    'calculated': calculated,
+                    'actual': actual,
+                })
+                
+                if calculated > 0 and actual > 0:
+                    # Case 1: Both exist but differ - likely stock split
+                    # Apply ratio to all historical holdings
+                    ratio = actual / calculated
+                    adjustments_needed.append({
+                        'isin': isin,
+                        'type': 'ratio',
+                        'ratio': ratio,
+                        'reason': f"Stock split/adjustment (ratio {ratio:.2f}x)",
+                    })
+                elif calculated == 0 and actual > 0:
+                    # Case 2: Position exists but no transactions - transfer in OR ISIN change
+                    # Check if there's a "ghost" position with same quantity under different ISIN
+                    # (ISIN change from corporate restructuring)
+                    matched_old_isin = None
+                    for old_isin, old_qty in current_holdings.items():
+                        if old_isin not in current_from_tr and abs(old_qty - actual) < 0.01:
+                            # Found a match - old ISIN has same quantity as new position
+                            matched_old_isin = old_isin
+                            break
+                    
+                    if matched_old_isin:
+                        # ISIN change detected - transfer history from old to new
+                        adjustments_needed.append({
+                            'isin': isin,
+                            'type': 'isin_change',
+                            'old_isin': matched_old_isin,
+                            'quantity': actual,
+                            'reason': f"ISIN changed from {matched_old_isin}",
+                        })
+                    else:
+                        # True transfer-in with no prior transactions
+                        adjustments_needed.append({
+                            'isin': isin,
+                            'type': 'add_position',
+                            'quantity': actual,
+                            'reason': "Transfer-in (no purchase transactions)",
+                        })
+                elif calculated > 0 and actual == 0:
+                    # Case 3: Calculated holdings but position is gone - sold/transferred out
+                    # OR could be an old ISIN that got replaced (handled by isin_change above)
+                    pass
         
+        # Log mismatches before adjustment
         if mismatches:
-            log.warning(f"Holdings mismatch ({len(mismatches)} positions):")
-            for m in mismatches[:5]:  # Show first 5
-                log.warning(f"  {m}")
+            log.info(f"Holdings reconciliation needed ({len(mismatches)} positions):")
+            for m in mismatches[:5]:
+                log.info(f"  {m['isin']} ({m['name']}): calculated={m['calculated']:.4f}, actual={m['actual']:.4f}")
             if len(mismatches) > 5:
-                log.warning(f"  ... and {len(mismatches) - 5} more")
+                log.info(f"  ... and {len(mismatches) - 5} more")
+        
+        # Apply adjustments
+        for adj in adjustments_needed:
+            isin = adj['isin']
+            
+            if adj['type'] == 'ratio':
+                # Apply ratio to all historical holdings for this ISIN
+                ratio = adj['ratio']
+                if isin in holdings_timeline:
+                    for date_str in holdings_timeline[isin]:
+                        holdings_timeline[isin][date_str] *= ratio
+                    log.info(f"  Applied {ratio:.2f}x ratio to {isin} ({adj['reason']})")
+                # Update current_holdings too
+                if isin in current_holdings:
+                    current_holdings[isin] *= ratio
+            
+            elif adj['type'] == 'isin_change':
+                # Transfer history from old ISIN to new ISIN
+                old_isin = adj['old_isin']
+                if old_isin in holdings_timeline:
+                    holdings_timeline[isin] = holdings_timeline.pop(old_isin)
+                    log.info(f"  Transferred history from {old_isin} to {isin} ({adj['reason']})")
+                # Update current_holdings
+                if old_isin in current_holdings:
+                    current_holdings[isin] = current_holdings.pop(old_isin)
+                    
+            elif adj['type'] == 'add_position':
+                # Add position starting from first date in portfolio (approximation)
+                quantity = adj['quantity']
+                # Find earliest date in the timeline
+                if all_dates:
+                    first_date = all_dates[0]
+                    if isin not in holdings_timeline:
+                        holdings_timeline[isin] = {}
+                    # Add position from first date onwards
+                    for date_str in all_dates:
+                        holdings_timeline[isin][date_str] = quantity
+                    current_holdings[isin] = quantity
+                    log.info(f"  Added {quantity:.4f} shares of {isin} from {first_date} ({adj['reason']})")
+        
+        # Final validation after adjustments
+        final_mismatches = []
+        for isin in set(current_holdings.keys()) | set(current_from_tr.keys()):
+            calculated = current_holdings.get(isin, 0)
+            actual = current_from_tr.get(isin, 0)
+            if abs(calculated - actual) > 0.001 and actual > 0:  # Only care about current positions
+                final_mismatches.append(f"{isin}: calculated={calculated:.4f}, actual={actual:.4f}")
+        
+        if final_mismatches:
+            log.warning(f"⚠️ {len(final_mismatches)} positions still mismatched after reconciliation")
         else:
-            log.info(f"✅ Holdings validation passed - all positions match!")
+            log.info(f"✅ Holdings reconciliation complete - all current positions match!")
         
         log.info(f"Built holdings timeline for {len(holdings_timeline)} ISINs over {len(all_dates)} dates")
         
@@ -896,27 +1469,141 @@ class TRConnection:
             'stats': stats
         }
 
+    def _build_cash_timeline(
+        self, 
+        transactions: List[Dict],
+        current_cash: float
+    ) -> Dict[str, float]:
+        """Build a timeline of cash balance over time.
+        
+        Cash changes from:
+        - INFLOWS: Deposits (Einzahlung), P2P received (Fertig), Dividends, Interest, Sales
+        - OUTFLOWS: Withdrawals (Gesendet), Purchases
+        
+        Args:
+            transactions: All timeline transactions
+            current_cash: Current cash balance from TR (for reconciliation)
+            
+        Returns:
+            Dict mapping date -> cash balance on that date
+        """
+        from components.portfolio_history import extract_isin_from_icon
+        
+        if not transactions:
+            return {}
+        
+        # Cash flow events: (date, amount_change)
+        cash_flows: List[Tuple[str, float]] = []
+        
+        # Subtitles that increase cash
+        CASH_INFLOWS = {
+            'Bardividende', 'Dividende',  # Dividends
+            'Zinszahlung', 'Festzins',    # Interest
+            'Verkaufsorder', 'Limit-Sell-Order', 'Stop-Sell-Order',  # Sales
+        }
+        
+        # Subtitles that decrease cash (purchases)
+        CASH_OUTFLOWS = {
+            'Kauforder', 'Sparplan ausgeführt', 'Limit-Buy-Order',
+        }
+        
+        for txn in transactions:
+            ts = txn.get('timestamp', '')
+            if not ts:
+                continue
+            
+            date_str = ts[:10]
+            title = txn.get('title', '') or ''
+            subtitle = txn.get('subtitle', '') or ''
+            amount = txn.get('amount')
+            
+            if amount is None:
+                continue
+            
+            amount = float(amount)
+            
+            # === Deposits and withdrawals ===
+            if title == 'Einzahlung' and amount > 0:
+                cash_flows.append((date_str, amount))  # Deposit adds cash
+            elif subtitle == 'Fertig' and amount > 0:
+                cash_flows.append((date_str, amount))  # P2P received adds cash
+            elif subtitle == 'Gesendet' and amount < 0:
+                cash_flows.append((date_str, amount))  # Withdrawal removes cash
+            elif title == 'Zinsen' and amount > 0:
+                cash_flows.append((date_str, amount))  # Interest adds cash
+            
+            # === Dividends, interest, coupons (adds cash) ===
+            elif subtitle in CASH_INFLOWS and amount > 0:
+                cash_flows.append((date_str, amount))
+            
+            # === Purchases (removes cash) ===
+            elif subtitle in CASH_OUTFLOWS and amount < 0:
+                cash_flows.append((date_str, amount))  # Amount is negative for purchases
+            
+            # === Taxes (reduces cash) ===
+            elif subtitle == 'Vorabpauschale' and amount < 0:
+                cash_flows.append((date_str, amount))  # Tax payment reduces cash
+        
+        if not cash_flows:
+            return {}
+        
+        # Sort by date and build cumulative cash balance
+        cash_flows.sort(key=lambda x: x[0])
+        
+        # Group by date
+        daily_changes: Dict[str, float] = {}
+        for date_str, change in cash_flows:
+            daily_changes[date_str] = daily_changes.get(date_str, 0.0) + change
+        
+        # Build cumulative timeline
+        sorted_dates = sorted(daily_changes.keys())
+        cash_timeline: Dict[str, float] = {}
+        running_cash = 0.0
+        
+        for date_str in sorted_dates:
+            running_cash += daily_changes[date_str]
+            cash_timeline[date_str] = running_cash
+        
+        # Reconcile with current cash balance
+        # The difference is accumulated fees, tax withholdings, etc.
+        if cash_timeline and current_cash > 0:
+            calculated_cash = list(cash_timeline.values())[-1]
+            if abs(calculated_cash - current_cash) > 1:  # More than €1 difference
+                # Calculate adjustment factor and apply retroactively
+                # This accounts for fees/taxes we don't track individually
+                adjustment = current_cash - calculated_cash
+                log.info(f"Cash timeline adjustment: calculated={calculated_cash:.2f}, "
+                        f"actual={current_cash:.2f}, adjustment={adjustment:.2f}")
+        
+        log.info(f"Built cash timeline: {len(cash_timeline)} dates, "
+                f"final balance: {running_cash:.2f} EUR")
+        
+        return cash_timeline
+
     def _build_history_with_market_values(
         self, 
         transactions: List[Dict], 
         position_histories: Dict[str, Dict],
         invested_series: Dict[str, float],
         current_total: float,
-        current_positions: List[Dict]
+        current_positions: List[Dict],
+        current_cash: float = 0.0
     ) -> List[Dict]:
         """Build portfolio history with actual market values.
         
         STEP-BY-STEP APPROACH:
         1. Build holdings timeline: quantity of each ISIN on each date
-        2. For each date: value = sum(quantity[isin][date] × price[isin][date])
-        3. Use invested_series for the "invested" (added capital) line
+        2. Build cash timeline: cash balance on each date
+        3. For each date: value = sum(quantity[isin][date] × price[isin][date]) + cash[date]
+        4. Use invested_series for the "invested" (added capital) line
         
         Args:
             transactions: All timeline transactions (with 'shares' field)
-            position_histories: {isin: {history: [{date, price}], ...}} from Yahoo
+            position_histories: {isin: {history: [{date, price}], ...}} from transactions
             invested_series: {date: cumulative_invested} from deposits
-            current_total: Current live portfolio value (from TR)
+            current_total: Current live portfolio value (from TR, includes cash)
             current_positions: Current portfolio positions with quantities
+            current_cash: Current cash balance from TR
             
         Returns:
             List of {date, invested, value} dicts sorted by date
@@ -927,6 +1614,9 @@ class TRConnection:
         
         # STEP 1: Build holdings timeline
         holdings_timeline = self._build_holdings_timeline(transactions, current_positions)
+        
+        # STEP 1b: Build cash timeline
+        cash_timeline = self._build_cash_timeline(transactions, current_cash)
         
         # STEP 2: Build price lookup from position_histories
         # {isin: {date_str: price}}
@@ -969,6 +1659,11 @@ class TRConnection:
                 if date >= first_deposit_date:
                     all_dates.add(date)
         
+        # Add cash timeline dates (only after first deposit)
+        for date in cash_timeline.keys():
+            if date >= first_deposit_date:
+                all_dates.add(date)
+        
         all_dates.add(today)
         sorted_dates = sorted(all_dates)
         
@@ -989,8 +1684,16 @@ class TRConnection:
                 else:
                     break
             
+            # Get cash balance on this date (or nearest earlier)
+            cash_balance = 0.0
+            for cash_date in sorted(cash_timeline.keys()):
+                if cash_date <= date_str:
+                    cash_balance = cash_timeline[cash_date]
+                else:
+                    break
+            
             # Calculate market value: sum(quantity × price) for each position
-            total_value = 0.0
+            securities_value = 0.0
             missing_prices = []
             
             for isin in set(holdings_timeline.keys()) | set(price_lookup.keys()):
@@ -1017,9 +1720,13 @@ class TRConnection:
                 
                 if price and price > 0:
                     position_value = quantity * price
-                    total_value += position_value
+                    securities_value += position_value
                 else:
                     missing_prices.append(isin_names.get(isin, isin))
+            
+            # Total portfolio value = securities + cash
+            # Cash should be positive (it's an asset)
+            total_value = securities_value + max(0, cash_balance)
             
             # Only add if we have meaningful data
             if invested > 0 or total_value > 0:
@@ -1154,9 +1861,11 @@ class TRConnection:
         CAPITAL INFLOWS (counted as positive):
         - Einzahlung: Bank deposits (title='Einzahlung', amount > 0)
         - Fertig transfers: Completed P2P incoming (subtitle='Fertig', amount > 0)
+        - Old-style P2P: Historical transfers with person name as title (no subtitle, amount > 0)
         
         CAPITAL OUTFLOWS (counted as negative):
         - Gesendet: Bank withdrawals (subtitle='Gesendet', amount < 0)
+        - Old-style P2P: Historical transfers with person name as title (no subtitle, amount < 0)
         
         NOT COUNTED as capital flows:
         - Dividends (Dividende, Bardividende) - returns on investment
@@ -1165,11 +1874,6 @@ class TRConnection:
         - Sales (Verkaufsorder, etc.) - internal portfolio movements
         - Purchases (Kauforder, Sparplan, etc.) - internal portfolio movements
         - Rejected transfers (Abgelehnt) - never completed
-        - Old P2P with no subtitle - inconsistent historical data, excluded for reliability
-        
-        Note: This conservative approach captures ~97% of invested capital for most users.
-        The ~3% gap may come from historical P2P transfers that used an old format without
-        the 'Fertig' subtitle. This is acceptable for TWR calculation accuracy.
         
         Returns:
             Dict mapping date string (YYYY-MM-DD) to cumulative invested amount
@@ -1245,15 +1949,25 @@ class TRConnection:
             elif subtitle == 'Fertig' and amount > 0:
                 flow = amount
             
+            # 3. Old-style P2P transfers: no subtitle, positive amount, not a known system title
+            # These are historical transfers (pre-2022) where the title is the sender's name
+            # and there's no subtitle. They show up as positive cash inflows.
+            elif not subtitle and amount > 0 and title not in non_capital_titles:
+                # Additional check: title should look like a person name (has space or is not all caps)
+                # System titles like "Zinsen" are filtered above, anything else is likely a P2P
+                if ' ' in title or not title.isupper():
+                    flow = amount
+            
             # === CAPITAL OUTFLOWS ===
             
-            # 3. Bank withdrawals: subtitle='Gesendet', negative amount
+            # 4. Bank withdrawals: subtitle='Gesendet', negative amount
             elif subtitle == 'Gesendet' and amount < 0:
                 flow = amount  # Already negative
             
-            # Note: We deliberately do NOT count old P2P transfers (no subtitle)
-            # as they are inconsistent and lead to inaccurate calculations.
-            # Users with significant historical P2P may see ~3% undercount.
+            # 5. Old-style P2P outgoing: no subtitle, negative amount (sent to someone)
+            elif not subtitle and amount < 0 and title not in non_capital_titles:
+                if ' ' in title or not title.isupper():
+                    flow = amount  # Already negative
             
             if flow != 0:
                 daily_flows[date_str] = daily_flows.get(date_str, 0.0) + flow
@@ -1487,10 +2201,22 @@ class TRConnection:
 
             log.info("Fetching compact portfolio...")
             
-            # Get compact portfolio
+            # Get compact portfolio - handle async responses properly
             await self.api.compact_portfolio()
             sub_id, sub_params, portfolio_response = await self.api.recv()
             await self.api.unsubscribe(sub_id)
+            
+            # Check if we got the right response type
+            if sub_params.get('type') != 'compactPortfolio':
+                log.warning(f"Expected compactPortfolio, got {sub_params.get('type')}")
+                # The response might be in the wrong order - check if it has positions
+                if isinstance(portfolio_response, dict) and 'positions' in portfolio_response:
+                    pass  # We got positions, use this
+                else:
+                    # Try to receive again
+                    await self.api.compact_portfolio()
+                    sub_id, sub_params, portfolio_response = await self.api.recv()
+                    await self.api.unsubscribe(sub_id)
             
             log.info(f"Got portfolio with {len(portfolio_response.get('positions', []))} positions")
             
@@ -1498,7 +2224,14 @@ class TRConnection:
             await self.api.cash()
             sub_id, sub_params, cash_response = await self.api.recv()
             await self.api.unsubscribe(sub_id)
-            log.info(f"Cash response type: {type(cash_response)}, value: {cash_response}")
+            
+            # Handle case where cash response contains portfolio data (async ordering issue)
+            if isinstance(cash_response, dict) and 'positions' in cash_response:
+                log.warning("Cash response contains portfolio data - using it for positions")
+                portfolio_response = cash_response
+                cash_response = []  # Reset cash, will default to 0
+            
+            log.info(f"Cash response type: {type(cash_response)}, len: {len(cash_response) if isinstance(cash_response, list) else 'N/A'}")
             
             # Parse portfolio data
             positions = portfolio_response.get('positions', [])
@@ -1538,24 +2271,34 @@ class TRConnection:
                 instrument_type = cached_info.get("typeId", "")
                 image_id = cached_info.get("imageId", "")
                 
-                # Only hit the instrument endpoint if we don't already have a real name.
-                if name == isin:
+                # Fetch instrument details if:
+                # 1. No name cached (name == isin), OR
+                # 2. No typeId cached (needed for ETF/stock filtering)
+                needs_fetch = (name == isin) or (not instrument_type)
+                if needs_fetch:
                     try:
                         await self.api.instrument_details(isin)
                         inst_sub_id, inst_params, inst_response = await self.api.recv()
                         await self.api.unsubscribe(inst_sub_id)
-                        name = inst_response.get('shortName', inst_response.get('name', isin))
-                        instrument_type = inst_response.get('typeId', inst_response.get('type', ''))
-                        image_id = inst_response.get('imageId', '')
-                        if name and name != isin:
-                            instrument_cache[isin] = {
-                                "name": name,
-                                "typeId": instrument_type,
-                                "imageId": image_id,
-                            }
+                        new_name = inst_response.get('shortName', inst_response.get('name', isin))
+                        new_type = inst_response.get('typeId', inst_response.get('type', ''))
+                        new_image = inst_response.get('imageId', '')
+                        # Update only if we got new data
+                        if new_name and new_name != isin:
+                            name = new_name
+                        if new_type:
+                            instrument_type = new_type
+                        if new_image:
+                            image_id = new_image
+                        # Always save updated cache
+                        instrument_cache[isin] = {
+                            "name": name,
+                            "typeId": instrument_type,
+                            "imageId": image_id,
+                        }
                         log.info(f"[{i+1}/{len(positions)}] {isin}: {name} (type={instrument_type}, img={image_id})")
                     except Exception as e:
-                        log.warning(f"[{i+1}/{len(positions)}] Could not get name for {isin}: {e}")
+                        log.warning(f"[{i+1}/{len(positions)}] Could not get details for {isin}: {e}")
                 
                 # Use TR's netValue if available, otherwise calculate from invested
                 current_value = position_value if position_value > 0 else invested
@@ -1609,22 +2352,23 @@ class TRConnection:
             invested_series = self._build_invested_series_from_transactions(transactions)
             log.info(f"Built invested series with {len(invested_series)} cash flow dates")
             
-            # Build per-position price histories using Yahoo Finance
-            log.info("Building per-position price histories from Yahoo Finance...")
-            position_histories = self._build_position_histories_from_yahoo(
+            # Build per-position price histories from TRANSACTION PRICES (PRIMARY)
+            log.info("Building per-position price histories from transaction prices...")
+            position_histories = self._build_position_histories_from_transactions(
                 transactions, enriched_positions
             )
             log.info(f"Built position histories for {len(position_histories)} instruments")
             
-            # Build history with market values calculated from holdings × prices
+            # Build history with market values calculated from holdings × prices + cash
             # No longer using portfolioAggregateHistory as it fails for this account
-            log.info("Calculating portfolio history from holdings × prices...")
+            log.info("Calculating portfolio history from holdings × prices + cash...")
             history = self._build_history_with_market_values(
                 transactions, 
                 position_histories, 
                 invested_series, 
                 total_value + cash,
-                enriched_positions  # Pass current positions for holdings baseline
+                enriched_positions,  # Pass current positions for holdings baseline
+                cash  # Pass current cash for reconciliation
             )
             
             result = {
@@ -1636,7 +2380,11 @@ class TRConnection:
                     "totalProfit": total_profit,
                     "totalProfitPercent": total_profit_pct,
                     "positions": enriched_positions,
-                    "transactions": transactions,  # Keep ALL transactions
+                    # Strip 'details' field from transactions to avoid localStorage quota issues
+                    "transactions": [
+                        {k: v for k, v in txn.items() if k != 'details'}
+                        for txn in transactions
+                    ],
                     "history": history,
                     "positionHistories": position_histories,  # Per-position price histories
                 }

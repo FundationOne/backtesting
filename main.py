@@ -89,7 +89,7 @@ app.layout = dbc.Container([
     dcc.Location(id="url", refresh=False),
     api_key_store,
     user_store,  # User auth store
-    dcc.Store(id="portfolio-data-store", storage_type="session"),  # Portfolio data - avoid stale localStorage
+    dcc.Store(id="portfolio-data-store", storage_type="memory"),  # Portfolio data - memory only, no persistence
     dcc.Store(id="tr-encrypted-creds", storage_type="local"),  # TR credentials - MUST be in main layout for auth
     login_modal,  # Login gate
     settings_modal,
@@ -112,9 +112,19 @@ def redirect_to_default(pathname):
 
 @app.callback(
     Output('page-content', 'children'),
-    [Input('url', 'pathname')]
+    [Input('url', 'pathname'),
+     Input('current-user-store', 'data')]
 )
-def render_page_content(pathname):
+def render_page_content(pathname, current_user):
+    # Don't render content if not logged in
+    if not current_user:
+        return html.Div([
+            html.Div([
+                html.I(className="bi bi-lock-fill", style={"fontSize": "4rem", "color": "#6c757d"}),
+                html.H4("Please log in to continue", className="mt-3 text-muted"),
+            ], className="text-center", style={"marginTop": "20vh"})
+        ])
+    
     if pathname == "/backtesting":
         return l1
     elif pathname == "/portfolio":
