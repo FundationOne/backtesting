@@ -21,8 +21,13 @@ def calculate_twr_series(
     """Calculate Time-Weighted Return series.
     
     TWR chains period returns to exclude the effect of cash flows.
-    Formula: For each period, calculate (end_value - cash_flow) / start_value - 1
+    Uses **start-of-day cash flow** assumption:
+        period_return = end_value / (start_value + cash_flow) - 1
     Then chain: cumulative_twr = product(1 + period_return) - 1
+    
+    This assumes deposits/withdrawals happen at the START of the period,
+    which is appropriate for daily portfolio data where the deposit and
+    the end-of-day valuation happen on the same calendar day.
     
     Args:
         values: List of portfolio values at each date
@@ -45,17 +50,27 @@ def calculate_twr_series(
         curr_value = values[i]
         cash_flow = invested[i] - invested[i-1]  # Change in invested = cash flow
         
-        if prev_value > 0 and np.isfinite(prev_value):
-            # Period return = (end_value - cash_flow) / start_value - 1
-            # This removes the effect of the cash flow on the return
-            adjusted_end = curr_value - cash_flow
-            period_return = (adjusted_end / prev_value) - 1
-            
-            # Clamp extreme values to avoid chart issues
-            period_return = max(-0.99, min(period_return, 10.0))
-            
-            cumulative_factor *= (1 + period_return)
+        # Skip periods with bad data (zero/negative prev_value)
+        if prev_value <= 0 or not np.isfinite(prev_value):
+            twr_cumulative.append((cumulative_factor - 1) * 100)
+            continue
         
+        # Start-of-day cash flow: denominator = prev_value + deposit
+        denominator = prev_value + cash_flow
+        
+        # Guard: if denominator is non-positive, invested data is unreliable
+        # (e.g. negative cost basis from TR API quirks, or withdrawal > portfolio).
+        # Skip this period (assume 0% return).
+        if denominator <= 0 or not np.isfinite(denominator):
+            twr_cumulative.append((cumulative_factor - 1) * 100)
+            continue
+        
+        period_return = (curr_value / denominator) - 1
+        
+        # Clamp to reasonable daily bounds (-50% to +100%)
+        period_return = max(-0.50, min(period_return, 1.0))
+        
+        cumulative_factor *= (1 + period_return)
         twr_cumulative.append((cumulative_factor - 1) * 100)
     
     return twr_cumulative
@@ -94,28 +109,37 @@ def rebase_twr_series(twr_values) -> List[float]:
     return [((1 + t / 100) / start_factor - 1) * 100 for t in twr_values]
 
 
-def calculate_drawdown_series(values: List[float]) -> List[float]:
+def calculate_drawdown_series(
+    values: List[float],
+    twr_series: Optional[List[float]] = None,
+) -> List[float]:
     """Calculate drawdown series from peak.
     
-    Drawdown = (current - peak) / peak * 100
+    If twr_series is provided, drawdown is computed from the TWR equity curve
+    (which excludes deposits/withdrawals).  Otherwise falls back to raw values.
     
     Args:
-        values: List of portfolio values
+        values: List of portfolio values (used as fallback)
+        twr_series: Optional pre-calculated TWR percentages from calculate_twr_series
         
     Returns:
         List of drawdown percentages (always <= 0)
     """
-    if not values:
+    # Prefer TWR-based drawdown (deposit-independent)
+    if twr_series and len(twr_series) >= 2:
+        # Convert TWR% to an equity index (start at 1.0)
+        equity = np.array([1.0 + t / 100.0 for t in twr_series], dtype=float)
+    elif values:
+        equity = np.array(values, dtype=float)
+    else:
         return []
     
-    values = np.array(values, dtype=float)
-    
     # Calculate running maximum
-    running_max = np.maximum.accumulate(values)
-    running_max = np.where(running_max == 0, np.nan, running_max)
+    running_max = np.maximum.accumulate(equity)
+    running_max = np.where(running_max <= 0, np.nan, running_max)
     
     # Calculate drawdown as percentage
-    drawdown = (values - running_max) / running_max * 100
+    drawdown = (equity - running_max) / running_max * 100
     drawdown = np.nan_to_num(drawdown, nan=0.0)
     
     return drawdown.tolist()
@@ -149,12 +173,13 @@ def calculate_performance_metrics(
     twr = calculate_twr_series(values.tolist(), invested.tolist())
     final_twr = twr[-1] if twr else 0.0
     
-    # Max drawdown
-    drawdown = calculate_drawdown_series(values.tolist())
+    # Max drawdown (use TWR-based drawdown to exclude deposit effects)
+    drawdown = calculate_drawdown_series(values.tolist(), twr_series=twr)
     max_drawdown = min(drawdown) if drawdown else 0.0
     
-    # Daily returns for volatility
-    daily_returns = np.diff(values) / values[:-1]
+    # Daily returns for volatility (derive from TWR equity curve, not raw values)
+    twr_equity = np.array([1.0 + t / 100.0 for t in twr], dtype=float)
+    daily_returns = np.diff(twr_equity) / twr_equity[:-1]
     daily_returns = daily_returns[np.isfinite(daily_returns)]
     volatility = np.std(daily_returns) * np.sqrt(252) * 100 if len(daily_returns) > 1 else 0.0
     
@@ -205,7 +230,7 @@ def build_cached_series(history: List[Dict]) -> Dict[str, List]:
     
     # Calculate series
     twr = calculate_twr_series(values, invested)
-    drawdown = calculate_drawdown_series(values)
+    drawdown = calculate_drawdown_series(values, twr_series=twr)
     
     return {
         'dates': df['date'].dt.strftime('%Y-%m-%d').tolist(),

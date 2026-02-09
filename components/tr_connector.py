@@ -18,6 +18,7 @@ from components.tr_api import (
     fetch_all_data,
     reconnect,
     disconnect,
+    drop_connection,
     is_connected,
     has_keyfile
 )
@@ -330,11 +331,13 @@ def register_tr_callbacks(app):
         Output('tr-saved-creds-section', 'style'),
         [Input('tr-check-creds-trigger', 'data'),
          Input('tr-encrypted-creds', 'data')],
+        State('current-user-store', 'data'),
         prevent_initial_call=False
     )
-    def check_saved_credentials(_, encrypted_creds):
+    def check_saved_credentials(_, encrypted_creds, current_user):
+        uid = current_user or "_default"
         # Show reconnect option if we have encrypted creds in browser AND keyfile on server
-        if encrypted_creds and has_keyfile():
+        if encrypted_creds and has_keyfile(user_id=uid):
             return {"display": "block"}
         return {"display": "none"}
     
@@ -351,18 +354,20 @@ def register_tr_callbacks(app):
          Output('tr-session-data', 'data', allow_duplicate=True),
          Output('tr-portfolio-summary', 'children', allow_duplicate=True)],
         Input('tr-reconnect-link', 'n_clicks'),
-        State('tr-encrypted-creds', 'data'),
+        [State('tr-encrypted-creds', 'data'),
+         State('current-user-store', 'data')],
         prevent_initial_call=True
     )
-    def handle_reconnect(n_clicks, encrypted_creds):
+    def handle_reconnect(n_clicks, encrypted_creds, current_user):
         if not n_clicks:
             raise PreventUpdate
         
-        result = reconnect(encrypted_creds)
+        uid = current_user or "_default"
+        result = reconnect(encrypted_creds, user_id=uid)
         
         if result.get("success"):
             # Fetch full portfolio data including history
-            portfolio_data = fetch_all_data(force=False)
+            portfolio_data = fetch_all_data(user_id=uid)
             
             return (
                 {"display": "none"},  # hide initial
@@ -418,12 +423,14 @@ def register_tr_callbacks(app):
          State('tr-pin-input', 'value'),
          State('tr-otp-input', 'value'),
          State('tr-auth-step', 'data'),
-         State('tr-encrypted-creds', 'data')],
+         State('tr-encrypted-creds', 'data'),
+         State('current-user-store', 'data')],
         prevent_initial_call=True,
     )
     def handle_auth_flow(start_clicks, verify_clicks, back_clicks, disconnect_clicks, refresh_clicks,
-                         phone, pin, otp, current_step, existing_encrypted_creds):
+                         phone, pin, otp, current_step, existing_encrypted_creds, current_user):
         triggered = ctx.triggered_id
+        uid = current_user or "_default"
         
         # Default button state (reset to normal)
         btn_disabled = False
@@ -431,7 +438,7 @@ def register_tr_callbacks(app):
         
         # Handle disconnect
         if triggered == 'tr-disconnect-btn':
-            disconnect()
+            disconnect(user_id=uid)
             return (
                 {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"},
                 "initial", "", "",
@@ -454,7 +461,7 @@ def register_tr_callbacks(app):
         
         # Handle refresh
         if triggered == 'tr-refresh-btn':
-            portfolio_data = fetch_all_data()
+            portfolio_data = fetch_all_data(user_id=uid)
             portfolio_data["cached_at"] = datetime.now().isoformat()
             return (
                 {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"},
@@ -494,7 +501,7 @@ def register_tr_callbacks(app):
                 )
             
             # Initiate login
-            result = initiate_login(phone, pin)
+            result = initiate_login(phone, pin, user_id=uid)
             
             if result.get("success"):
                 return (
@@ -531,11 +538,11 @@ def register_tr_callbacks(app):
                 )
             
             # Complete login
-            result = complete_login(otp)
+            result = complete_login(otp, user_id=uid)
             
             if result.get("success"):
                 # Fetch full portfolio data including history
-                portfolio_data = fetch_all_data()
+                portfolio_data = fetch_all_data(user_id=uid)
                 portfolio_data["cached_at"] = datetime.now().isoformat()
                 
                 # Get encrypted credentials for browser storage

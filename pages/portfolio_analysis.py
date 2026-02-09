@@ -20,11 +20,15 @@ from collections import OrderedDict
 
 # Import the TR connector component
 from components.tr_connector import create_tr_connector_card, register_tr_callbacks
-from components.tr_api import fetch_all_data, is_connected, reconnect
+from components.tr_api import fetch_all_data, is_connected, reconnect, drop_connection
 from components.benchmark_data import get_benchmark_data, initialize_benchmarks, BENCHMARKS
 
 # Initialize benchmark cache on module load
 initialize_benchmarks()
+
+# Timeframe pill-bar constants (shared between layout and callbacks)
+_TF_IDS  = ["tf-1w", "tf-1m", "tf-ytd", "tf-1y", "tf-3y", "tf-5y", "tf-max"]
+_TF_VALS = ["1W",    "1M",    "YTD",    "1Y",    "3Y",    "5Y",    "MAX"]
 
 
 # Small in-memory cache to avoid re-building identical figures on page refresh.
@@ -207,15 +211,13 @@ def get_position_asset_class(position):
 
 # Layout for the analysis page
 layout = dbc.Container([
-    # Sticky Header Bar (Parqet-style thin bar)
+    # Sticky Header Bar
     html.Div([
-        # Left side - Title and metadata
+        # Left side - compact title + metadata
         html.Div([
-            html.Span([
-                html.I(className="bi bi-briefcase-fill me-2", style={"color": "#10b981"}),
-                "Trade Republic"
-            ], className="header-title"),
-            html.Span(id="header-meta", className="header-meta", children="Loading..."),
+            html.I(className="bi bi-briefcase-fill", style={"color": "#10b981", "fontSize": "1rem"}),
+            html.Span(id="header-meta", className="header-meta-compact", children=""),
+            html.Span(id="data-freshness", className="header-freshness", children=""),
         ], className="header-left"),
         
         # Right side - Controls
@@ -228,15 +230,15 @@ layout = dbc.Container([
             # Privacy toggle
             dbc.Button([
                 html.I(className="bi bi-eye-slash", id="privacy-icon"),
-            ], id="toggle-privacy-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Toggle values"),
+            ], id="toggle-privacy-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Hide"),
             
             html.Div(className="header-divider"),
             
             # Asset Class Dropdown Button
             html.Div([
                 dbc.Button([
-                    html.Span(id="asset-class-label", children="All Assets"),
-                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
+                    html.Span(id="asset-class-label", children="All"),
+                    html.I(className="bi bi-chevron-down ms-1", style={"fontSize": "9px"}),
                 ], id="asset-class-btn", color="link", className="header-dropdown-btn"),
                 dbc.Popover([
                     dbc.PopoverBody([
@@ -259,8 +261,8 @@ layout = dbc.Container([
             # Benchmark Dropdown Button  
             html.Div([
                 dbc.Button([
-                    html.Span(id="benchmark-label", children="4 Benchmarks"),
-                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
+                    html.Span(id="benchmark-label", children="4 Bench."),
+                    html.I(className="bi bi-chevron-down ms-1", style={"fontSize": "9px"}),
                 ], id="benchmark-btn", color="link", className="header-dropdown-btn"),
                 dbc.Popover([
                     dbc.PopoverBody([
@@ -277,34 +279,24 @@ layout = dbc.Container([
                 ], id="benchmark-popover", target="benchmark-btn", trigger="legacy", placement="bottom-end"),
             ], className="header-dropdown-wrapper"),
             
-            # Timeframe Dropdown Button
+            html.Div(className="header-divider"),
+            
+            # Timeframe Pill Bar (inline buttons like Finanzfluss)
             html.Div([
-                dbc.Button([
-                    html.Span(id="timeframe-label", children="1 Year"),
-                    html.I(className="bi bi-chevron-down ms-2", style={"fontSize": "10px"}),
-                ], id="timeframe-btn", color="link", className="header-dropdown-btn"),
-                dbc.Popover([
-                    dbc.PopoverBody([
-                        dbc.RadioItems(
-                            id="global-timeframe",
-                            options=[
-                                {"label": "1 Month", "value": "1m"},
-                                {"label": "3 Months", "value": "3m"},
-                                {"label": "6 Months", "value": "6m"},
-                                {"label": "Year to Date", "value": "ytd"},
-                                {"label": "1 Year", "value": "1y"},
-                                {"label": "Max", "value": "max"},
-                            ],
-                            value="1y",
-                            className="header-radio-list",
-                        ),
-                    ], className="p-2"),
-                ], id="timeframe-popover", target="timeframe-btn", trigger="legacy", placement="bottom-end"),
-            ], className="header-dropdown-wrapper"),
+                dbc.ButtonGroup([
+                    dbc.Button("1W",  id="tf-1w",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button("1M",  id="tf-1m",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button("YTD", id="tf-ytd", n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button("1Y",  id="tf-1y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill active"),
+                    dbc.Button("3Y",  id="tf-3y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button("5Y",  id="tf-5y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button("All", id="tf-max", n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                ], className="timeframe-btn-group", size="sm"),
+            ], className="timeframe-pill-bar"),
         ], className="header-right"),
     ], className="sticky-header"),
     
-    # Top Summary Row (Parqet-style)
+    # Unified Top Summary Card (donut + hero + metrics in one card)
     dbc.Row([
         # Donut Chart Card
         dbc.Col([
@@ -328,11 +320,6 @@ layout = dbc.Container([
                                 html.Div(id="portfolio-total-value", className="fs-2 fw-bold portfolio-hero-value sensitive sensitive-strong", 
                                          children="€0.00"),
                                 html.Div(id="portfolio-total-change", className="fs-6 sensitive", children=""),
-                                html.Div(id="data-freshness", className="text-muted small mt-2", children=""),
-                                html.Div([
-                                    html.Span("Positions", className="text-muted small"),
-                                    html.Span(id="metric-positions", className="portfolio-positions-value sensitive", children="--"),
-                                ], className="portfolio-positions-inline"),
                             ], className="py-1"),
                         ], md=4, className="mb-2"),
                         dbc.Col([
@@ -349,16 +336,16 @@ layout = dbc.Container([
                             ]),
                             dbc.Row([
                                 dbc.Col([
-                                    create_metric_card("1M Return", "metric-1m-return"),
+                                    create_metric_card("1M Return", "metric-1m-return", "metric-1m-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("3M Return", "metric-3m-return"),
+                                    create_metric_card("3M Return", "metric-3m-return", "metric-3m-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("YTD Return", "metric-ytd-return"),
+                                    create_metric_card("YTD Return", "metric-ytd-return", "metric-ytd-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("Total Return", "metric-total-return"),
+                                    create_metric_card("Total Return", "metric-total-return", "metric-total-abs"),
                                 ], width=3),
                             ]),
                         ], md=8, className="mb-2"),
@@ -374,13 +361,11 @@ layout = dbc.Container([
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
-                    # Chart Type Tabs
                     dbc.Tabs([
                         dbc.Tab(label="Value", tab_id="tab-value"),
                         dbc.Tab(label="Drawdown", tab_id="tab-drawdown"),
                     ], id="chart-tabs", active_tab="tab-value", className="mb-2"),
                     
-                    # Main Chart
                     dcc.Loading(
                         dcc.Graph(
                             id="main-portfolio-chart-v2",
@@ -428,20 +413,8 @@ layout = dbc.Container([
         ], md=5, className="mb-3"),
     ]),
 
-    # Lower Row (Holdings + Comparison)
+    # Performance Comparison Table
     dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader([
-                    html.I(className="bi bi-list-ul me-2"),
-                    "Holdings",
-                    dbc.Badge(id="holdings-count", children="0", className="ms-2", color="primary", pill=True),
-                ], className="card-header-modern d-flex align-items-center"),
-                dbc.CardBody([
-                    html.Div(id="holdings-list", style={"maxHeight": "320px", "overflowY": "auto"}),
-                ], className="py-2 px-2"),
-            ], className="card-modern"),
-        ], md=4, className="mb-3"),
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader([
@@ -452,54 +425,45 @@ layout = dbc.Container([
                     html.Div(id="comparison-table-container"),
                 ], className="py-2"),
             ], className="card-modern"),
-        ], md=8, className="mb-3"),
+        ], md=12, className="mb-3"),
     ]),
 
-    # Activity + Top Movers + Returns Summary (Parqet-style)
+    # Returns Summary + Recent Activity (two-column)
     dbc.Row([
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-bar-chart me-2"),
-                    "Rendite"
+                    "Returns Summary"
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     html.Div(id="rendite-breakdown")
                 ], className="py-2"),
             ], className="card-modern h-100"),
-        ], md=4, className="mb-3"),
+        ], md=5, className="mb-3"),
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-clock-history me-2"),
-                    "Letzte Aktivitäten"
-                ], className="card-header-modern d-flex align-items-center justify-content-between"),
+                    "Recent Activity"
+                ], className="card-header-modern"),
                 dbc.CardBody([
                     html.Div(id="recent-activities-list")
                 ], className="py-2"),
             ], className="card-modern h-100"),
-        ], md=4, className="mb-3"),
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader([
-                    html.I(className="bi bi-graph-up me-2"),
-                    "Top Mover"
-                ], className="card-header-modern d-flex align-items-center justify-content-between"),
-                dbc.CardBody([
-                    html.Div(id="top-movers-list")
-                ], className="py-2"),
-            ], className="card-modern h-100"),
-        ], md=4, className="mb-3"),
+        ], md=7, className="mb-3"),
     ]),
 
-    # Securities Table
+    # Securities Table (full width, sortable)
     dbc.Row([
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-table me-2"),
-                    "Wertpapiere"
-                ], className="card-header-modern"),
+                    "Securities",
+                    dbc.Badge(id="holdings-count", children="0", className="ms-2", color="primary", pill=True),
+                    html.Span(id="winners-losers-badge", className="ms-auto"),
+                ], className="card-header-modern d-flex align-items-center"),
                 dbc.CardBody([
                     html.Div(id="securities-table-container")
                 ], className="py-2"),
@@ -510,16 +474,21 @@ layout = dbc.Container([
     # TR Connect Modal
     tr_connect_modal,
     
-    # Hidden stores - portfolio-data-store and tr-encrypted-creds are in main.py layout
+    # Hidden stores
     dcc.Store(id="selected-range", data="max"),
+    dcc.Store(id="securities-sort", data={"col": "value", "asc": False}),
+    dcc.Store(id="securities-data", data=[]),
     dcc.Store(id="privacy-mode", data=False),
-    dcc.Store(id="tr-session-data", storage_type="session"),  # Current session only
+    dcc.Store(id="tr-session-data", storage_type="session"),
     dcc.Store(id="tr-auth-step", data="initial"),
     dcc.Store(id="tr-check-creds-trigger", data=0),
     dcc.Interval(id="load-cached-data-interval", interval=500, max_intervals=1),
     html.Div(id="comparison-page", style={"display": "none"}),
     
-    # (debug divs removed)
+    # Hidden placeholders for removed outputs still referenced by callbacks
+    html.Div(id="holdings-list", style={"display": "none"}),
+    html.Div(id="top-movers-list", style={"display": "none"}),
+    html.Div(id="metric-positions", style={"display": "none"}),
     
 ], fluid=True, className="portfolio-analysis-page", id="portfolio-analysis-root")
 
@@ -530,25 +499,53 @@ def register_callbacks(app):
     # Register TR connector callbacks
     register_tr_callbacks(app)
     
+    # ── Server-side cleanup on logout ────────────────────────────────
+    # The clientside auth callback clears browser stores.  We also need
+    # to drop the server-side TRConnection (credentials, asyncio loop)
+    # so the next user gets a completely fresh instance.
+    @app.callback(
+        Output("securities-data", "data", allow_duplicate=True),
+        Input("current-user-store", "data"),
+        State("portfolio-data-store", "data"),
+        prevent_initial_call=True,
+    )
+    def _on_user_change(current_user, portfolio_data):
+        """When user logs out (current_user becomes None), drop all
+        server-side connections so no stale data leaks to the next user."""
+        if current_user is None:
+            # User just logged out – nuke every active server connection
+            from components.tr_api import _connections, _connections_lock
+            with _connections_lock:
+                for uid in list(_connections.keys()):
+                    try:
+                        _connections[uid].clear_credentials()
+                    except Exception:
+                        pass
+                _connections.clear()
+            return []           # clear securities table
+        return no_update
+    
     # (debug clientside callbacks removed)
     
     # Load from server cache if browser localStorage is empty
     @app.callback(
         Output("portfolio-data-store", "data", allow_duplicate=True),
         Input("load-cached-data-interval", "n_intervals"),
-        State("portfolio-data-store", "data"),
+        [State("portfolio-data-store", "data"),
+         State("current-user-store", "data")],
         prevent_initial_call='initial_duplicate'
     )
-    def load_from_server_cache(n_intervals, current_data):
+    def load_from_server_cache(n_intervals, current_data, current_user):
         """Load portfolio data from server cache.
         
         ALWAYS prefer server cache over browser localStorage to ensure
         fresh data after recalculations (e.g., correct EUR values).
         """
         from components.tr_api import get_cached_portfolio
+        uid = current_user or "_default"
         
         # Always load from server cache - it has the latest recalculated values
-        cached = get_cached_portfolio()
+        cached = get_cached_portfolio(user_id=uid)
         
         if cached and cached.get("success"):
             # ALWAYS use server cache. Browser storage is not authoritative and can be stale/wrong.
@@ -593,29 +590,31 @@ def register_callbacks(app):
          Output("tr-connect-modal", "is_open", allow_duplicate=True)],
         Input("sync-tr-data-btn", "n_clicks"),
         [State("tr-encrypted-creds", "data"),
-         State("tr-connect-modal", "is_open")],
+         State("tr-connect-modal", "is_open"),
+         State("current-user-store", "data")],
         prevent_initial_call=True,
         running=[
             (Output("sync-tr-data-btn", "disabled"), True, False),
             (Output("sync-tr-data-btn", "children"), html.I(className="bi bi-arrow-repeat spin"), html.I(className="bi bi-arrow-repeat")),
         ]
     )
-    def sync_data(n_clicks, encrypted_creds, modal_open):
+    def sync_data(n_clicks, encrypted_creds, modal_open, current_user):
         if not n_clicks:
             raise PreventUpdate
         
         from components.tr_api import fetch_all_data, reconnect, is_connected
+        uid = current_user or "_default"
         
         # If not connected, try silent reconnect with stored creds
-        if not is_connected() and encrypted_creds:
-            reconnect(encrypted_creds)
+        if not is_connected(user_id=uid) and encrypted_creds:
+            reconnect(encrypted_creds, user_id=uid)
         
         # Still not connected? Open login modal
-        if not is_connected():
+        if not is_connected(user_id=uid):
             return no_update, html.I(className="bi bi-arrow-repeat"), False, True
         
         # Connected — fetch data (uses server cache if fresh)
-        data = fetch_all_data()
+        data = fetch_all_data(user_id=uid)
         if data.get("success"):
             return json.dumps(data), html.I(className="bi bi-check-circle"), False, False
         
@@ -626,24 +625,18 @@ def register_callbacks(app):
         [Output("portfolio-total-value", "children"),
          Output("portfolio-total-change", "children"),
          Output("portfolio-total-change", "className"),
-         Output("data-freshness", "children"),
          Output("metric-invested", "children"),
          Output("metric-profit", "children"),
          Output("metric-profit", "className"),
          Output("metric-profit-pct", "children"),
-         Output("metric-cash", "children"),
-         Output("metric-positions", "children"),
-         Output("holdings-count", "children"),
-         Output("holdings-list", "children")],
+         Output("metric-cash", "children")],
         [Input("portfolio-data-store", "data"),
          Input("asset-class-filter", "value")],
         prevent_initial_call=False
     )
     def update_metrics(data_json, asset_class):
         if not data_json:
-            empty = ("€0.00", "", "fs-5", "No data synced", "€0.00", "€0.00", "metric-value", "", "€0.00", "0", "0", 
-                     html.Div("No data - connect to Trade Republic and sync", className="text-muted text-center py-4"))
-            return empty
+            return ("€0.00", "", "fs-5", "€0.00", "€0.00", "metric-value sensitive", "", "€0.00")
         
         try:
             data = json.loads(data_json)
@@ -656,28 +649,6 @@ def register_callbacks(app):
             profit = portfolio.get("totalProfit", 0)
             profit_pct = portfolio.get("totalProfitPercent", 0)
             cash = portfolio.get("cash", 0)
-            positions = portfolio.get("positions", [])
-            selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
-            all_classes = {"etf", "stock", "crypto", "bond", "cash"}
-            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
-            # Only filter if not all classes are selected and not default selection
-            if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
-                positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
-            
-            # Get sync timestamp
-            cached_at = data.get("cached_at", "")
-            if cached_at:
-                try:
-                    from datetime import datetime
-                    sync_time = datetime.fromisoformat(cached_at)
-                    freshness = f"Last synced: {sync_time.strftime('%d %b %Y, %H:%M')}"
-                except:
-                    freshness = "Synced"
-            else:
-                freshness = "Just synced"
-            
-            # Calculate returns from history
-            history = portfolio.get("history", [])
             
             # Format values
             value_str = f"€{total_value:,.2f}"
@@ -685,7 +656,6 @@ def register_callbacks(app):
             profit_str = f"{'+'if profit >= 0 else ''}€{profit:,.2f}"
             profit_pct_str = f"{'+'if profit_pct >= 0 else ''}{profit_pct:.2f}%"
             cash_str = f"€{cash:,.2f}"
-            positions_str = str(len(positions))
             
             # Change styling
             change_class = "fs-5 text-success sensitive" if profit >= 0 else "fs-5 text-danger sensitive"
@@ -695,54 +665,12 @@ def register_callbacks(app):
                 f"{'+'if profit >= 0 else ''}€{abs(profit):,.2f} ({profit_pct:+.2f}%)"
             ])
             
-            # Build holdings list
-            holdings_items = []
-            for pos in sorted(positions, key=lambda x: x.get("value", 0), reverse=True):
-                name = pos.get("name", "Unknown")
-                value = pos.get("value", 0)
-                qty = pos.get("quantity", 0)
-                pos_profit = pos.get("profit", 0)
-                avg_buy = pos.get("averageBuyIn", 0)
-                invested = pos.get("invested", 0) or (qty * avg_buy if avg_buy > 0 else 0)
-                
-                # Calculate profit percentage properly
-                if invested > 0:
-                    profit_pct = (pos_profit / invested) * 100
-                elif value > 0:
-                    profit_pct = 0  # Can't calculate percentage without cost basis
-                else:
-                    profit_pct = 0
-                
-                profit_color = "text-success" if pos_profit >= 0 else "text-danger"
-                
-                holdings_items.append(
-                    html.Div([
-                        create_position_icon(pos, size=32),
-                        html.Div([
-                            html.Div(name[:30] + ("..." if len(name) > 30 else ""), 
-                                     className="fw-medium small", title=name),
-                            html.Div(f"{qty:.4g} × €{avg_buy:.2f}" if avg_buy > 0 else f"{qty:.4g} shares", 
-                                     className="text-muted small"),
-                        ], className="flex-grow-1 ms-2"),
-                        html.Div([
-                            html.Div(f"€{value:,.2f}", className="small fw-medium text-end sensitive"),
-                            html.Div(f"{'+'if profit_pct >= 0 else ''}{profit_pct:.1f}%", 
-                                     className=f"small {profit_color} text-end sensitive"),
-                        ]),
-                    ], className="d-flex align-items-center py-2 border-bottom holding-item")
-                )
-            
-            holdings_list = html.Div(holdings_items) if holdings_items else html.Div(
-                "No holdings", className="text-muted text-center py-3"
-            )
-            
-            return (value_str, change_str, change_class, freshness, invested_str, profit_str, 
-                    profit_class, profit_pct_str, cash_str, positions_str, positions_str, holdings_list)
+            return (value_str, change_str, change_class, invested_str, profit_str, 
+                    profit_class, profit_pct_str, cash_str)
             
         except Exception as e:
             print(f"Error updating metrics: {e}")
-            return ("€0.00", "", "fs-5", "Error loading data", "€0.00", "€0.00", "metric-value", "", "€0.00", "0", "0",
-                    html.Div(f"Error: {str(e)}", className="text-danger text-center py-3"))
+            return ("€0.00", "", "fs-5", "€0.00", "€0.00", "metric-value sensitive", "", "€0.00")
     
     # Donut chart for holdings breakdown
     @app.callback(
@@ -802,7 +730,7 @@ def register_callbacks(app):
                 values=values, labels=labels, hole=0.7,
                 marker=dict(colors=colors[:len(values)]),
                 textinfo="none",
-                hoverinfo="skip",
+                hovertemplate="<b>%{label}</b><br>€%{value:,.2f}<br>%{percent:.1%}<extra></extra>",
             ))
             
             fig.update_layout(
@@ -844,13 +772,13 @@ def register_callbacks(app):
     )
     def update_asset_class_label(selected):
         if not selected:
-            return "No Assets"
+            return "None"
         all_types = ["etf", "stock", "crypto", "bond", "cash"]
-        default_types = ["etf", "stock", "crypto", "bond"]  # Without cash
+        default_types = ["etf", "stock", "crypto", "bond"]
         if set(selected) == set(all_types):
-            return "All Assets"
+            return "All"
         if set(selected) == set(default_types):
-            return "All Assets"  # Default selection (no cash) also shows as All
+            return "All Assets"
         if len(selected) == 1:
             names = {"etf": "ETFs", "stock": "Stocks", "crypto": "Crypto", "bond": "Bonds", "cash": "Cash"}
             return names.get(selected[0], selected[0])
@@ -863,55 +791,67 @@ def register_callbacks(app):
     )
     def update_benchmark_label(selected):
         if not selected:
-            return "No Benchmarks"
+            return "No Bench."
         if len(selected) == 1:
             names = {"^GSPC": "S&P 500", "^GDAXI": "DAX", "URTH": "MSCI World", "^IXIC": "NASDAQ", "^STOXX": "STOXX 600"}
             return names.get(selected[0], selected[0])
-        return f"{len(selected)} Benchmarks"
+        return f"{len(selected)} Bench."
 
-    @app.callback(
-        Output("timeframe-label", "children"),
-        Input("global-timeframe", "value"),
-        prevent_initial_call=False
-    )
-    def update_timeframe_label(selected):
-        labels = {"1m": "1 Month", "3m": "3 Months", "6m": "6 Months", "ytd": "YTD", "1y": "1 Year", "max": "Max"}
-        return labels.get(selected, "1 Year")
+    # (Timeframe label is now shown inline in pill bar — no callback needed)
 
-    # Update header metadata
+    # Update header metadata + freshness
     @app.callback(
-        Output("header-meta", "children"),
+        [Output("header-meta", "children"),
+         Output("data-freshness", "children")],
         Input("portfolio-data-store", "data"),
         prevent_initial_call=False
     )
     def update_header_meta(data_json):
         if not data_json:
-            return "Not connected"
+            return "Not connected", ""
         try:
             data = json.loads(data_json)
             if not data.get("success"):
-                return "Not connected"
+                return "Not connected", ""
             portfolio = data.get("data", {})
             positions = portfolio.get("positions", [])
             asset_classes = len(set(get_position_asset_class(p) for p in positions))
-            return f"{asset_classes} Asset Classes · {len(positions)} Holdings · EUR"
-        except:
-            return "Connected"
+            meta = f"{len(positions)} Holdings"
+            
+            cached_at = data.get("cached_at", "")
+            if cached_at:
+                try:
+                    sync_time = datetime.fromisoformat(cached_at)
+                    freshness = f"Synced {sync_time.strftime('%d %b, %H:%M')}"
+                except Exception:
+                    freshness = "Synced"
+            else:
+                freshness = ""
+            return meta, freshness
+        except Exception:
+            return "Connected", ""
 
     @app.callback(
         [Output("metric-1m-return", "children"),
          Output("metric-1m-return", "className"),
+         Output("metric-1m-abs", "children"),
          Output("metric-3m-return", "children"),
          Output("metric-3m-return", "className"),
+         Output("metric-3m-abs", "children"),
          Output("metric-ytd-return", "children"),
          Output("metric-ytd-return", "className"),
+         Output("metric-ytd-abs", "children"),
          Output("metric-total-return", "children"),
-         Output("metric-total-return", "className")],
+         Output("metric-total-return", "className"),
+         Output("metric-total-abs", "children")],
         Input("portfolio-data-store", "data"),
         prevent_initial_call=False
     )
     def update_return_metrics(data_json):
-        default = ("--", "metric-value", "--", "metric-value", "--", "metric-value", "--", "metric-value")
+        default = ("--", "metric-value sensitive", "",
+                   "--", "metric-value sensitive", "",
+                   "--", "metric-value sensitive", "",
+                   "--", "metric-value sensitive", "")
         
         if not data_json:
             return default
@@ -942,97 +882,80 @@ def register_callbacks(app):
                 total_invested = portfolio["investedAmount"]
             
             def calc_return_on_investment(days_ago):
-                """Calculate return compared to invested amount at that time."""
+                """Calculate return and absolute change compared to invested amount at that time."""
                 target_date = datetime.now() - timedelta(days=days_ago)
                 past_data = df[df['date'] <= target_date]
                 if len(past_data) == 0:
-                    return 0
+                    return 0, 0
                 
-                # Get invested amount at that point
                 invested_then = past_data['invested'].iloc[-1] if 'invested' in past_data.columns else past_data['value'].iloc[-1]
                 
-                # If invested amount was less than current, calculate growth
                 if invested_then > 0 and total_invested > 0:
-                    # Calculate how much the portfolio has grown relative to additional investments
-                    # Simple approach: (current_value - total_invested) vs (value_then - invested_then)
                     current_profit = current_value - total_invested
                     past_profit = past_data['value'].iloc[-1] - invested_then
-                    
-                    # Return change in profit relative to current invested
-                    if total_invested > 0:
-                        return (current_profit - past_profit) / total_invested * 100
-                return 0
+                    abs_change = current_profit - past_profit
+                    pct_change = abs_change / total_invested * 100
+                    return pct_change, abs_change
+                return 0, 0
             
-            # YTD: Compare current profit to profit at start of year
+            # YTD
+            ytd_return, ytd_abs = 0, 0
             ytd_start = df[df['date'] >= datetime(datetime.now().year, 1, 1)]
             if len(ytd_start) > 0 and 'invested' in df.columns:
                 ytd_invested = ytd_start['invested'].iloc[0]
                 ytd_value = ytd_start['value'].iloc[0]
                 ytd_profit = ytd_value - ytd_invested
                 current_profit = current_value - total_invested
-                
+                ytd_abs = current_profit - ytd_profit
                 if total_invested > 0:
-                    ytd_return = (current_profit - ytd_profit) / total_invested * 100
-                else:
-                    ytd_return = 0
-            else:
-                ytd_return = 0
+                    ytd_return = ytd_abs / total_invested * 100
             
-            # Total return: (current_value - total_invested) / total_invested
-            if total_invested > 0:
-                total_return = (current_value - total_invested) / total_invested * 100
-            else:
-                total_return = 0
+            # Total return
+            total_abs = current_value - total_invested
+            total_return = (total_abs / total_invested * 100) if total_invested > 0 else 0
             
-            m1_return = calc_return_on_investment(30)
-            m3_return = calc_return_on_investment(90)
+            m1_return, m1_abs = calc_return_on_investment(30)
+            m3_return, m3_abs = calc_return_on_investment(90)
             
             def fmt(val):
                 sign = "+" if val >= 0 else ""
                 return f"{sign}{val:.1f}%"
             
-            def cls(val):
-                return "metric-value text-success" if val >= 0 else "metric-value text-danger"
+            def fmt_abs(val):
+                sign = "+" if val >= 0 else ""
+                return f"{sign}€{abs(val):,.0f}"
             
-            return (fmt(m1_return), cls(m1_return), fmt(m3_return), cls(m3_return),
-                    fmt(ytd_return), cls(ytd_return), fmt(total_return), cls(total_return))
+            def cls(val):
+                return "metric-value text-success sensitive" if val >= 0 else "metric-value text-danger sensitive"
+            
+            return (fmt(m1_return), cls(m1_return), fmt_abs(m1_abs),
+                    fmt(m3_return), cls(m3_return), fmt_abs(m3_abs),
+                    fmt(ytd_return), cls(ytd_return), fmt_abs(ytd_abs),
+                    fmt(total_return), cls(total_return), fmt_abs(total_abs))
             
         except Exception as e:
             print(f"Error calculating returns: {e}")
             return default
 
-    # Rendite + Aktivitäten + Top Mover + Wertpapiere
+    # Returns Summary + Recent Activity + Securities Table
     @app.callback(
         [Output("rendite-breakdown", "children"),
          Output("recent-activities-list", "children"),
-         Output("top-movers-list", "children"),
-         Output("securities-table-container", "children")],
+         Output("securities-data", "data"),
+         Output("holdings-count", "children"),
+         Output("winners-losers-badge", "children")],
         [Input("portfolio-data-store", "data"),
          Input("asset-class-filter", "value")],
         prevent_initial_call=False
     )
     def update_rendite_and_lists(data_json, asset_class):
         if not data_json:
-            empty_table = dash_table.DataTable(
-                data=[],
-                columns=[
-                    {"name": "Name", "id": "name"},
-                    {"name": "Position", "id": "value"},
-                    {"name": "Kursgewinn", "id": "profit"},
-                    {"name": "Dividenden", "id": "dividends"},
-                    {"name": "Realisiert", "id": "realized"},
-                    {"name": "Allocation", "id": "allocation"},
-                ],
-                style_cell={"textAlign": "left", "padding": "8px 12px", "fontFamily": "Inter, sans-serif", "fontSize": "12px", "border": "none"},
-                style_header={"fontWeight": "600", "backgroundColor": "#f8fafc", "borderBottom": "1px solid #e5e7eb"},
-                style_data={"borderBottom": "1px solid #f3f4f6"},
-                style_as_list_view=True,
-            )
             return (
                 html.Div("No data synced", className="text-muted text-center py-3"),
                 html.Div("No recent activity", className="text-muted text-center py-3"),
-                html.Div("No movers", className="text-muted text-center py-3"),
-                empty_table,
+                [],
+                "0",
+                "",
             )
 
         try:
@@ -1044,8 +967,7 @@ def register_callbacks(app):
             positions = portfolio.get("positions", [])
             selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
             all_classes = {"etf", "stock", "crypto", "bond", "cash"}
-            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
-            # Only filter if not all classes are selected and not default selection
+            default_classes = {"etf", "stock", "crypto", "bond"}
             if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
                 positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
             transactions = portfolio.get("transactions", [])
@@ -1092,13 +1014,21 @@ def register_callbacks(app):
             fees = 0.0
             taxes = 0.0
             realized = 0.0
+            
+            # Track dividends per ISIN for the securities table
+            dividends_per_isin = {}
 
             for txn in transactions:
                 title = lower_text(txn, "title")
                 subtitle = lower_text(txn, "subtitle")
                 amount = parse_amount(txn.get("amount"))
-                if "dividende" in subtitle or "dividend" in subtitle or "dividende" in title or "dividend" in title:
+                is_dividend = "dividende" in subtitle or "dividend" in subtitle or "dividende" in title or "dividend" in title
+                if is_dividend:
                     dividends += amount
+                    # Try to attribute to an ISIN
+                    txn_isin = txn.get("isin") or txn.get("instrumentId") or ""
+                    if txn_isin:
+                        dividends_per_isin[txn_isin] = dividends_per_isin.get(txn_isin, 0) + amount
                 if "zinsen" in title or "interest" in title:
                     interest += amount
                 if "gebühr" in title or "fee" in title or "gebühr" in subtitle or "fee" in subtitle:
@@ -1112,45 +1042,50 @@ def register_callbacks(app):
 
             rendite_rows = html.Div([
                 html.Div([
-                    html.Div("Portfoliowert", className="text-muted small"),
-                    html.Div(f"€{total_value:,.2f}", className="fw-semibold"),
+                    html.Div("Portfolio Value", className="text-muted small"),
+                    html.Div(f"€{total_value:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Investiert", className="text-muted small"),
-                    html.Div(f"€{invested:,.2f}", className="fw-semibold"),
+                    html.Div("Invested", className="text-muted small"),
+                    html.Div(f"€{invested:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Cashflow", className="text-muted small"),
-                    html.Div(f"€{cash:,.2f}", className="fw-semibold"),
-                ], className="d-flex justify-content-between mb-2"),
-                html.Div([
-                    html.Div("Kursgewinne", className="text-muted small"),
-                    html.Div(f"{fmt_eur(profit)} ({fmt_pct(profit_pct)})", className="fw-semibold text-success" if profit >= 0 else "fw-semibold text-danger"),
-                ], className="d-flex justify-content-between mb-2"),
-                html.Div([
-                    html.Div("Dividenden (Brutto)", className="text-muted small"),
-                    html.Div(fmt_eur(dividends), className="fw-semibold text-success" if dividends >= 0 else "fw-semibold text-danger"),
-                ], className="d-flex justify-content-between mb-2"),
-                html.Div([
-                    html.Div("Zinsen (Brutto)", className="text-muted small"),
-                    html.Div(fmt_eur(interest), className="fw-semibold text-success" if interest >= 0 else "fw-semibold text-danger"),
-                ], className="d-flex justify-content-between mb-2"),
-                html.Div([
-                    html.Div("Gebühren", className="text-muted small"),
-                    html.Div(f"-€{fees:,.2f}" if fees else "€0.00", className="fw-semibold text-danger" if fees else "fw-semibold"),
-                ], className="d-flex justify-content-between mb-2"),
-                html.Div([
-                    html.Div("Steuern", className="text-muted small"),
-                    html.Div(f"-€{taxes:,.2f}" if taxes else "€0.00", className="fw-semibold text-danger" if taxes else "fw-semibold"),
+                    html.Div("Cash", className="text-muted small"),
+                    html.Div(f"€{cash:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Hr(className="my-2"),
                 html.Div([
-                    html.Div("Netto Summe", className="text-muted small"),
-                    html.Div(fmt_eur(net_sum), className="fw-semibold text-success" if net_sum >= 0 else "fw-semibold text-danger"),
+                    html.Div("Price Gains", className="text-muted small"),
+                    html.Div(f"{fmt_eur(profit)} ({fmt_pct(profit_pct)})", className="fw-semibold text-success sensitive" if profit >= 0 else "fw-semibold text-danger sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Div([
+                    html.Div("Dividends (gross)", className="text-muted small"),
+                    html.Div(fmt_eur(dividends), className="fw-semibold text-success sensitive" if dividends >= 0 else "fw-semibold text-danger sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Div([
+                    html.Div("Interest (gross)", className="text-muted small"),
+                    html.Div(fmt_eur(interest), className="fw-semibold text-success sensitive" if interest >= 0 else "fw-semibold text-danger sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Div([
+                    html.Div("Realized P/L", className="text-muted small"),
+                    html.Div(fmt_eur(realized), className="fw-semibold text-success sensitive" if realized >= 0 else "fw-semibold text-danger sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Div([
+                    html.Div("Fees", className="text-muted small"),
+                    html.Div(f"-€{fees:,.2f}" if fees else "€0.00", className="fw-semibold text-danger sensitive" if fees else "fw-semibold sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Div([
+                    html.Div("Taxes", className="text-muted small"),
+                    html.Div(f"-€{taxes:,.2f}" if taxes else "€0.00", className="fw-semibold text-danger sensitive" if taxes else "fw-semibold sensitive"),
+                ], className="d-flex justify-content-between mb-2"),
+                html.Hr(className="my-2"),
+                html.Div([
+                    html.Div("Net Total", className="text-muted small fw-semibold"),
+                    html.Div(fmt_eur(net_sum), className="fw-bold text-success sensitive" if net_sum >= 0 else "fw-bold text-danger sensitive"),
                 ], className="d-flex justify-content-between"),
             ])
 
-            # Recent activities
+            # Recent activities with English labels
             def parse_timestamp(ts):
                 if not ts:
                     return None
@@ -1159,129 +1094,247 @@ def register_callbacks(app):
                 except Exception:
                     return None
 
+            def classify_activity(title_raw, subtitle_raw):
+                """Return (label, icon, badge_color) for a transaction."""
+                t = title_raw.lower()
+                s = subtitle_raw.lower()
+                if "sparplan" in s or "sparplan" in t:
+                    return "Savings Plan", "bi-arrow-repeat", "info"
+                if "kauf" in s or "buy" in t or "kauforder" in t:
+                    return "Buy", "bi-cart-plus", "info"
+                if "verkauf" in s or "sell" in t or "verkaufsorder" in t:
+                    return "Sell", "bi-cart-dash", "warning"
+                if "dividende" in s or "dividend" in t or "dividende" in t:
+                    return "Dividend", "bi-cash-coin", "success"
+                if "zinsen" in t or "interest" in t:
+                    return "Interest", "bi-cash-coin", "success"
+                if "einzahlung" in t or "deposit" in t:
+                    return "Deposit", "bi-box-arrow-in-down", "success"
+                if "auszahlung" in t or "withdraw" in t or "gesendet" in s:
+                    return "Withdrawal", "bi-box-arrow-up", "danger"
+                if "steuer" in t or "tax" in t:
+                    return "Tax", "bi-receipt", "secondary"
+                if "gebühr" in t or "fee" in t:
+                    return "Fee", "bi-receipt", "secondary"
+                return "Activity", "bi-clock-history", "primary"
+
             recent_items = []
-            for txn in sorted(transactions, key=lambda x: x.get("timestamp", ""), reverse=True)[:6]:
-                title = txn.get("title") or txn.get("subtitle") or "Aktivität"
-                subtitle = txn.get("subtitle") or ""
+            for txn in sorted(transactions, key=lambda x: x.get("timestamp", ""), reverse=True)[:8]:
+                title_raw = txn.get("title") or txn.get("subtitle") or "Activity"
+                subtitle_raw = txn.get("subtitle") or ""
                 amount = parse_amount(txn.get("amount"))
                 ts = parse_timestamp(txn.get("timestamp"))
-                date_str = ts.strftime("%d.%m.%Y %H:%M") if ts else ""
+                date_str = ts.strftime("%d %b %Y, %H:%M") if ts else ""
                 amount_str = fmt_eur(amount) if amount else ""
-                badge_color = "primary"
-                if "kauf" in str(subtitle).lower() or "buy" in str(title).lower():
-                    badge_color = "info"
-                elif "verkauf" in str(subtitle).lower() or "sell" in str(title).lower():
-                    badge_color = "warning"
-                elif "einzahlung" in str(title).lower() or "deposit" in str(title).lower():
-                    badge_color = "success"
-                elif "auszahlung" in str(title).lower() or "withdraw" in str(title).lower():
-                    badge_color = "danger"
+                label, icon, badge_color = classify_activity(title_raw, subtitle_raw)
 
                 recent_items.append(
                     html.Div([
                         html.Div([
-                            html.Div(title, className="fw-medium small"),
-                            html.Div(date_str, className="text-muted small"),
-                        ]),
+                            html.I(className=f"bi {icon} me-2", style={"color": "#6b7280"}),
+                            html.Div([
+                                html.Div(title_raw, className="fw-medium small", title=title_raw),
+                                html.Div(date_str, className="text-muted small"),
+                            ]),
+                        ], className="d-flex align-items-center"),
                         html.Div([
-                            dbc.Badge(subtitle or " ", color=badge_color, className="me-2"),
-                            html.Div(amount_str, className="small fw-semibold text-end"),
+                            dbc.Badge(label, color=badge_color, className="me-2"),
+                            html.Div(amount_str, className="small fw-semibold text-end sensitive"),
                         ], className="d-flex align-items-center"),
                     ], className="d-flex justify-content-between align-items-center py-2 border-bottom")
                 )
 
             recent_list = html.Div(recent_items) if recent_items else html.Div("No recent activity", className="text-muted text-center py-3")
 
-            # Top movers
-            movers = []
-            for pos in positions:
-                value = float(pos.get("value", 0))
-                invested_pos = float(pos.get("invested", 0))
-                profit_pos = float(pos.get("profit", value - invested_pos))
-                profit_pct_pos = (profit_pos / invested_pos * 100) if invested_pos > 0 else 0
-                movers.append({
-                    "name": pos.get("name", "Unknown"),
-                    "value": value,
-                    "profit": profit_pos,
-                    "profit_pct": profit_pct_pos,
-                    "position": pos,  # Keep full position for icon
-                })
-            movers = sorted(movers, key=lambda x: x.get("profit_pct", 0), reverse=True)[:6]
-
-            mover_items = []
-            for m in movers:
-                profit_cls = "text-success" if m["profit_pct"] >= 0 else "text-danger"
-                mover_items.append(
-                    html.Div([
-                        create_position_icon(m["position"], size=28),
-                        html.Div([
-                            html.Div(m["name"][:25] + ("..." if len(m["name"]) > 25 else ""), className="fw-medium small"),
-                            html.Div(f"€{m['value']:,.2f}", className="text-muted small"),
-                        ], className="ms-2 flex-grow-1"),
-                        html.Div([
-                            html.Div(f"{fmt_pct(m['profit_pct'])}", className=f"small fw-semibold {profit_cls}"),
-                            html.Div(fmt_eur(m["profit"]), className=f"small {profit_cls}"),
-                        ], className="text-end"),
-                    ], className="d-flex align-items-center py-2 border-bottom")
-                )
-
-            movers_list = html.Div(mover_items) if mover_items else html.Div("No movers", className="text-muted text-center py-3")
-
-            # Securities table
-            table_rows = []
-            for pos in positions:
+            # Build securities data for the HTML table
+            sec_rows = []
+            winners = 0
+            losers = 0
+            for pos in sorted(positions, key=lambda x: x.get("value", 0), reverse=True):
                 value = float(pos.get("value", 0))
                 invested_pos = float(pos.get("invested", 0))
                 profit_pos = float(pos.get("profit", value - invested_pos))
                 profit_pct_pos = (profit_pos / invested_pos * 100) if invested_pos > 0 else 0
                 allocation = (value / total_value * 100) if total_value > 0 else 0
-                table_rows.append({
+                pos_isin = pos.get("isin", "")
+                pos_dividends = dividends_per_isin.get(pos_isin, 0)
+                qty = float(pos.get("quantity", 0))
+                avg_buy = float(pos.get("averageBuyIn", 0))
+
+                if profit_pos > 0:
+                    winners += 1
+                elif profit_pos < 0:
+                    losers += 1
+
+                sec_rows.append({
                     "name": pos.get("name", "Unknown"),
-                    "value": f"€{value:,.2f}",
-                    "profit": f"{fmt_eur(profit_pos)} ({fmt_pct(profit_pct_pos)})",
-                    "dividends": "--",
-                    "realized": "--",
-                    "allocation": f"{allocation:.2f}%",
+                    "isin": pos_isin,
+                    "type": get_position_asset_class(pos).upper(),
+                    "qty": round(qty, 4),
+                    "avg_buy": round(avg_buy, 2),
+                    "value": round(value, 2),
+                    "profit": round(profit_pos, 2),
+                    "profit_pct": round(profit_pct_pos, 2),
+                    "dividends": round(pos_dividends, 2) if pos_dividends else 0,
+                    "allocation": round(allocation, 1),
                 })
 
-            securities_table = dash_table.DataTable(
-                data=table_rows,
-                columns=[
-                    {"name": "Name", "id": "name"},
-                    {"name": "Position", "id": "value"},
-                    {"name": "Kursgewinn", "id": "profit"},
-                    {"name": "Dividenden", "id": "dividends"},
-                    {"name": "Realisiert", "id": "realized"},
-                    {"name": "Allocation", "id": "allocation"},
-                ],
-                style_cell={"textAlign": "left", "padding": "8px 12px", "fontFamily": "Inter, sans-serif", "fontSize": "12px", "border": "none"},
-                style_header={"fontWeight": "600", "backgroundColor": "#f8fafc", "borderBottom": "1px solid #e5e7eb"},
-                style_data={"borderBottom": "1px solid #f3f4f6"},
-                style_data_conditional=[
-                    {"if": {"column_id": "profit", "filter_query": "{profit} contains '+'"}, "color": "#10b981"},
-                    {"if": {"column_id": "profit", "filter_query": "{profit} contains '-'"}, "color": "#ef4444"},
-                ],
-                style_as_list_view=True,
-            )
+            wl_badge = html.Span([
+                html.Span(f"\u2191{winners}", style={"color": "#10b981", "fontWeight": "600", "fontSize": "0.8rem"}),
+                html.Span(" / ", style={"color": "#9ca3af", "fontSize": "0.8rem"}),
+                html.Span(f"\u2193{losers}", style={"color": "#ef4444", "fontWeight": "600", "fontSize": "0.8rem"}),
+            ])
 
-            return rendite_rows, recent_list, movers_list, securities_table
+            return rendite_rows, recent_list, sec_rows, str(len(positions)), wl_badge
 
         except Exception:
             return (
                 html.Div("No data synced", className="text-muted text-center py-3"),
                 html.Div("No recent activity", className="text-muted text-center py-3"),
-                html.Div("No movers", className="text-muted text-center py-3"),
-                html.Div("No securities", className="text-muted text-center py-3"),
+                [],
+                "0",
+                "",
             )
-    
-    # Global timeframe selection
+
+    # ── Securities HTML table with real <img> logos ──────────────────────
+    _SEC_COLS = [
+        ("name",       "Name",     "left"),
+        ("type",       "Type",     "left"),
+        ("qty",        "Shares",   "right"),
+        ("avg_buy",    "Avg €",    "right"),
+        ("value",      "Value",    "right"),
+        ("profit",     "P/L",      "right"),
+        ("profit_pct", "P/L %",    "right"),
+        ("dividends",  "Div.",     "right"),
+        ("allocation", "Alloc.",   "right"),
+    ]
+
+    # Preload available logos (file path lookup – done once at import time is fine
+    # because the callback re-checks every render anyway).
+    _LOGOS_DIR = Path(__file__).resolve().parent.parent / "assets" / "logos"
+
+    def _fmt_eur(v):
+        if v is None or v == 0:
+            return "–"
+        return f"€{v:,.2f}"
+
+    def _fmt_pct(v, decimals=2):
+        if v is None:
+            return "–"
+        return f"{v:,.{decimals}f}%"
+
+    def _build_securities_html(rows, sort_col="value", sort_asc=False):
+        """Build an html.Table with inline <img> logos and clickable sort headers."""
+        # Sort
+        rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0,
+                       reverse=not sort_asc)
+
+        # Header
+        header_cells = []
+        for col_id, col_label, align in _SEC_COLS:
+            arrow = ""
+            if col_id == sort_col:
+                arrow = " ↑" if sort_asc else " ↓"
+            header_cells.append(
+                html.Th(
+                    html.A(f"{col_label}{arrow}", id={"type": "sec-sort", "col": col_id},
+                           href="#", className="sec-sort-link",
+                           style={"textAlign": align}),
+                    style={"textAlign": align},
+                    className="sec-th",
+                )
+            )
+        thead = html.Thead(html.Tr(header_cells))
+
+        # Rows
+        body_rows = []
+        for r in rows:
+            isin = r.get("isin", "")
+            name = r.get("name", "?")
+            profit = r.get("profit", 0)
+            profit_pct = r.get("profit_pct", 0)
+            pnl_color = "#10b981" if profit >= 0 else "#ef4444"
+
+            # Logo: check local file
+            logo_el = None
+            for ext in ("svg", "png"):
+                lf = _LOGOS_DIR / f"{isin}.{ext}"
+                if lf.exists() and lf.stat().st_size > 50:
+                    logo_el = html.Img(src=f"/assets/logos/{isin}.{ext}",
+                                       className="sec-logo")
+                    break
+            if logo_el is None:
+                # Colored initials fallback
+                words = name.split()
+                initials = (words[0][0] + words[1][0]).upper() if len(words) >= 2 else name[:2].upper()
+                logo_el = html.Span(initials, className="sec-initials")
+
+            cells = [
+                html.Td(html.Div([logo_el, html.Span(name, className="sec-name-text")],
+                                  className="sec-name-cell")),
+                html.Td(r.get("type", ""), className="sec-type"),
+                html.Td(f"{r['qty']:.4f}" if r.get("qty") else "–", className="text-end"),
+                html.Td(_fmt_eur(r.get("avg_buy")), className="text-end"),
+                html.Td(_fmt_eur(r.get("value")), className="text-end sensitive"),
+                html.Td(_fmt_eur(profit), className="text-end", style={"color": pnl_color}),
+                html.Td(_fmt_pct(profit_pct), className="text-end", style={"color": pnl_color}),
+                html.Td(_fmt_eur(r.get("dividends")) if r.get("dividends") else "–",
+                         className="text-end",
+                         style={"color": "#10b981"} if r.get("dividends", 0) > 0 else {}),
+                html.Td(_fmt_pct(r.get("allocation"), 1), className="text-end"),
+            ]
+            body_rows.append(html.Tr(cells, className="sec-row"))
+
+        tbody = html.Tbody(body_rows)
+        return html.Table([thead, tbody], className="sec-table")
+
     @app.callback(
-        Output("selected-range", "data"),
-        Input("global-timeframe", "value"),
-        prevent_initial_call=False
+        Output("securities-table-container", "children"),
+        Input("securities-data", "data"),
+        Input("securities-sort", "data"),
     )
-    def update_range(selected_range):
-        return selected_range or "max"
+    def render_securities_table(sec_data, sort_state):
+        if not sec_data:
+            return html.Div("No securities", className="text-muted text-center py-3")
+        col = sort_state.get("col", "value") if sort_state else "value"
+        asc = sort_state.get("asc", False) if sort_state else False
+        return _build_securities_html(sec_data, col, asc)
+
+    # Sort click handler (pattern-matching callback)
+    @app.callback(
+        Output("securities-sort", "data"),
+        Input({"type": "sec-sort", "col": dash.ALL}, "n_clicks"),
+        State("securities-sort", "data"),
+        prevent_initial_call=True,
+    )
+    def handle_sort_click(n_clicks_list, current_sort):
+        if not ctx.triggered_id or not any(n_clicks_list):
+            raise PreventUpdate
+        clicked_col = ctx.triggered_id["col"]
+        current_col = current_sort.get("col", "value") if current_sort else "value"
+        current_asc = current_sort.get("asc", False) if current_sort else False
+        if clicked_col == current_col:
+            new_asc = not current_asc
+        else:
+            new_asc = False  # default desc for new column
+        return {"col": clicked_col, "asc": new_asc}
+    
+
+    @app.callback(
+        [Output("selected-range", "data")] +
+        [Output(f"{tid}", "className") for tid in _TF_IDS],
+        [Input(f"{tid}", "n_clicks") for tid in _TF_IDS],
+        prevent_initial_call=False,
+    )
+    def update_range(*n_clicks):
+        triggered = ctx.triggered_id
+        # Default to 1Y
+        selected_idx = 3  # 1y
+        if triggered and triggered in _TF_IDS:
+            selected_idx = _TF_IDS.index(triggered)
+        value = _TF_VALS[selected_idx]
+        classes = ["tf-pill active" if i == selected_idx else "tf-pill" for i in range(len(_TF_IDS))]
+        return (value, *classes)
     
     def _build_filtered_history(positions, position_histories, selected_classes, portfolio_data):
         """Build aggregated history from per-position histories filtered by asset class.
@@ -1468,9 +1521,14 @@ def register_callbacks(app):
                     'date': pd.to_datetime(cached_series['dates']),
                     'value': cached_series['values'],
                     'invested': cached_series['invested'],
-                    'twr': cached_series['twr'],
-                    'drawdown': cached_series['drawdown'],
                 })
+                # Always recalculate TWR and drawdown from value/invested
+                # to pick up formula fixes without requiring a re-sync.
+                from components.performance_calc import calculate_twr_series as _calc_twr, calculate_drawdown_series as _calc_dd
+                _vals = df['value'].tolist()
+                _inv = df['invested'].tolist()
+                df['twr'] = _calc_twr(_vals, _inv)
+                df['drawdown'] = _calc_dd(_vals, twr_series=df['twr'].tolist())
             else:
                 # Recalculate from raw history (when filter is active)
                 df = pd.DataFrame(history)
@@ -1484,7 +1542,9 @@ def register_callbacks(app):
             
             # Filter by range - use portfolio history's last date for stable ranges
             end_date = df['date'].max().to_pydatetime()
-            if selected_range == "1m":
+            if selected_range == "1w":
+                start_date = end_date - timedelta(days=7)
+            elif selected_range == "1m":
                 start_date = end_date - timedelta(days=30)
             elif selected_range == "3m":
                 start_date = end_date - timedelta(days=90)
@@ -1494,6 +1554,10 @@ def register_callbacks(app):
                 start_date = datetime(end_date.year, 1, 1)
             elif selected_range == "1y":
                 start_date = end_date - timedelta(days=365)
+            elif selected_range == "3y":
+                start_date = end_date - timedelta(days=365*3)
+            elif selected_range == "5y":
+                start_date = end_date - timedelta(days=365*5)
             else:
                 start_date = df['date'].min()
 
@@ -1574,14 +1638,15 @@ def register_callbacks(app):
                 y_prefix = ""
                 fill_color = None  # We'll handle fill separately for positive/negative
             else:  # drawdown
-                # Drawdown from peak portfolio value - use cached if available
+                # Drawdown from TWR equity curve (excludes deposit effects)
                 if use_cached and 'drawdown' in df.columns:
                     y_data = df['drawdown']
                 else:
-                    rolling_max = df['value'].expanding().max().replace(0, pd.NA)
-                    y_data = (df['value'] - rolling_max) / rolling_max * 100
-                    if 'invested' in df.columns:
-                        y_data = y_data.where(df['invested'].replace(0, pd.NA).notna())
+                    # Calculate TWR first, then drawdown from TWR equity
+                    from components.performance_calc import calculate_drawdown_series
+                    twr_for_dd = _calculate_twr_series_df(df).tolist()
+                    dd_list = calculate_drawdown_series(df['value'].tolist(), twr_series=twr_for_dd)
+                    y_data = pd.Series(dd_list, index=df.index)
                 y_title = "Drawdown (%)"
                 y_prefix = ""
                 fill_color = "rgba(239, 68, 68, 0.2)"
@@ -1908,41 +1973,51 @@ def register_callbacks(app):
             
             df = pd.DataFrame(history)
             df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date')
+            df = df.sort_values('date').reset_index(drop=True)
             
-            # Current portfolio value
-            current_value = df['value'].iloc[-1]
-            
-            # Calculate returns based on actual portfolio values
-            def calc_return(days_ago):
-                """Calculate return from X days ago to now."""
+            # ----- Use TWR so deposits/withdrawals don't inflate returns -----
+            from components.performance_calc import calculate_twr_series, rebase_twr_series
+
+            values = df['value'].tolist()
+            invested = df['invested'].tolist() if 'invested' in df.columns else values
+            twr_full = calculate_twr_series(values, invested)  # cumulative % from inception
+            df['twr'] = twr_full
+
+            def _twr_return_since(start_idx):
+                """TWR return from start_idx to end of series (rebase to 0% at start)."""
+                if start_idx is None or start_idx >= len(df):
+                    return 0.0
+                start_factor = 1 + df['twr'].iloc[start_idx] / 100
+                end_factor = 1 + df['twr'].iloc[-1] / 100
+                if start_factor <= 0:
+                    return 0.0
+                return (end_factor / start_factor - 1) * 100
+
+            def _idx_for_days_ago(days_ago):
                 target_date = datetime.now() - timedelta(days=days_ago)
-                past_data = df[df['date'] <= target_date]
-                if len(past_data) == 0:
-                    past_data = df.head(1)
-                past_value = past_data['value'].iloc[-1]
-                if past_value > 0:
-                    return (current_value - past_value) / past_value * 100
-                return 0
-            
+                mask = df['date'] <= target_date
+                if mask.any():
+                    return df.loc[mask].index[-1]
+                return 0  # fallback to earliest
+
+            # Period returns via TWR (excludes effect of cash flows)
+            m1_return = _twr_return_since(_idx_for_days_ago(30))
+            m3_return = _twr_return_since(_idx_for_days_ago(90))
+            y1_return = _twr_return_since(_idx_for_days_ago(365))
+
             # YTD
-            ytd_start = df[df['date'] >= datetime(datetime.now().year, 1, 1)]
-            if len(ytd_start) > 0:
-                ytd_value = ytd_start['value'].iloc[0]
-                ytd_return = (current_value - ytd_value) / ytd_value * 100 if ytd_value > 0 else 0
-            else:
-                ytd_return = 0
-            
-            # Total return (from first data point)
-            first_value = df['value'].iloc[0]
-            total_return = (current_value - first_value) / first_value * 100 if first_value > 0 else 0
+            ytd_mask = df['date'] >= datetime(datetime.now().year, 1, 1)
+            ytd_return = _twr_return_since(df.loc[ytd_mask].index[0]) if ytd_mask.any() else 0.0
+
+            # Total (from first data point) = final TWR value
+            total_return = df['twr'].iloc[-1]
             
             rows = [{
                 "Asset": "Your Portfolio",
-                "1M": f"{calc_return(30):+.1f}%",
-                "3M": f"{calc_return(90):+.1f}%",
+                "1M": f"{m1_return:+.1f}%",
+                "3M": f"{m3_return:+.1f}%",
                 "YTD": f"{ytd_return:+.1f}%",
-                "1Y": f"{calc_return(365):+.1f}%",
+                "1Y": f"{y1_return:+.1f}%",
                 "Total": f"{total_return:+.1f}%",
             }]
             

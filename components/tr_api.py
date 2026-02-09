@@ -82,9 +82,16 @@ def decrypt_credentials(encrypted: str) -> Tuple[Optional[str], Optional[str]]:
 
 
 class TRConnection:
-    """Manages Trade Republic connection state."""
-    
-    def __init__(self):
+    """Manages Trade Republic connection state.
+
+    Each instance is scoped to a *user_id* so that server-side caches
+    (portfolio, transactions, instruments) never collide between users.
+    Logos in ``assets/logos/`` are shared – they are keyed by globally-unique
+    ISIN so sharing is harmless and beneficial.
+    """
+
+    def __init__(self, user_id: str = "_default"):
+        self.user_id = user_id
         self.api: Optional[TradeRepublicApi] = None
         self.phone_no: Optional[str] = None
         self.pin: Optional[str] = None
@@ -96,7 +103,25 @@ class TRConnection:
         self._loop_ready = threading.Event()
         self._op_lock = threading.Lock()
 
-        self._instrument_cache_path = TR_CREDENTIALS_DIR / "instrument_cache.json"
+        # ── Per-user cache directory ────────────────────────────────────
+        self._user_cache_dir = TR_CREDENTIALS_DIR / user_id
+        self._user_cache_dir.mkdir(parents=True, exist_ok=True)
+        self._instrument_cache_path = self._user_cache_dir / "instrument_cache.json"
+        self._keyfile_path = self._user_cache_dir / "keyfile.pem"
+
+        # Migrate legacy (non-namespaced) caches into the _default bucket
+        # so existing single-user setups keep working without a re-sync.
+        if user_id == "_default":
+            for legacy_name in ("portfolio_cache.json", "transactions_cache.json", "instrument_cache.json", "keyfile.pem"):
+                legacy = TR_CREDENTIALS_DIR / legacy_name
+                dest   = self._user_cache_dir / legacy_name
+                if legacy.exists() and not dest.exists():
+                    try:
+                        import shutil
+                        shutil.move(str(legacy), str(dest))
+                        log.info(f"Migrated legacy cache {legacy_name} → {self._user_cache_dir.name}/")
+                    except Exception as e:
+                        log.warning(f"Failed to migrate {legacy_name}: {e}")
 
     def _ensure_worker_loop(self) -> asyncio.AbstractEventLoop:
         """Ensure a single dedicated asyncio loop exists for all pytr websocket work.
@@ -144,7 +169,7 @@ class TRConnection:
 
     def has_credentials(self) -> bool:
         """Best-effort check for a reusable TR session (keyfile)."""
-        return TR_KEYFILE.exists()
+        return self._keyfile_path.exists()
 
     def _load_instrument_cache(self) -> Dict[str, str]:
         try:
@@ -164,11 +189,100 @@ class TRConnection:
         except Exception as e:
             log.warning(f"Failed to save instrument cache: {e}")
 
+    def _download_logos(self, enriched_positions: List[Dict]) -> None:
+        """Download position logos into assets/logos/ for local serving.
+
+        Strategy (in order):
+        1. Parqet public CDN: ``https://assets.parqet.com/logos/isin/{ISIN}``
+           – works for most stocks, ETFs and bonds (returns SVG).
+        2. ui-avatars.com: generates a nice colored-initials PNG as fallback
+           for anything Parqet doesn't cover (crypto, exotic small-caps).
+        Images already on disk are skipped.
+        """
+        import requests as _requests
+        from urllib.parse import quote
+
+        logos_dir = Path(__file__).resolve().parent.parent / "assets" / "logos"
+        logos_dir.mkdir(parents=True, exist_ok=True)
+
+        PARQET_BASE = "https://assets.parqet.com/logos/isin"
+
+        # Asset-class → background colour for the avatar fallback
+        _CLASS_COLORS = {
+            "stock": "10b981", "fund": "3b82f6", "etf": "3b82f6",
+            "crypto": "f59e0b", "bond": "8b5cf6",
+        }
+
+        # Collect positions that need logo download
+        to_download = []
+        for pos in enriched_positions:
+            isin = pos.get("isin", "")
+            if not isin:
+                continue
+            # Accept both .svg and .png (Parqet returns SVG, avatar returns PNG)
+            svg_dest = logos_dir / f"{isin}.svg"
+            png_dest = logos_dir / f"{isin}.png"
+            if (svg_dest.exists() and svg_dest.stat().st_size > 50) or \
+               (png_dest.exists() and png_dest.stat().st_size > 50):
+                continue  # already cached
+            to_download.append(pos)
+
+        if not to_download:
+            log.info("All logos already cached – nothing to download.")
+            return
+
+        log.info(f"Downloading {len(to_download)} logos …")
+
+        for pos in to_download:
+            isin = pos["isin"]
+            name = pos.get("name", isin)
+            inst_type = pos.get("instrumentType", "").lower()
+
+            # --- Attempt 1: Parqet CDN ---
+            parqet_url = f"{PARQET_BASE}/{isin}"
+            try:
+                resp = _requests.get(parqet_url, timeout=8)
+                if resp.status_code == 200 and len(resp.content) > 50:
+                    ct = resp.headers.get("Content-Type", "")
+                    ext = "svg" if "svg" in ct else "png"
+                    dest = logos_dir / f"{isin}.{ext}"
+                    dest.write_bytes(resp.content)
+                    log.info(f"  ✓ {isin} logo from Parqet ({len(resp.content)}b {ext})")
+                    continue
+            except Exception:
+                pass
+
+            # --- Attempt 2: ui-avatars.com (coloured initials image) ---
+            words = [w for w in name.split() if w]
+            if len(words) >= 2:
+                initials = words[0][0] + words[1][0]
+            elif words:
+                initials = words[0][:2]
+            else:
+                initials = "?"
+            bg = _CLASS_COLORS.get(inst_type, "6b7280")
+            avatar_url = (
+                f"https://ui-avatars.com/api/?name={quote(initials)}"
+                f"&background={bg}&color=fff&size=64&rounded=true&bold=true&format=png"
+            )
+            try:
+                resp = _requests.get(avatar_url, timeout=8)
+                if resp.status_code == 200 and len(resp.content) > 50:
+                    dest = logos_dir / f"{isin}.png"
+                    dest.write_bytes(resp.content)
+                    log.info(f"  ✓ {isin} avatar fallback ({len(resp.content)}b)")
+                    continue
+            except Exception:
+                pass
+
+            log.debug(f"  ✗ {isin} – no logo source available")
+
     def _load_transactions_cache(self) -> List[Dict]:
-        """Load cached transactions."""
+        """Load cached transactions (user-scoped)."""
+        cache_file = self._user_cache_dir / "transactions_cache.json"
         try:
-            if TR_TRANSACTIONS_CACHE.exists():
-                data = json.loads(TR_TRANSACTIONS_CACHE.read_text(encoding="utf-8"))
+            if cache_file.exists():
+                data = json.loads(cache_file.read_text(encoding="utf-8"))
                 if isinstance(data, list):
                     return data
         except Exception as e:
@@ -176,20 +290,21 @@ class TRConnection:
         return []
 
     def _save_transactions_cache(self, transactions: List[Dict]) -> None:
-        """Save transactions to cache.
+        """Save transactions to cache (user-scoped).
         
         Note: We strip the 'details' field before saving as it's huge and not needed
         for caching purposes (shares are already extracted).
         """
         try:
-            TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            self._user_cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = self._user_cache_dir / "transactions_cache.json"
             # Strip 'details' field to save space - it can be huge!
             clean_transactions = [
                 {k: v for k, v in txn.items() if k != 'details'}
                 for txn in transactions
             ]
-            TR_TRANSACTIONS_CACHE.write_text(json.dumps(clean_transactions, default=str), encoding="utf-8")
-            log.info(f"Saved {len(transactions)} transactions to cache")
+            cache_file.write_text(json.dumps(clean_transactions, default=str), encoding="utf-8")
+            log.info(f"Saved {len(transactions)} transactions to cache (user={self.user_id})")
         except Exception as e:
             log.warning(f"Failed to save transactions cache: {e}")
 
@@ -2030,7 +2145,7 @@ class TRConnection:
     
     def has_keyfile(self) -> bool:
         """Check if keyfile exists (needed for reconnect)."""
-        return TR_KEYFILE.exists()
+        return self._keyfile_path.exists()
     
     def get_encrypted_credentials(self, phone_no: str, pin: str) -> str:
         """Encrypt credentials for browser storage."""
@@ -2047,8 +2162,8 @@ class TRConnection:
     
     def clear_credentials(self):
         """Clear credentials and keyfile."""
-        if TR_KEYFILE.exists():
-            TR_KEYFILE.unlink()
+        if self._keyfile_path.exists():
+            self._keyfile_path.unlink()
         self.phone_no = None
         self.pin = None
         self.is_connected = False
@@ -2067,7 +2182,7 @@ class TRConnection:
             self.api = TradeRepublicApi(
                 phone_no=phone_no,
                 pin=pin,
-                keyfile=str(TR_KEYFILE)
+                keyfile=str(self._keyfile_path)
             )
             
             # Initiate web login (sends 4-digit code to app) - THIS IS SYNC, not async!
@@ -2399,7 +2514,13 @@ class TRConnection:
             total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
             
             log.info(f"Updated portfolio summary: invested={total_invested:.2f}, value={total_value:.2f}, profit={total_profit:.2f} ({total_profit_pct:.2f}%)")
-            
+
+            # Download logos from TR CDN into assets/logos/ for local serving
+            try:
+                self._download_logos(enriched_positions)
+            except Exception as e:
+                log.warning(f"Logo download failed (non-fatal): {e}")
+
             result = {
                 "success": True,
                 "data": {
@@ -2463,41 +2584,28 @@ class TRConnection:
         full_date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
         df = df.reindex(full_date_range).ffill().reset_index().rename(columns={'index': 'date'})
         
-        # Calculate TWR series (Time-Weighted Return)
-        values = df['value'].values
-        invested = df['invested'].values if 'invested' in df.columns else values
+        # Calculate TWR series using the shared module
+        from components.performance_calc import calculate_twr_series, calculate_drawdown_series
         
-        twr_cumulative = [0.0]  # Start at 0%
-        cumulative_factor = 1.0
+        values_list = df['value'].tolist()
+        invested_list = df['invested'].tolist() if 'invested' in df.columns else values_list
         
-        for i in range(1, len(df)):
-            prev_value = values[i-1]
-            curr_value = values[i]
-            cash_flow = invested[i] - invested[i-1]  # Change in invested = cash flow
-            
-            if prev_value > 0:
-                adjusted_end = curr_value - cash_flow
-                period_return = (adjusted_end / prev_value) - 1
-                period_return = max(-0.99, min(period_return, 10.0))  # Clamp
-                cumulative_factor *= (1 + period_return)
-            
-            twr_cumulative.append((cumulative_factor - 1) * 100)
+        twr_cumulative = calculate_twr_series(values_list, invested_list)
         
-        # Calculate drawdown series
-        rolling_max = df['value'].expanding().max().replace(0, pd.NA)
-        drawdown = ((df['value'] - rolling_max) / rolling_max * 100).fillna(0).tolist()
+        # Calculate drawdown from TWR equity curve (excludes deposit effects)
+        drawdown = calculate_drawdown_series(values_list, twr_series=twr_cumulative)
         
         return {
             'dates': df['date'].dt.strftime('%Y-%m-%d').tolist(),
             'values': [float(v) if pd.notna(v) else None for v in df['value'].tolist()],
-            'invested': [float(v) if pd.notna(v) else None for v in invested.tolist()],
+            'invested': [float(v) if pd.notna(v) else None for v in invested_list],
             'twr': [float(v) if v is not None else 0.0 for v in twr_cumulative],
-            'drawdown': [float(v) if pd.notna(v) else 0.0 for v in drawdown],
+            'drawdown': [float(v) if v is not None else 0.0 for v in drawdown],
         }
     
     def _save_portfolio_cache(self, data: Dict[str, Any]):
-        """Save portfolio data to local cache with pre-calculated series."""
-        cache_file = TR_CREDENTIALS_DIR / "portfolio_cache.json"
+        """Save portfolio data to local cache with pre-calculated series (user-scoped)."""
+        cache_file = self._user_cache_dir / "portfolio_cache.json"
         try:
             import datetime
             data['cached_at'] = datetime.datetime.now().isoformat()
@@ -2516,8 +2624,8 @@ class TRConnection:
             log.error(f"Failed to cache portfolio: {e}")
     
     def _load_portfolio_cache(self) -> Optional[Dict[str, Any]]:
-        """Load portfolio data from local cache."""
-        cache_file = TR_CREDENTIALS_DIR / "portfolio_cache.json"
+        """Load portfolio data from local cache (user-scoped)."""
+        cache_file = self._user_cache_dir / "portfolio_cache.json"
         if cache_file.exists():
             try:
                 with open(cache_file, 'r') as f:
@@ -2537,15 +2645,15 @@ class TRConnection:
             if not self.phone_no or not self.pin:
                 return {"success": False, "error": "No credentials available", "needs_reauth": True}
             
-            if not TR_KEYFILE.exists():
+            if not self._keyfile_path.exists():
                 return {"success": False, "error": "Session expired - please log in again", "needs_reauth": True}
             
-            TR_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            self._user_cache_dir.mkdir(parents=True, exist_ok=True)
             
             self.api = TradeRepublicApi(
                 phone_no=self.phone_no,
                 pin=self.pin,
-                keyfile=str(TR_KEYFILE)
+                keyfile=str(self._keyfile_path)
             )
             
             # Try to login with existing keyfile - THIS IS SYNC, not async!
@@ -2565,82 +2673,99 @@ class TRConnection:
             }
 
 
-# Global connection instance
-_connection: Optional[TRConnection] = None
+# Per-user connection pool – keyed by username ("_default" for legacy callers)
+_connections: Dict[str, TRConnection] = {}
+_connections_lock = threading.Lock()
 
 
-def get_connection() -> TRConnection:
-    """Get or create the TR connection instance."""
-    global _connection
-    if _connection is None:
-        _connection = TRConnection()
-    return _connection
+def get_connection(user_id: str = "_default") -> TRConnection:
+    """Get or create a TRConnection scoped to *user_id*."""
+    with _connections_lock:
+        if user_id not in _connections:
+            _connections[user_id] = TRConnection(user_id=user_id)
+        return _connections[user_id]
+
+
+def drop_connection(user_id: str) -> None:
+    """Destroy the connection for *user_id* (call on logout).
+
+    Clears in-memory credentials and removes the connection from the pool
+    so a subsequent login creates a fresh instance.
+    """
+    with _connections_lock:
+        conn = _connections.pop(user_id, None)
+    if conn:
+        try:
+            conn.clear_credentials()
+        except Exception:
+            pass
+        log.info(f"Dropped connection for user {user_id}")
 
 
 # Public API functions (sync wrappers)
+# All accept an optional *user_id* to scope per user.
 
-def has_saved_credentials() -> bool:
+def has_saved_credentials(user_id: str = "_default") -> bool:
     """Check if TR credentials are saved."""
-    return get_connection().has_credentials()
+    return get_connection(user_id).has_credentials()
 
 
-def initiate_login(phone_no: str, pin: str) -> Dict[str, Any]:
+def initiate_login(phone_no: str, pin: str, user_id: str = "_default") -> Dict[str, Any]:
     """Start the login process - sends verification code to TR app."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn.run(conn._initiate_web_login(phone_no, pin))
 
 
-def complete_login(code: str) -> Dict[str, Any]:
+def complete_login(code: str, user_id: str = "_default") -> Dict[str, Any]:
     """Complete login with the 4-digit verification code."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn.run(conn._complete_web_login(code))
 
 
-def fetch_portfolio() -> Dict[str, Any]:
+def fetch_portfolio(user_id: str = "_default") -> Dict[str, Any]:
     """Fetch current portfolio data."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn.run_serialized(conn._fetch_portfolio())
 
 
-def fetch_all_data() -> Dict[str, Any]:
+def fetch_all_data(user_id: str = "_default") -> Dict[str, Any]:
     """Fetch all portfolio data including history.
     
     This ALWAYS fetches fresh data from TR when called.
     The cache is only used for page loads (via get_cached_portfolio).
     """
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn.run_serialized(conn._fetch_all_data())
 
 
-def get_cached_portfolio() -> Optional[Dict[str, Any]]:
+def get_cached_portfolio(user_id: str = "_default") -> Optional[Dict[str, Any]]:
     """Get cached portfolio data without connecting."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn._load_portfolio_cache()
 
 
-def get_cached_transactions() -> List[Dict]:
+def get_cached_transactions(user_id: str = "_default") -> List[Dict]:
     """Get cached transactions without connecting."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn._load_transactions_cache()
 
 
-def reconnect(encrypted_credentials: str = None) -> Dict[str, Any]:
+def reconnect(encrypted_credentials: str = None, user_id: str = "_default") -> Dict[str, Any]:
     """Try to reconnect using encrypted credentials from browser."""
-    conn = get_connection()
+    conn = get_connection(user_id)
     return conn.run_serialized(conn._reconnect(encrypted_credentials))
 
 
-def disconnect():
+def disconnect(user_id: str = "_default"):
     """Disconnect and clear credentials."""
-    conn = get_connection()
-    conn.clear_credentials()
+    drop_connection(user_id)
 
 
-def has_keyfile() -> bool:
+def has_keyfile(user_id: str = "_default") -> bool:
     """Check if keyfile exists for reconnect."""
-    return get_connection().has_keyfile()
+    return get_connection(user_id).has_keyfile()
 
 
-def is_connected() -> bool:
+def is_connected(user_id: str = "_default") -> bool:
     """Check if currently connected."""
-    return get_connection().is_connected
+    return get_connection(user_id).is_connected

@@ -44,6 +44,11 @@ sidebar = html.Div([
     # Navigation
     dbc.Nav([
         dbc.NavLink([
+            html.I(className="bi bi-bar-chart-line me-2"), 
+            "Portfolio Analysis"
+        ], href="/compare", id="compare-link", className="nav-link-modern"),
+        
+        dbc.NavLink([
             html.I(className="bi bi-graph-up me-2"), 
             "Backtesting"
         ], href="/backtesting", id="backtesting-link", className="nav-link-modern"),
@@ -52,11 +57,6 @@ sidebar = html.Div([
             html.I(className="bi bi-wallet2 me-2"), 
             "Investment Simulator"
         ], href="/portfolio", id="portfolio-link", className="nav-link-modern"),
-        
-        dbc.NavLink([
-            html.I(className="bi bi-bar-chart-line me-2"), 
-            "Portfolio Analysis"
-        ], href="/compare", id="compare-link", className="nav-link-modern"),
         
         dbc.NavLink([
             html.I(className="bi bi-shield-check me-2"), 
@@ -106,7 +106,7 @@ app.layout = dbc.Container([
 )
 def redirect_to_default(pathname):
     if pathname == "/" or pathname is None:
-        return "/backtesting"
+        return "/compare"
     return dash.no_update
 
 

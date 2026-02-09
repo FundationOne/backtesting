@@ -295,22 +295,20 @@ This gives a series that:
 
 ### 7.1 Strategy
 
-**Simple approach - no external API dependencies:**
+**Download logos during sync, serve locally:**
 
-1. **If TR provides `imageId`** → Use TR's image endpoint: `https://assets.traderepublic.com/img/{imageId}/light.min.png`
-2. **Otherwise** → Show colored initials based on asset class:
-   - ETF: Blue (#3b82f6)
-   - Stock: Green (#10b981)
-   - Crypto: Orange (#f59e0b)
-   - Bond: Purple (#8b5cf6)
+1. **During TR sync** → `_download_logos()` uses the authenticated web session to download
+   each position's logo from TR's CDN: `https://assets.traderepublic.com/img/{imageId}/light.min.png`
+2. **Logos are saved to** `assets/logos/{isin}.png` — Dash auto-serves these at `/assets/logos/`
+3. **Securities table** uses DataTable markdown: `![alt](/assets/logos/{isin}.png) Name`
+4. **Fallback** → If the logo file doesn't exist on disk, the position name is shown without an image
+5. **Caching** → Logos are only downloaded once; subsequent syncs skip existing files
 
-### 7.2 Why No External Logo APIs
+### 7.2 Why Local Caching (Not Direct CDN)
 
-- **Clearbit** - Deprecated/unreliable
-- **Google Favicon** - Only returns small favicons, not good for display
-- **Company name → domain mapping** - Doesn't scale, breaks for new users with different stocks
-
-The initials approach is clean, works for any portfolio, and doesn't require maintaining mappings.
+- **TR CDN returns 403** for unauthenticated requests — the browser can't load them directly
+- **The authenticated `_websession`** (with cookies) can download them during sync
+- **Local serving** is instant and avoids CORS/auth issues in the browser
 
 ---
 
