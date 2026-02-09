@@ -131,7 +131,7 @@ def register_auth_callbacks(app):
             if (!current_user) {
                 return ["", {"display": "none"}];
             }
-            return ["User: " + current_user, {"display": "block"}];
+            return ["@ " + current_user, {"display": "block"}];
         }
         """,
         [Output("current-user-label", "children"),

@@ -208,7 +208,8 @@ layout = html.Div([
                     *risk_band_inputs,
                     # Heatmap below the inputs
                     html.Div([
-                        dcc.Graph(id='heatmap-graph')
+                        dcc.Graph(id='heatmap-graph',
+                                  config={"displayModeBar": False, "displaylogo": False})
                     ])
                 ])
             ], className="card-modern")
@@ -221,7 +222,8 @@ layout = html.Div([
                         "Scenario Analysis"
                     ], className="card-header-modern"),
                     dbc.CardBody([
-                        dcc.Graph(id='scenario-graph', className="chart-container"),
+                        dcc.Graph(id='scenario-graph', className="chart-container",
+                                  config={"displayModeBar": False, "displaylogo": False}),
                         # Totals Div
                         html.Div(id='totals-div', style={"marginTop": "20px"}),
                         dash_table.DataTable(

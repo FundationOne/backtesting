@@ -39,28 +39,33 @@ LOGICAL_OPERATORS = [
 ]
 
 
+def _empty_hint():
+    """Return the placeholder shown when there are no rules."""
+    return [html.Div("No rules yet — click + Buy or + Sell to add one.",
+                      className="rules-empty-hint",
+                      id="rules-empty-hint")]
+
+
 def create_rule_pill(rule_type, rule_index, rule_expression):
     """Create a modern pill-style rule component."""
     is_buy = rule_type == "buy"
-    color_class = "rule-pill-buy" if is_buy else "rule-pill-sell"
     icon = "bi-arrow-up-circle-fill" if is_buy else "bi-arrow-down-circle-fill"
     
     return html.Div(
         [
             # Rule type badge
             html.Div(
-                [
-                    html.I(className=f"bi {icon} me-1"),
-                    rule_type.upper()
-                ],
+                [html.I(className=f"bi {icon} me-1"), rule_type.upper()],
                 className=f"rule-type-badge {'badge-buy' if is_buy else 'badge-sell'}"
             ),
-            # Rule expression (editable)
-            dcc.Textarea(
+            # Rule expression (editable) — single-line code input
+            dbc.Input(
                 id={"type": f"{rule_type}-rule", "index": rule_index},
                 value=rule_expression,
                 className="rule-expression-input",
-                placeholder=f"Enter {rule_type} condition...",
+                placeholder=f"e.g. current('price') < current('sma_200')",
+                type="text",
+                debounce=True,
             ),
             # Remove button
             dbc.Button(
@@ -71,41 +76,20 @@ def create_rule_pill(rule_type, rule_index, rule_expression):
                 n_clicks=0,
             ),
         ],
-        className=f"rule-pill {color_class}",
+        className=f"rule-pill {'rule-pill-buy' if is_buy else 'rule-pill-sell'}",
     )
 
 
 def create_rule_builder_card():
     """Create the rule builder card with modern styling."""
     return html.Div([
-        # Header with title and add buttons
+        # ── Header with title and Run Backtest ──
         html.Div([
             html.Div([
                 html.I(className="bi bi-code-square me-2"),
                 html.Span("Trading Rules", className="rules-title"),
             ], className="rules-header-left"),
             html.Div([
-                dbc.Button(
-                    [html.I(className="bi bi-plus-lg me-1"), "Buy"],
-                    id="add-buy-rule-btn",
-                    className="add-rule-btn add-buy",
-                    size="sm",
-                    n_clicks=0,
-                ),
-                dbc.Button(
-                    [html.I(className="bi bi-plus-lg me-1"), "Sell"],
-                    id="add-sell-rule-btn",
-                    className="add-rule-btn add-sell",
-                    size="sm",
-                    n_clicks=0,
-                ),
-                dbc.Button(
-                    [html.I(className="bi bi-magic me-1"), "AI"],
-                    id="open-ai-rule-modal",
-                    className="add-rule-btn add-ai",
-                    size="sm",
-                    n_clicks=0,
-                ),
                 dbc.Button(
                     html.I(className="bi bi-question-circle"),
                     id="open-info-modal",
@@ -114,73 +98,108 @@ def create_rule_builder_card():
                     size="sm",
                     n_clicks=0,
                 ),
+                dbc.Button(
+                    [html.I(className="bi bi-play-fill me-1"), "Run Backtest"],
+                    id="update-backtesting-button",
+                    color="primary",
+                    className="run-backtest-btn",
+                    n_clicks=0,
+                ),
             ], className="rules-header-right"),
         ], className="rules-header"),
         
-        # Rules container
+        # ── Rules container ──
         html.Div(
             id="trading-rules-container",
             className="rules-container",
+            children=[html.Div("No rules yet — click + Buy or + Sell to add one.",
+                               className="rules-empty-hint",
+                               id="rules-empty-hint")],
         ),
         
-        # Quick add helper (indicator builder)
+        # ── Quick add helper ──
+        html.Details([
+            html.Summary("Quick Builder", className="qb-summary"),
+            html.Div([
+                html.Div([
+                    dcc.Dropdown(
+                        id="qb-indicator-1",
+                        options=AVAILABLE_INDICATORS,
+                        placeholder="Left-hand indicator…",
+                        className="qb-dropdown",
+                        clearable=True,
+                    ),
+                    dcc.Dropdown(
+                        id="qb-operator",
+                        options=COMPARISON_OPERATORS,
+                        placeholder="Op",
+                        className="qb-dropdown-small",
+                        clearable=True,
+                    ),
+                    dcc.Dropdown(
+                        id="qb-indicator-2",
+                        options=AVAILABLE_INDICATORS + [{"label": "Custom value…", "value": "custom"}],
+                        placeholder="Right-hand indicator or value…",
+                        className="qb-dropdown",
+                        clearable=True,
+                    ),
+                    dbc.Input(
+                        id="qb-custom-value",
+                        type="number",
+                        placeholder="Value",
+                        className="qb-custom-input",
+                        style={"display": "none"},
+                    ),
+                ], className="qb-row"),
+                html.Div([
+                    dbc.Button(
+                        [html.I(className="bi bi-plus-circle me-1"), "Add as Buy"],
+                        id="qb-add-buy",
+                        color="success",
+                        size="sm",
+                        outline=True,
+                        n_clicks=0,
+                    ),
+                    dbc.Button(
+                        [html.I(className="bi bi-plus-circle me-1"), "Add as Sell"],
+                        id="qb-add-sell",
+                        color="danger",
+                        size="sm",
+                        outline=True,
+                        n_clicks=0,
+                    ),
+                ], className="qb-actions"),
+            ], className="qb-body"),
+        ], className="qb-details"),
+        
+        # ── Action bar: add rule + save/load ──
         html.Div([
             html.Div([
-                html.Span("Quick Builder:", className="quick-builder-label"),
-                dcc.Dropdown(
-                    id="qb-indicator-1",
-                    options=AVAILABLE_INDICATORS,
-                    placeholder="Select indicator...",
-                    className="qb-dropdown",
-                    clearable=True,
-                ),
-                dcc.Dropdown(
-                    id="qb-operator",
-                    options=COMPARISON_OPERATORS,
-                    placeholder="Op",
-                    className="qb-dropdown-small",
-                    clearable=True,
-                ),
-                dcc.Dropdown(
-                    id="qb-indicator-2",
-                    options=AVAILABLE_INDICATORS + [{"label": "Custom value...", "value": "custom"}],
-                    placeholder="Select indicator or value...",
-                    className="qb-dropdown",
-                    clearable=True,
-                ),
-                dbc.Input(
-                    id="qb-custom-value",
-                    type="number",
-                    placeholder="Value",
-                    className="qb-custom-input",
-                    style={"display": "none"},
-                ),
                 dbc.Button(
-                    [html.I(className="bi bi-plus-circle me-1"), "Add as Buy"],
-                    id="qb-add-buy",
-                    className="qb-add-btn",
-                    color="success",
+                    [html.I(className="bi bi-plus me-1"), "Buy"],
+                    id="add-buy-rule-btn",
+                    className="add-rule-btn add-buy",
                     size="sm",
-                    outline=True,
                     n_clicks=0,
                 ),
                 dbc.Button(
-                    [html.I(className="bi bi-plus-circle me-1"), "Add as Sell"],
-                    id="qb-add-sell",
-                    className="qb-add-btn",
-                    color="danger",
+                    [html.I(className="bi bi-plus me-1"), "Sell"],
+                    id="add-sell-rule-btn",
+                    className="add-rule-btn add-sell",
                     size="sm",
-                    outline=True,
                     n_clicks=0,
                 ),
-            ], className="quick-builder"),
-        ], className="quick-builder-wrapper"),
-        
-        # Action buttons
-        html.Div([
-            dbc.ButtonGroup([
                 dbc.Button(
-                    [html.I(className="bi bi-save me-1"), "Save"],
+                    [html.I(className="bi bi-stars me-1"), "AI"],
+                    id="open-ai-rule-modal",
+                    className="add-rule-btn add-ai",
+                    size="sm",
+                    n_clicks=0,
+                ),
+            ], className="rules-action-group"),
+            html.Div([
+                dbc.Button(
+                    [html.I(className="bi bi-floppy me-1"), "Save"],
                     id="open-save-rules-modal",
                     color="secondary",
                     outline=True,
@@ -196,13 +215,6 @@ def create_rule_builder_card():
                     n_clicks=0,
                 ),
             ], className="rules-action-group"),
-            dbc.Button(
-                [html.I(className="bi bi-play-fill me-1"), "Run Backtest"],
-                id="update-backtesting-button",
-                color="primary",
-                className="run-backtest-btn",
-                n_clicks=0,
-            ),
         ], className="rules-actions"),
     ], className="rule-builder-card")
 
@@ -326,11 +338,15 @@ def get_rules_from_ui(children):
 
     for child in children:
         try:
-            # Navigate to the textarea
-            textarea = child['props']['children'][1]
-            textarea_props = textarea['props']
-            rule_type = textarea_props['id']['type']
-            rule_value = textarea_props.get('value', '').strip()
+            # Skip non-rule children (e.g. the empty-hint placeholder)
+            child_id = child.get('props', {}).get('id')
+            if child_id == 'rules-empty-hint':
+                continue
+            # Navigate to the input (index 1: badge=0, input=1, remove=2)
+            input_el = child['props']['children'][1]
+            input_props = input_el['props']
+            rule_type = input_props['id']['type']
+            rule_value = input_props.get('value', '').strip()
 
             if rule_type == "buy-rule" and rule_value:
                 rules["buying_rule"].append(rule_value)
@@ -439,12 +455,17 @@ def register_rule_builder_callbacks(app):
                      ind1, op, ind2, custom_val, selected_rule):
         trigger = ctx.triggered_id
         children = children or []
+        # Filter out the empty-hint placeholder
+        children = [c for c in children
+                    if not (isinstance(c, dict) and
+                            c.get("props", {}).get("id") == "rules-empty-hint")]
         
         # Handle removal
         if isinstance(trigger, dict) and trigger.get("type") == "remove-rule":
             if remove_clicks and any(c and c > 0 for c in remove_clicks):
                 idx = next(i for i, c in enumerate(remove_clicks) if c and c > 0)
-                return [c for i, c in enumerate(children) if i != idx]
+                result = [c for i, c in enumerate(children) if i != idx]
+                return result or _empty_hint()
         
         # Add empty buy rule
         if trigger == "add-buy-rule-btn":

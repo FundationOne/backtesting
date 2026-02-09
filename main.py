@@ -68,7 +68,7 @@ sidebar = html.Div([
     html.Div([
         settings_button,
         html.Div([
-            html.Div(id="current-user-label", className="small text-muted mb-1"),
+            html.Div(id="current-user-label", className="sidebar-user-label"),
             dbc.Button(
                 [html.I(className="bi bi-box-arrow-right me-1"), "Logout"],
                 id="logout-btn",

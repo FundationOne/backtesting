@@ -158,6 +158,21 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+#current-user-label {
+    color: rgba(255, 255, 255, 0.75) !important;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    text-align: center;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
 .sidebar-bottom label {
     color: var(--sidebar-muted) !important;
     font-size: 0.75rem !important;
@@ -536,8 +551,7 @@ textarea::placeholder {
 }
 
 .js-plotly-plot .plotly .modebar {
-    top: 8px !important;
-    right: 8px !important;
+    display: none !important;
 }
 
 /* ===== Utility Classes ===== */
@@ -913,215 +927,278 @@ input.compact-input {
 }
 
 /* ===== Rule Builder Styles ===== */
+/* ── Rule Builder Card ── */
 .rule-builder-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 16px;
+    padding: 20px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
 }
 
+/* Header */
 .rules-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
 }
 
 .rules-header-left {
     display: flex;
     align-items: center;
+    gap: 4px;
     color: var(--text-primary);
+    font-size: 1.05rem;
 }
 
 .rules-title {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.01em;
 }
 
 .rules-header-right {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
 .add-rule-btn {
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 999px;
+    transition: var(--transition);
 }
 
 .add-buy {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(16, 185, 129, 0.08);
     color: var(--success-color);
-    border: 1px solid var(--success-color);
+    border: 1px solid rgba(16, 185, 129, 0.5);
 }
-
 .add-buy:hover {
     background: var(--success-color);
-    color: white;
+    color: #fff;
+    border-color: var(--success-color);
 }
 
 .add-sell {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.08);
     color: var(--danger-color);
-    border: 1px solid var(--danger-color);
+    border: 1px solid rgba(239, 68, 68, 0.5);
 }
-
 .add-sell:hover {
     background: var(--danger-color);
-    color: white;
+    color: #fff;
+    border-color: var(--danger-color);
 }
 
 .add-ai {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(99, 102, 241, 0.08);
     color: var(--primary-color);
-    border: 1px solid var(--primary-color);
+    border: 1px solid rgba(99, 102, 241, 0.5);
 }
-
 .add-ai:hover {
     background: var(--primary-color);
-    color: white;
+    color: #fff;
+    border-color: var(--primary-color);
 }
 
 .info-btn {
     color: var(--text-secondary);
-    padding: 4px;
+    padding: 2px 4px;
+    font-size: 0.9rem;
 }
-
 .info-btn:hover {
     color: var(--primary-color);
 }
 
+/* Rules container */
 .rules-container {
-    min-height: 80px;
-    margin-bottom: 16px;
+    min-height: 56px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
+.rules-empty-hint {
+    text-align: center;
+    padding: 18px 12px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-style: italic;
+    background: var(--content-bg);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+/* Rule pill (each row) */
 .rule-pill {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px;
-    margin-bottom: 8px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
     border-radius: var(--radius-md);
     background: var(--content-bg);
     border: 1px solid var(--border-color);
-    transition: var(--transition);
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
-
 .rule-pill:hover {
-    box-shadow: var(--shadow-sm);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
-
 .rule-pill-buy {
     border-left: 3px solid var(--success-color);
 }
-
 .rule-pill-sell {
     border-left: 3px solid var(--danger-color);
 }
 
 .rule-type-badge {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 0.7rem;
-    font-weight: 600;
+    gap: 3px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
     white-space: nowrap;
+    flex-shrink: 0;
 }
-
 .badge-buy {
-    background: rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.13);
     color: var(--success-color);
 }
-
 .badge-sell {
-    background: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.13);
     color: var(--danger-color);
 }
 
+/* Expression input (now a single-line dbc.Input) */
 .rule-expression-input {
     flex: 1;
-    min-height: 36px;
-    padding: 8px 12px;
-    font-family: 'Monaco', 'Consolas', monospace;
+    height: 34px;
+    padding: 6px 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
     font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--input-bg, var(--card-bg));
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    resize: vertical;
-    background: var(--input-bg);
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
-
+.rule-expression-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.55;
+    font-style: italic;
+}
 .rule-expression-input:focus {
     border-color: var(--primary-color);
     outline: none;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
 }
 
 .rule-remove-btn {
     color: var(--text-secondary);
-    padding: 4px 8px;
-    opacity: 0.5;
-    transition: var(--transition);
+    padding: 2px 6px;
+    font-size: 0.72rem;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
 }
-
+.rule-pill:hover .rule-remove-btn {
+    opacity: 0.6;
+}
 .rule-remove-btn:hover {
-    color: var(--danger-color);
-    opacity: 1;
+    color: var(--danger-color) !important;
+    opacity: 1 !important;
 }
 
-/* Quick Builder */
-.quick-builder-wrapper {
-    padding: 12px;
-    background: var(--content-bg);
+/* ── Quick Builder (collapsible) ── */
+.qb-details {
+    margin-bottom: 14px;
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    margin-bottom: 16px;
+    overflow: hidden;
+    background: var(--content-bg);
+}
+.qb-details[open] {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-.quick-builder {
+.qb-summary {
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.qb-summary::before {
+    content: '\25B6';
+    font-size: 0.55rem;
+    transition: transform 0.2s;
+}
+.qb-details[open] > .qb-summary::before {
+    transform: rotate(90deg);
+}
+.qb-summary::-webkit-details-marker {
+    display: none;
+}
+
+.qb-body {
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.qb-row {
     display: flex;
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
 }
 
-.quick-builder-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
 .qb-dropdown {
-    width: 180px !important;
+    flex: 1;
+    min-width: 150px;
+    max-width: 220px;
     font-size: 0.8rem !important;
-}
-
-.qb-dropdown .Select-control {
-    min-height: 32px !important;
 }
 
 .qb-dropdown-small {
-    width: 70px !important;
+    width: 80px !important;
+    flex: 0 0 auto;
 }
 
 .qb-custom-input {
-    width: 80px !important;
-    padding: 4px 8px !important;
+    width: 90px !important;
+    padding: 5px 8px !important;
     font-size: 0.8rem !important;
+    border-radius: var(--radius-sm) !important;
 }
 
-.qb-add-btn {
-    padding: 4px 10px;
-    font-size: 0.75rem;
+.qb-actions {
+    display: flex;
+    gap: 8px;
 }
 
-/* Rules Actions */
+/* ── Action bar ── */
 .rules-actions {
     display: flex;
     justify-content: space-between;
@@ -1132,11 +1209,24 @@ input.compact-input {
 
 .rules-action-group {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .run-backtest-btn {
-    padding: 10px 24px;
+    padding: 8px 22px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.25);
+    transition: box-shadow 0.15s, transform 0.1s;
+}
+.run-backtest-btn:hover {
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px);
+}
+.run-backtest-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.2);
 }
 
 /* AI Modal */
@@ -1228,7 +1318,8 @@ input.compact-input {
 }
 
 .chart-container {
-    height: 400px;
+    width: 100%;
+    min-height: 0;
 }
 
 .table-container {
@@ -1803,15 +1894,47 @@ input.compact-input {
 }
 
 /* ===== Scale Toggle - Inline ===== */
-.scale-toggle-inline {
+.scale-toggle-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 10;
 }
 
-.scale-toggle-inline .form-check {
-    padding: 0;
-    margin: 0;
+.scale-btn {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    transition: all 0.15s ease;
+    line-height: 1.4;
+    letter-spacing: 0.3px;
+    outline: none;
+}
+
+.scale-btn:first-child {
+    border-radius: 4px 0 0 4px;
+    border-right: none;
+}
+
+.scale-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.scale-btn:hover {
+    background: #e2e8f0;
+}
+
+.scale-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
 }
 
 /* ===== Buttons - Smaller ===== */
@@ -2019,7 +2142,22 @@ hr {
     border-radius: 12px;
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
+}
+
+/* Ensure dropdowns inside card-modern aren't clipped by Bootstrap .card overflow */
+.card.card-modern,
+.card.card-modern > .card-body {
+    overflow: visible !important;
+}
+
+/* Asset autocomplete dropdown — ensure menu renders above other cards */
+.asset-autocomplete {
+    position: relative;
+    z-index: 10;
+}
+.asset-autocomplete .Select-menu-outer,
+.asset-autocomplete .VirtualizedSelectFocusedOption {
+    z-index: 100 !important;
 }
 
 .card-header-modern {

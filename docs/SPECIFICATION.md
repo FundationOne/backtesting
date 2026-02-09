@@ -66,3 +66,45 @@ Robustness:
 ## Diagnostic
 Run `python tools/trace_asset.py` to verify any ISIN end-to-end.
 
+---
+
+## Backtesting Page — Chart Behavior
+
+### RULE 1: Asset selection → instant price chart
+The **moment** the user selects an asset from the dropdown, the chart MUST
+immediately show that asset’s historical price. No button click required.
+
+- `on_asset_change` is the **primary** callback for `backtesting-graph.figure`
+  (no `allow_duplicate`, no `prevent_initial_call`). It fires on every
+  dropdown change AND on page load.
+- It downloads price data via `_download_asset` → `_load_asset_data` →
+  `_price_fig` and returns the figure directly.
+
+### RULE 2: Backtest only on explicit button click
+The `update_backtesting` callback MUST have `prevent_initial_call=True`
+and guard `if not n_clicks: raise PreventUpdate`. It must NEVER fire
+automatically on page load.
+
+- It outputs to `backtesting-graph.figure` with `allow_duplicate=True`.
+- It overlays lump-sum, DCA, and portfolio traces on top of the price chart.
+- **Strategy traces (Lump Sum, DCA, Portfolio Value) MUST use `yaxis='y2'`
+  (secondary right-side axis)** so they never squish the price trace into a
+  flat line. Price can be ~$24-$695 while portfolio values reach $30k-$300k;
+  plotting both on the same axis makes the price invisible.
+- Buy/Sell markers stay on `y1` (the price axis).
+- Indicator overlays also go on `y2`.
+
+### RULE 3: Scale toggle
+- Two buttons (Lin / Log) in the top-right corner of the chart card.
+- Stored in `dcc.Store(id='chart-scale-toggle', storage_type='local')`.
+- Persisted across sessions.
+
+### RULE 4: Asset persistence — ALWAYS restore the user's last choice
+- The dropdown has `persistence=True, persistence_type='local'`.
+- On return visits the **user's last-selected asset** is restored
+  automatically and its price chart is shown immediately.
+- `BTC-USD` is ONLY the fallback for the very first visit ever
+  (no localStorage entry yet). After that, the user's choice sticks.
+- **NEVER** override the persisted selection. Do NOT reset to BTC-USD
+  on page load, on callback errors, or anywhere else.
+

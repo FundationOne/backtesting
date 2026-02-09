@@ -111,7 +111,7 @@ layout = dbc.Container(
                                     dcc.Loading(
                                         id="prediction-loading",
                                         children=[
-                                            dcc.Graph(id="prediction-graph"),
+                                            dcc.Graph(id="prediction-graph",\n                                                     config={\"displayModeBar\": False, \"displaylogo\": False}),
                                             dbc.Card(
                                                 [
                                                     dbc.CardHeader("Evaluation Metrics"),

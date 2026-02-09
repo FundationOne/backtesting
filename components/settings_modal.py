@@ -48,7 +48,7 @@ settings_modal = dbc.Modal(
                         {"label": "Logarithmic", "value": "log"},
                         {"label": "Linear", "value": "linear"},
                     ],
-                    value="log",
+                    value="linear",
                     id="scale-toggle",
                     className="settings-radio",
                     inline=True

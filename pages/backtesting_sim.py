@@ -15,6 +15,122 @@ from core.conf import *
 
 from components.gpt_functionality import context_description
 
+# Popular assets for autocomplete
+_POPULAR_ASSETS = [
+    # ── Crypto ──
+    {"label": "Bitcoin (BTC-USD)", "value": "BTC-USD"},
+    {"label": "Ethereum (ETH-USD)", "value": "ETH-USD"},
+    {"label": "Solana (SOL-USD)", "value": "SOL-USD"},
+    {"label": "XRP (XRP-USD)", "value": "XRP-USD"},
+    {"label": "BNB (BNB-USD)", "value": "BNB-USD"},
+    {"label": "Cardano (ADA-USD)", "value": "ADA-USD"},
+    {"label": "Dogecoin (DOGE-USD)", "value": "DOGE-USD"},
+    {"label": "Avalanche (AVAX-USD)", "value": "AVAX-USD"},
+    {"label": "Chainlink (LINK-USD)", "value": "LINK-USD"},
+    {"label": "Polkadot (DOT-USD)", "value": "DOT-USD"},
+    {"label": "Polygon (MATIC-USD)", "value": "MATIC-USD"},
+    {"label": "Toncoin (TON11419-USD)", "value": "TON11419-USD"},
+    {"label": "Litecoin (LTC-USD)", "value": "LTC-USD"},
+    {"label": "Shiba Inu (SHIB-USD)", "value": "SHIB-USD"},
+    {"label": "Uniswap (UNI7083-USD)", "value": "UNI7083-USD"},
+    {"label": "Cosmos (ATOM-USD)", "value": "ATOM-USD"},
+    {"label": "Near Protocol (NEAR-USD)", "value": "NEAR-USD"},
+    {"label": "Aptos (APT21794-USD)", "value": "APT21794-USD"},
+    {"label": "Sui (SUI20947-USD)", "value": "SUI20947-USD"},
+    {"label": "Render (RNDR-USD)", "value": "RNDR-USD"},
+    {"label": "Injective (INJ-USD)", "value": "INJ-USD"},
+    {"label": "Arbitrum (ARB11841-USD)", "value": "ARB11841-USD"},
+    # ── ETFs & Indices ──
+    {"label": "S&P 500 ETF (SPY)", "value": "SPY"},
+    {"label": "Nasdaq 100 ETF (QQQ)", "value": "QQQ"},
+    {"label": "Dow Jones ETF (DIA)", "value": "DIA"},
+    {"label": "Russell 2000 ETF (IWM)", "value": "IWM"},
+    {"label": "MSCI World ETF (URTH)", "value": "URTH"},
+    {"label": "MSCI Emerging Mkts (EEM)", "value": "EEM"},
+    {"label": "Vanguard Total Mkt (VTI)", "value": "VTI"},
+    {"label": "Vanguard S&P 500 (VOO)", "value": "VOO"},
+    {"label": "Vanguard Growth (VUG)", "value": "VUG"},
+    {"label": "Vanguard Value (VTV)", "value": "VTV"},
+    {"label": "ARK Innovation (ARKK)", "value": "ARKK"},
+    {"label": "Invesco Semiconductors (SOXX)", "value": "SOXX"},
+    {"label": "DAX ETF (EXS1.DE)", "value": "EXS1.DE"},
+    {"label": "FTSE 100 ETF (ISF.L)", "value": "ISF.L"},
+    # ── Commodities ──
+    {"label": "Gold ETF (GLD)", "value": "GLD"},
+    {"label": "Silver ETF (SLV)", "value": "SLV"},
+    {"label": "Oil ETF (USO)", "value": "USO"},
+    {"label": "Natural Gas ETF (UNG)", "value": "UNG"},
+    {"label": "Uranium ETF (URA)", "value": "URA"},
+    # ── Bonds ──
+    {"label": "US Treasury 20Y+ (TLT)", "value": "TLT"},
+    {"label": "US Treasury 7-10Y (IEF)", "value": "IEF"},
+    {"label": "High Yield Corp (HYG)", "value": "HYG"},
+    # ── Tech ──
+    {"label": "Apple (AAPL)", "value": "AAPL"},
+    {"label": "Microsoft (MSFT)", "value": "MSFT"},
+    {"label": "Alphabet (GOOGL)", "value": "GOOGL"},
+    {"label": "Amazon (AMZN)", "value": "AMZN"},
+    {"label": "NVIDIA (NVDA)", "value": "NVDA"},
+    {"label": "Meta Platforms (META)", "value": "META"},
+    {"label": "Tesla (TSLA)", "value": "TSLA"},
+    {"label": "TSMC (TSM)", "value": "TSM"},
+    {"label": "ASML (ASML)", "value": "ASML"},
+    {"label": "Adobe (ADBE)", "value": "ADBE"},
+    {"label": "Salesforce (CRM)", "value": "CRM"},
+    {"label": "AMD (AMD)", "value": "AMD"},
+    {"label": "Intel (INTC)", "value": "INTC"},
+    {"label": "Netflix (NFLX)", "value": "NFLX"},
+    {"label": "Broadcom (AVGO)", "value": "AVGO"},
+    {"label": "Palantir (PLTR)", "value": "PLTR"},
+    {"label": "Snowflake (SNOW)", "value": "SNOW"},
+    {"label": "CrowdStrike (CRWD)", "value": "CRWD"},
+    {"label": "Palo Alto Networks (PANW)", "value": "PANW"},
+    {"label": "Shopify (SHOP)", "value": "SHOP"},
+    {"label": "ServiceNow (NOW)", "value": "NOW"},
+    {"label": "Uber (UBER)", "value": "UBER"},
+    {"label": "Airbnb (ABNB)", "value": "ABNB"},
+    # ── Finance ──
+    {"label": "JPMorgan Chase (JPM)", "value": "JPM"},
+    {"label": "Berkshire Hathaway (BRK-B)", "value": "BRK-B"},
+    {"label": "Visa (V)", "value": "V"},
+    {"label": "Mastercard (MA)", "value": "MA"},
+    {"label": "Goldman Sachs (GS)", "value": "GS"},
+    {"label": "Bank of America (BAC)", "value": "BAC"},
+    {"label": "Morgan Stanley (MS)", "value": "MS"},
+    {"label": "BlackRock (BLK)", "value": "BLK"},
+    {"label": "Coinbase (COIN)", "value": "COIN"},
+    # ── Healthcare ──
+    {"label": "UnitedHealth (UNH)", "value": "UNH"},
+    {"label": "Eli Lilly (LLY)", "value": "LLY"},
+    {"label": "Novo Nordisk (NVO)", "value": "NVO"},
+    {"label": "Johnson & Johnson (JNJ)", "value": "JNJ"},
+    {"label": "Pfizer (PFE)", "value": "PFE"},
+    {"label": "AbbVie (ABBV)", "value": "ABBV"},
+    {"label": "Merck (MRK)", "value": "MRK"},
+    # ── Industrials & Defense ──
+    {"label": "Lockheed Martin (LMT)", "value": "LMT"},
+    {"label": "Rheinmetall (RHM.DE)", "value": "RHM.DE"},
+    {"label": "Boeing (BA)", "value": "BA"},
+    {"label": "Caterpillar (CAT)", "value": "CAT"},
+    {"label": "3M (MMM)", "value": "MMM"},
+    {"label": "General Electric (GE)", "value": "GE"},
+    # ── Consumer ──
+    {"label": "McDonald's (MCD)", "value": "MCD"},
+    {"label": "Coca-Cola (KO)", "value": "KO"},
+    {"label": "PepsiCo (PEP)", "value": "PEP"},
+    {"label": "Procter & Gamble (PG)", "value": "PG"},
+    {"label": "Walmart (WMT)", "value": "WMT"},
+    {"label": "Costco (COST)", "value": "COST"},
+    {"label": "Nike (NKE)", "value": "NKE"},
+    {"label": "Starbucks (SBUX)", "value": "SBUX"},
+    {"label": "Walt Disney (DIS)", "value": "DIS"},
+    # ── Energy ──
+    {"label": "ExxonMobil (XOM)", "value": "XOM"},
+    {"label": "Chevron (CVX)", "value": "CVX"},
+    {"label": "Enphase Energy (ENPH)", "value": "ENPH"},
+    {"label": "NextEra Energy (NEE)", "value": "NEE"},
+]
+
 # Function to fetch historical data for Bitcoin
 def convert_volume(value):
     if isinstance(value, str):
@@ -121,7 +237,7 @@ def add_oscillators_quantiles(btc_data):
 
     return btc_data
 
-def add_historical_indicators(btc_data):
+def add_historical_indicators(btc_data, is_btc=True):
     btc_data['last_highest'] = btc_data['price'].cummax().shift(1)
     btc_data['last_lowest'] = btc_data['price'].cummin().shift(1)
     btc_data['sma_10'] = ta.trend.sma_indicator(btc_data['price'], window=10)
@@ -137,24 +253,36 @@ def add_historical_indicators(btc_data):
     btc_data['ema_20'] = ta.trend.ema_indicator(btc_data['price'], window=20)
     btc_data['ema_50'] = ta.trend.ema_indicator(btc_data['price'], window=50)
     btc_data['ema_200'] = ta.trend.ema_indicator(btc_data['price'], window=200)
-    btc_data['stochastic_oscillator'] = ta.momentum.stoch(btc_data['high'], btc_data['low'], btc_data['price'], window=14, smooth_window=3)
-    btc_data['atr'] = ta.volatility.average_true_range(btc_data['high'], btc_data['low'], btc_data['price'], window=14)
-    btc_data['on_balance_volume'] = ta.volume.on_balance_volume(btc_data['price'], btc_data['volume'])
     btc_data['momentum_14'] = ta.momentum.roc(btc_data['price'], window=14)
     btc_data['percent_change'] = btc_data['price'].pct_change()
-    btc_data['volatility'] = btc_data['atr'] / btc_data['price'] * 100
-    btc_data['atr_percent'] = (ta.volatility.AverageTrueRange(btc_data['high'], btc_data['low'], btc_data['price']).average_true_range() / btc_data['price']) * 100
-    ichimoku = ta.trend.IchimokuIndicator(btc_data['high'], btc_data['low'])
-    btc_data['ichimoku_a'] = ichimoku.ichimoku_a()
-    btc_data['ichimoku_b'] = ichimoku.ichimoku_b()
-    btc_data['parabolic_sar'] = ta.trend.PSARIndicator(btc_data['high'], btc_data['low'], btc_data['price']).psar()
+
+    # Indicators that need high/low/volume — guard against missing columns
+    has_hlv = all(c in btc_data.columns for c in ('high', 'low', 'volume'))
+    has_hl = all(c in btc_data.columns for c in ('high', 'low'))
+
+    if has_hl:
+        btc_data['stochastic_oscillator'] = ta.momentum.stoch(btc_data['high'], btc_data['low'], btc_data['price'], window=14, smooth_window=3)
+        btc_data['atr'] = ta.volatility.average_true_range(btc_data['high'], btc_data['low'], btc_data['price'], window=14)
+        btc_data['volatility'] = btc_data['atr'] / btc_data['price'] * 100
+        btc_data['atr_percent'] = (ta.volatility.AverageTrueRange(btc_data['high'], btc_data['low'], btc_data['price']).average_true_range() / btc_data['price']) * 100
+        ichimoku = ta.trend.IchimokuIndicator(btc_data['high'], btc_data['low'])
+        btc_data['ichimoku_a'] = ichimoku.ichimoku_a()
+        btc_data['ichimoku_b'] = ichimoku.ichimoku_b()
+        btc_data['parabolic_sar'] = ta.trend.PSARIndicator(btc_data['high'], btc_data['low'], btc_data['price']).psar()
+
+    if has_hlv:
+        btc_data['on_balance_volume'] = ta.volume.on_balance_volume(btc_data['price'], btc_data['volume'])
+        btc_data['volume_spike'] = volume_spike_detection(btc_data['volume'], window=20, threshold=2)
+
     btc_data['support'] = find_support(btc_data['price'], window=20)
     btc_data['resistance'] = find_resistance(btc_data['price'], window=20)
-    btc_data['volume_spike'] = volume_spike_detection(btc_data['volume'], window=20, threshold=2)
-    btc_data['days_since_last_halving'] = btc_data.index.to_series().apply(days_since_last_halving)
-    btc_data['power_law_price_1y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365)
-    btc_data['power_law_price_4y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365*4)
-    btc_data['power_law_price'] = rolling_power_law_price(btc_data)
+
+    # BTC-specific indicators
+    if is_btc:
+        btc_data['days_since_last_halving'] = btc_data.index.to_series().apply(days_since_last_halving)
+        btc_data['power_law_price_1y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365)
+        btc_data['power_law_price_4y_window'] = rolling_power_law_price_windowed(btc_data, window_size=365*4)
+        btc_data['power_law_price'] = rolling_power_law_price(btc_data)
 
     return btc_data
 
@@ -344,24 +472,21 @@ layout = dbc.Container([
                     "Asset"
                 ], className="card-header-modern"),
                 dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            html.Div([
-                                dbc.Button("Bitcoin", id="asset-btc-btn", color="primary", size="sm", className="me-1 asset-type-tab active"),
-                                dbc.Button("Stock/ETF", id="asset-stock-btn", color="link", size="sm", className="asset-type-tab"),
-                            ], className="asset-type-tabs mb-2"),
-                            dbc.Input(
-                                id="asset-symbol-input",
-                                type="text",
-                                placeholder="e.g. AAPL, SPY, MSFT",
-                                className="compact-input",
-                                style={"display": "none"}
-                            ),
-                            dcc.Store(id="selected-asset", data="BTC-USD"),
-                        ], width=12),
-                    ]),
+                    dcc.Dropdown(
+                        id="asset-search-dropdown",
+                        options=_POPULAR_ASSETS,
+                        value="BTC-USD",
+                        placeholder="Search asset… e.g. AAPL, BTC-USD, SPY",
+                        searchable=True,
+                        clearable=False,
+                        className="asset-autocomplete",
+                        persistence=True,
+                        persistence_type="local",
+                    ),
+                    dcc.Store(id="selected-asset", storage_type="local"),
                 ], className="py-2"),
-            ], className="card-modern mb-2"),
+            ], className="card-modern mb-2",
+               style={"overflow": "visible", "position": "relative", "zIndex": 20}),
             
             # Parameters Card (Compact)
             dbc.Card([
@@ -487,12 +612,19 @@ layout = dbc.Container([
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
+                    # Inline scale toggle
+                    html.Div([
+                        html.Button("Lin", id="scale-btn-linear", n_clicks=0, className="scale-btn active"),
+                        html.Button("Log", id="scale-btn-log", n_clicks=0, className="scale-btn"),
+                    ], className="scale-toggle-bar"),
+                    dcc.Store(id="chart-scale-toggle", data="linear", storage_type="local"),
                     dcc.Loading(
                         id="loading-graph",
                         type="circle",
-                        children=dcc.Graph(id='backtesting-graph', className="chart-container"),
+                        children=dcc.Graph(id='backtesting-graph', className="chart-container",
+                                            config={"displayModeBar": False, "displaylogo": False}),
                     ),
-                ]),
+                ], style={"padding": "0 4px 0 4px", "position": "relative"}),
             ], className="card-modern mb-3"),
             
             dbc.Card([
@@ -517,222 +649,329 @@ layout = dbc.Container([
     ]),
 ], fluid=True)
 
-def register_callbacks(app):
-    # Asset picker callbacks
-    @app.callback(
-        [Output("asset-btc-btn", "className"),
-         Output("asset-stock-btn", "className"),
-         Output("asset-symbol-input", "style"),
-         Output("selected-asset", "data")],
-        [Input("asset-btc-btn", "n_clicks"),
-         Input("asset-stock-btn", "n_clicks"),
-         Input("asset-symbol-input", "value")],
-        [State("selected-asset", "data")],
-        prevent_initial_call=True
+
+# ── Shared helpers ──────────────────────────────────────────────────────────
+
+_asset_cache: dict = {}                    # {ticker: DataFrame}
+
+def _download_asset(asset_ticker):
+    """Download price data for *any* ticker via yfinance.
+    Returns a DataFrame with lowercase columns and a 'price' column,
+    or None on failure.  Results are cached in-memory for the session."""
+
+    if asset_ticker in _asset_cache:
+        return _asset_cache[asset_ticker].copy()
+
+    try:
+        yf_data = yf.download(asset_ticker, period="max", progress=False)
+    except Exception as e:
+        print(f"yfinance download error for {asset_ticker}: {e}")
+        return None
+    if yf_data is None or yf_data.empty:
+        print(f"No data returned for {asset_ticker}")
+        return None
+
+    # Flatten MultiIndex columns (yfinance >= 0.2)
+    if isinstance(yf_data.columns, pd.MultiIndex):
+        yf_data.columns = [c[0] for c in yf_data.columns]
+
+    # Ensure DatetimeIndex
+    if 'Date' in yf_data.columns:
+        yf_data['Date'] = pd.to_datetime(yf_data['Date'])
+        yf_data.set_index('Date', inplace=True)
+    elif not isinstance(yf_data.index, pd.DatetimeIndex):
+        yf_data.index = pd.to_datetime(yf_data.index)
+
+    # Strip timezone info (some tickers return tz-aware dates)
+    if hasattr(yf_data.index, 'tz') and yf_data.index.tz is not None:
+        yf_data.index = yf_data.index.tz_localize(None)
+
+    yf_data.columns = yf_data.columns.str.lower()
+
+    # Map to a 'price' column – prefer adj close (split-adjusted), fall back to close
+    col_map = {}
+    if 'adj close' in yf_data.columns:
+        col_map['adj close'] = 'price'
+    elif 'close' in yf_data.columns:
+        col_map['close'] = 'price'
+    yf_data.rename(columns=col_map, inplace=True)
+
+    if 'price' not in yf_data.columns:
+        print(f"No price column for {asset_ticker}: {list(yf_data.columns)}")
+        return None
+
+    yf_data.dropna(subset=['price'], inplace=True)
+    yf_data = yf_data[yf_data['price'] > 0]        # drop zero-price rows
+    yf_data.sort_index(inplace=True)
+
+    # Remove duplicate index entries
+    yf_data = yf_data[~yf_data.index.duplicated(keep='last')]
+
+    if len(yf_data) < 2:
+        print(f"Insufficient data for {asset_ticker}: only {len(yf_data)} rows")
+        return None
+
+    print(f"[{asset_ticker}] loaded {len(yf_data)} rows | "
+          f"{yf_data.index[0].date()} → {yf_data.index[-1].date()} | "
+          f"price {yf_data['price'].iloc[0]:.2f} → {yf_data['price'].iloc[-1]:.2f}")
+
+    _asset_cache[asset_ticker] = yf_data.copy()
+    return yf_data
+
+
+def _load_asset_data(asset_ticker):
+    """Return a DataFrame with indicators for the given ticker.
+    BTC-USD uses the local CSV + on-chain pipeline; everything else
+    comes from Yahoo Finance."""
+    is_btc = asset_ticker.upper() in ("BTC-USD", "BTC")
+
+    if is_btc:
+        if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
+            print("Reloading all historical BTC data.")
+            try:
+                data = fetch_historical_data('./btc_hist_prices.csv')
+                if data.empty:
+                    raise ValueError("BTC CSV is empty.")
+                data.columns = data.columns.str.lower()
+                data = add_historical_indicators(data, is_btc=True)
+                try:
+                    onchain = fetch_onchain_indicators('./indicators')
+                    if not onchain.empty:
+                        onchain.columns = onchain.columns.str.lower()
+                        data = data.join(onchain, how='left')
+                except FileNotFoundError:
+                    pass
+                data = add_oscillators_quantiles(data)
+                data.to_csv(PREPROC_FILENAME)
+            except Exception as e:
+                print(f"Error loading BTC data: {e}")
+                return None
+        else:
+            data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
+        return data
+    else:
+        yf_data = _download_asset(asset_ticker)
+        if yf_data is None:
+            return None
+        return add_historical_indicators(yf_data, is_btc=False)
+
+
+_CHART_LAYOUT = dict(
+    height=560,
+    margin=dict(l=50, r=20, t=60, b=30),
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    font=dict(
+        family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        color="black",
+    ),
+    xaxis=dict(showline=True, showgrid=True, linecolor='lightgrey', gridcolor='#f0f0f0', mirror=True),
+    yaxis=dict(showline=True, showgrid=True, linecolor='lightgrey', gridcolor='#f0f0f0', mirror=True),
+    legend=dict(
+        font=dict(family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color="black", size=11),
+        bgcolor="rgba(255,255,255,0.85)",
+        bordercolor="lightgrey",
+        borderwidth=1,
+        orientation='h',
+        x=0.01, y=0.99,
+        xanchor='left',
+        yanchor='top',
+    ),
+)
+
+
+def _error_fig(msg):
+    fig = go.Figure()
+    fig.add_annotation(text=msg, xref="paper", yref="paper", x=0.5, y=0.5,
+                       showarrow=False, font=dict(size=15, color="#ef4444"))
+    fig.update_layout(xaxis=dict(visible=False), yaxis=dict(visible=False), **_CHART_LAYOUT)
+    return fig
+
+
+def _to_list(s):
+    """Convert pandas/numpy data to plain Python lists so Dash never
+    uses binary (bdata) encoding, which can break across versions."""
+    if hasattr(s, 'tolist'):
+        return s.tolist()
+    return list(s)
+
+
+def _price_fig(asset_ticker, data, scale="linear"):
+    """Build a simple price-only chart for *asset_ticker*."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=_to_list(data.index), y=_to_list(data['price']), mode='lines',
+        name=f'{asset_ticker} Price',
+        line=dict(color='#6366f1', width=2),
+    ))
+    fig.update_layout(
+        title=dict(text=asset_ticker, font=dict(size=14)),
+        xaxis_title='Date',
+        yaxis_title='Price',
+        yaxis_type=scale,
+        **_CHART_LAYOUT,
     )
-    def toggle_asset_type(btc_clicks, stock_clicks, symbol_input, current_asset):
-        from dash import ctx
-        triggered = ctx.triggered_id
+    return fig
+
+
+# ── Callbacks ───────────────────────────────────────────────────────────────
+
+def register_callbacks(app):
+    # ── Asset change → show price chart immediately ──
+    @app.callback(
+        [Output("selected-asset", "data"),
+         Output('backtesting-graph', 'figure')],
+        [Input("asset-search-dropdown", "value"),
+         Input('chart-scale-toggle', 'data')],
+    )
+    def on_asset_change(value, scale):
+        ticker = value or "BTC-USD"
         
-        if triggered == "asset-btc-btn":
-            return "me-1 asset-type-tab active", "asset-type-tab", {"display": "none"}, "BTC-USD"
-        elif triggered == "asset-stock-btn":
-            return "me-1 asset-type-tab", "asset-type-tab active", {"display": "block"}, symbol_input or "AAPL"
-        elif triggered == "asset-symbol-input" and symbol_input:
-            return "me-1 asset-type-tab", "asset-type-tab active", {"display": "block"}, symbol_input.upper()
-        
-        return "me-1 asset-type-tab active", "asset-type-tab", {"display": "none"}, current_asset or "BTC-USD"
+        # Find display name (e.g. "Apple (AAPL)") from our list, if available
+        display_name = ticker
+        for asset in _POPULAR_ASSETS:
+            if asset['value'] == ticker:
+                display_name = asset['label']
+                break
+
+        # Only fetch raw price data — no heavy indicator calculations.
+        # _load_asset_data runs add_historical_indicators which is slow
+        # and only needed when the user clicks "Run Backtest".
+        is_btc = ticker.upper() in ("BTC-USD", "BTC")
+        if is_btc:
+            if os.path.exists(PREPROC_FILENAME):
+                data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
+            else:
+                data = _download_asset(ticker)
+        else:
+            data = _download_asset(ticker)
+        if data is None or data.empty or 'price' not in data.columns:
+            return ticker, _error_fig(f"Could not load data for '{ticker}'.")
+        return ticker, _price_fig(display_name, data, scale or "linear")
     
     @app.callback(
         [Output('backtesting-table', 'data'),
          Output('backtesting-table', 'columns'),
-         Output('backtesting-graph', 'figure')],
+         Output('backtesting-graph', 'figure', allow_duplicate=True)],
         [Input('update-backtesting-button', 'n_clicks')],
         [State('input-starting-investment', 'value'),
          State('start-invested', 'value'),
         State('input-starting-date', 'date'),
         State("trading-rules-container", "children"),
         State("saved-rules-store", "data"),
-        State('scale-toggle', 'value'),
+        State('chart-scale-toggle', 'data'),
         State('input-trade-amount', 'value'),
         State('input-transaction-fee', 'value'),
         State('taxation-method-dropdown', 'value'),
         State('input-tax-amount', 'value'),
         State('input-holding-period', 'value'),
-        State('selected-asset', 'data')]
+        State('selected-asset', 'data')],
+        prevent_initial_call=True,
     )
-    def update_backtesting(n_clicks, starting_investment, start_invested, start_date, children, store_data, scale, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period, selected_asset):
-        if None in [starting_investment, start_date, children]:
+    def update_backtesting(n_clicks, starting_investment, start_invested, start_date,
+                           children, store_data, scale, trade_amount, transaction_fee,
+                           taxation_method, tax_amount, holding_period, selected_asset):
+        if not n_clicks:
             raise PreventUpdate
+
+        rules_from_ui = get_rules_from_ui(children)
+        buying_rule = " or ".join(rules_from_ui.get("buying_rule", []))
+        selling_rule = " or ".join(rules_from_ui.get("selling_rule", []))
+
+        asset_ticker = selected_asset or "BTC-USD"
         
-        if store_data:
-            rules_from_ui = get_rules_from_ui(children)
-            buying_rule = " or ".join(rules_from_ui.get("buying_rule", []))
-            selling_rule = " or ".join(rules_from_ui.get("selling_rule", []))
+        # Determine display name
+        display_name = asset_ticker
+        for asset in _POPULAR_ASSETS:
+            if asset['value'] == asset_ticker:
+                display_name = asset['label']
+                break
 
-        if not os.path.exists(PREPROC_FILENAME) or PREPROC_OVERWRITE:
-            print(f"Reloading all historical data.")
+        data = _load_asset_data(asset_ticker)
+        if data is None:
+            return [], [], _error_fig(f"Could not load data for '{asset_ticker}'.")
 
-            try:
-                # Load historical dataset
-                btc_data = fetch_historical_data('./btc_hist_prices.csv')
-                if btc_data.empty:
-                    raise ValueError("Historical BTC data is empty after loading. Please check the source CSV.")
+        # Run strategy
+        transactions_df, portfolio_value = execute_strategy(
+            data, starting_investment, start_invested, start_date,
+            buying_rule, selling_rule, trade_amount, transaction_fee,
+            taxation_method, tax_amount, holding_period)
 
-                # Convert all column names to lowercase for consistency
-                btc_data.columns = btc_data.columns.str.lower()
-                
-                print("Loaded historical data (sample):")
-                print(btc_data.head())  # Print just the first few rows for sanity check
-                
-                # Add historical indicators to BTC data
-                btc_data = add_historical_indicators(btc_data)
-                print("Added historical indicators.")
+        lump_sum = lump_sum_and_hold_strategy(data[start_date:], starting_investment)
+        dca = monthly_dca_strategy(data[start_date:], starting_investment)
 
-                # Add on-chain data
-                try:
-                    onchain_data = fetch_onchain_indicators('./indicators')
-                    if onchain_data.empty:
-                        print("Warning: On-chain data is empty. Proceeding without it.")
-                    else:
-                        print("Loaded on-chain data (sample):")
-                        print(onchain_data.head())
+        # Build figure — price trace on left Y-axis (y1)
+        fig = _price_fig(display_name, data, scale or "linear")
 
-                    # Ensure on-chain data column names are also lowercase for consistency
-                    onchain_data.columns = onchain_data.columns.str.lower()
-                    
-                    # Merge BTC and on-chain data
-                    btc_data_full = btc_data.join(onchain_data, how='left')
-                    print("Merged historical BTC data with on-chain data.")
-                except FileNotFoundError as e:
-                    print(f"Error: On-chain indicators directory not found: {e}")
-                    btc_data_full = btc_data  # Proceed with only historical BTC data if on-chain data is unavailable
+        # Strategy value traces on RIGHT Y-axis (y2) so they don't
+        # squish the price trace into a flat line.
+        fig.add_trace(go.Scatter(x=_to_list(lump_sum.index), y=_to_list(lump_sum), mode='lines',
+                                 name='Lump Sum & Hold', line=dict(color='#f97316', width=1.5),
+                                 yaxis='y2'))
+        fig.add_trace(go.Scatter(x=_to_list(dca.index), y=_to_list(dca), mode='lines',
+                                 name='Monthly DCA', line=dict(color='#06b6d4', width=1.5),
+                                 yaxis='y2'))
+        fig.add_trace(go.Scatter(x=_to_list(portfolio_value.index), y=_to_list(portfolio_value), mode='lines',
+                                 name='Portfolio Value', line=dict(color='#a855f7', width=2),
+                                 yaxis='y2'))
 
-                # Add oscillators quantiles to the combined data
-                btc_data_full = add_oscillators_quantiles(btc_data_full)
-                print("Added oscillators quantiles.")
-
-                # Write the preprocessed data to CSV, explicitly fail if any issue occurs
-                try:
-                    btc_data_full.to_csv(PREPROC_FILENAME)
-                    print(f"Data saved to {PREPROC_FILENAME}.")
-                except Exception as e:
-                    raise RuntimeError(f"Failed to save data to {PREPROC_FILENAME}: {e}")
-
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-
-        else:
-            btc_data = pd.read_csv(PREPROC_FILENAME, parse_dates=['Date'], index_col='Date')
-            print(f"Data loaded from {PREPROC_FILENAME}.")
-        
-        transactions_df, portfolio_value_over_time = execute_strategy(btc_data, starting_investment, start_invested, start_date, buying_rule, selling_rule, trade_amount, transaction_fee, taxation_method, tax_amount, holding_period)
-
-        # Calculate strategies
-        lump_sum_portfolio = lump_sum_and_hold_strategy(btc_data[start_date:], starting_investment)
-        dca_portfolio = monthly_dca_strategy(btc_data[start_date:], starting_investment)  # Total Invest / Months
-
-        # Plotting
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:]['price'], mode='lines', name='BTC price'))
-        fig.add_trace(go.Scatter(x=lump_sum_portfolio.index, y=lump_sum_portfolio, mode='lines', name='Lump Sum & Hold Portfolio'))
-        fig.add_trace(go.Scatter(x=dca_portfolio.index, y=dca_portfolio, mode='lines', name='Monthly DCA Portfolio'))
-        fig.add_trace(go.Scatter(x=portfolio_value_over_time.index, y=portfolio_value_over_time, mode='lines', name='Portfolio Value'))
-        
-        # highlight transactions if available
+        # Transaction markers stay on the price axis (y1)
         if not transactions_df.empty:
-            buy_transactions = transactions_df[transactions_df['Action'] == 'BUY']
-            sell_transactions = transactions_df[transactions_df['Action'] == 'SELL']
-            if not buy_transactions.empty:
-                fig.add_trace(go.Scatter(x=buy_transactions['Date'], y=buy_transactions['price'], mode='markers', name='Buy', marker=dict(color='green', size=10)))
-            if not sell_transactions.empty:
-                fig.add_trace(go.Scatter(x=sell_transactions['Date'], y=sell_transactions['price'], mode='markers', name='Sell', marker=dict(color='red', size=10)))
+            buys = transactions_df[transactions_df['Action'] == 'BUY']
+            sells = transactions_df[transactions_df['Action'] == 'SELL']
+            if not buys.empty:
+                fig.add_trace(go.Scatter(x=_to_list(buys['Date']), y=_to_list(buys['price']), mode='markers',
+                                         name='Buy', marker=dict(color='#10b981', size=8, symbol='triangle-up')))
+            if not sells.empty:
+                fig.add_trace(go.Scatter(x=_to_list(sells['Date']), y=_to_list(sells['price']), mode='markers',
+                                         name='Sell', marker=dict(color='#ef4444', size=8, symbol='triangle-down')))
 
-        # Update the layout
+        # Overlay indicator columns mentioned in rules (also on y2)
+        columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
+        if columns_to_plot:
+            for col in columns_to_plot:
+                if col in data.columns and col != 'price':
+                    fig.add_trace(go.Scatter(x=_to_list(data.index), y=_to_list(data[col]), mode='lines',
+                                             name=col, visible='legendonly', yaxis='y2'))
+
+        # Configure the secondary Y-axis
         fig.update_layout(
+            title=dict(text=f"{display_name} — Backtest Results", font=dict(size=14)),
+            yaxis_title='Price',
             yaxis2=dict(
-                title="Indicators",
+                title="Portfolio Value ($)",
                 overlaying='y',
                 side='right',
-                showgrid=False,  # Disable gridlines for clarity
-                automargin=True  # Automatically adjust margins to fit the axis
-            )
+                showgrid=False,
+                automargin=True,
+                type=scale or "linear",
+            ),
         )
-        
-        # Dynamically add traces mentioned in buy and sell rules
-        columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
-        for column in columns_to_plot:
-            if column in btc_data.columns and column != 'price':
-                fig.add_trace(go.Scatter(x=btc_data[0:].index, y=btc_data[0:][column], mode='lines', name=column, visible='legendonly', yaxis='y2'))
 
-        fig.update_layout(
-            title='Backtesting Results Over Time',
-            xaxis_title='Date',
-            yaxis_title='Portfolio Value',
-            legend_title='Strategy',
-            height=600,
-            margin=dict(b=100),
-            transition_duration=500,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            font=dict(
-                family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",  # A commonly used, web-safe font
-                color="black"  # Ensures good readability against the white background
-            ),
-            xaxis=dict(
-                showline=True,  # Show the axis line
-                showgrid=True,  # Show gridlines
-                linecolor='lightgrey',  # Color of the axis line
-                gridcolor='lightgrey',  # Color of the gridlines; light grey is gentle on the eyes
-                mirror=True  # Reflects the axis line on the opposite side as well
-            ),
-            yaxis=dict(
-                showline=True,
-                showgrid=True,
-                linecolor='lightgrey',
-                gridcolor='lightgrey',
-                mirror=True
-            ),
-            legend=dict(
-                title_font_family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-                font=dict(
-                    family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-                    # size=10,
-                    color="black"
-                ),
-                bgcolor="white",  # Legend background color
-                bordercolor="lightgrey",  # Legend border color
-                borderwidth=1,  # Border width
-                orientation='h',  # Set legend orientation to horizontal
-                x=0,  # Center the legend with respect to the plot's x-axis
-                y=-0.7,  # Adjust y to position the legend below the x-axis
-                entrywidthmode="fraction",
-                entrywidth=1.0,
-                xanchor='left',  # Anchor the legend's x-position to the center
-                yanchor='bottom'  # Anchor the legend's y-position to the top
-            )
-        )
+        fig.update_yaxes(type=scale, selector=dict(side="left"))
 
         table_data = transactions_df.to_dict('records')
         table_columns = [{"name": i, "id": i} for i in transactions_df.columns]
-
-        fig.update_yaxes(type=scale)
-
         return table_data, table_columns, fig
   
+    # ── Scale button clicks → update store + button classes + chart ──
     @app.callback(
-        [Output('backtesting-graph', 'figure', allow_duplicate=True)],
-        [Input('scale-toggle', 'value'),
-         State('backtesting-graph', 'figure')],
-         prevent_initial_call=True)
-    def update_backtesting_fig_scale(scale, fig_dict):
-        if scale is None:
-            raise PreventUpdate
-        
-        fig = go.Figure(fig_dict)
-        fig.update_layout(yaxis_type=scale, yaxis_autorange=True)
-
-        return [fig]
+        [Output('chart-scale-toggle', 'data'),
+         Output('scale-btn-linear', 'className'),
+         Output('scale-btn-log', 'className')],
+        [Input('scale-btn-linear', 'n_clicks'),
+         Input('scale-btn-log', 'n_clicks')],
+        State('chart-scale-toggle', 'data'),
+        prevent_initial_call=True,
+    )
+    def on_scale_btn(n_lin, n_log, current):
+        from dash import ctx
+        triggered = ctx.triggered_id
+        if triggered == 'scale-btn-linear':
+            return 'linear', 'scale-btn active', 'scale-btn'
+        elif triggered == 'scale-btn-log':
+            return 'log', 'scale-btn', 'scale-btn active'
+        raise PreventUpdate
 
     @app.callback(
         [Output("collapse", "is_open"), Output("collapse-icon", "className")],

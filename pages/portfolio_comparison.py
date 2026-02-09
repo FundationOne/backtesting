@@ -264,7 +264,7 @@ layout = dbc.Container([
                         dbc.CardBody([
                             dcc.Loading(
                                 dcc.Graph(id="comparison-chart", className="chart-container", 
-                                          config={"displayModeBar": True, "displaylogo": False},
+                                          config={"displayModeBar": False, "displaylogo": False},
                                           style={"height": "320px"}),
                                 type="circle",
                                 color="#6366f1"
@@ -316,7 +316,7 @@ layout = dbc.Container([
                             ),
                             dcc.Loading(
                                 dcc.Graph(id="positions-history-chart", className="chart-container", 
-                                          config={"displayModeBar": True, "displaylogo": False},
+                                          config={"displayModeBar": False, "displaylogo": False},
                                           style={"height": "350px"}),
                                 type="circle",
                                 color="#6366f1"

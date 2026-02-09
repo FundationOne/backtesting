@@ -209,7 +209,7 @@ layout = html.Div([
                 dbc.CardBody([
                     dcc.Graph(
                         id='investment-graph',
-                        config={'displayModeBar': True, 'displaylogo': False},
+                        config={'displayModeBar': False, 'displaylogo': False},
                         style={"height": "300px"}
                     )
                 ], className="py-2")
