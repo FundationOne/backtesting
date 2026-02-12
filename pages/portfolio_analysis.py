@@ -261,7 +261,7 @@ layout = dbc.Container([
             # Benchmark Dropdown Button  
             html.Div([
                 dbc.Button([
-                    html.Span(id="benchmark-label", children="4 Bench."),
+                    html.Span(id="benchmark-label", children="1 Bench."),
                     html.I(className="bi bi-chevron-down ms-1", style={"fontSize": "9px"}),
                 ], id="benchmark-btn", color="link", className="header-dropdown-btn"),
                 dbc.Popover([
@@ -272,7 +272,7 @@ layout = dbc.Container([
                                 {"label": info["name"], "value": symbol}
                                 for symbol, info in BENCHMARKS.items()
                             ],
-                            value=["^GSPC", "^GDAXI", "URTH", "^IXIC"],
+                            value=["URTH"],
                             className="header-checklist",
                         ),
                     ], className="p-2"),
@@ -844,10 +844,11 @@ def register_callbacks(app):
          Output("metric-total-return", "children"),
          Output("metric-total-return", "className"),
          Output("metric-total-abs", "children")],
-        Input("portfolio-data-store", "data"),
+        [Input("portfolio-data-store", "data"),
+         Input("selected-range", "data")],
         prevent_initial_call=False
     )
-    def update_return_metrics(data_json):
+    def update_return_metrics(data_json, selected_range):
         default = ("--", "metric-value sensitive", "",
                    "--", "metric-value sensitive", "",
                    "--", "metric-value sensitive", "",
@@ -871,10 +872,32 @@ def register_callbacks(app):
             df['date'] = pd.to_datetime(df['date'])
             df = df.sort_values('date')
             
-            current_value = df['value'].iloc[-1]
+            # ── Apply timeframe filter ──
+            selected_range = (selected_range or "max").lower()
+            end_date = df['date'].max()
+            if selected_range == "1w":
+                start_date = end_date - timedelta(days=7)
+            elif selected_range == "1m":
+                start_date = end_date - timedelta(days=30)
+            elif selected_range == "ytd":
+                start_date = datetime(end_date.year, 1, 1)
+            elif selected_range == "1y":
+                start_date = end_date - timedelta(days=365)
+            elif selected_range == "3y":
+                start_date = end_date - timedelta(days=365*3)
+            elif selected_range == "5y":
+                start_date = end_date - timedelta(days=365*5)
+            else:
+                start_date = df['date'].min()
+
+            df_filtered = df[df['date'] >= start_date].copy()
+            if len(df_filtered) == 0:
+                return default
+            
+            current_value = df_filtered['value'].iloc[-1]
             
             # Get total invested (from latest 'invested' field or fallback to portfolio data)
-            total_invested = df['invested'].iloc[-1] if 'invested' in df.columns else df['value'].iloc[-2] if len(df) > 1 else current_value
+            total_invested = df_filtered['invested'].iloc[-1] if 'invested' in df_filtered.columns else current_value
             
             # Also try getting from portfolio data directly
             portfolio = data.get("data", {})
@@ -883,10 +906,10 @@ def register_callbacks(app):
             
             def calc_return_on_investment(days_ago):
                 """Calculate return and absolute change compared to invested amount at that time."""
-                target_date = datetime.now() - timedelta(days=days_ago)
-                past_data = df[df['date'] <= target_date]
+                target_date = end_date - timedelta(days=days_ago)
+                past_data = df_filtered[df_filtered['date'] <= target_date]
                 if len(past_data) == 0:
-                    return 0, 0
+                    past_data = df_filtered.iloc[:1]  # fallback to first row in filtered range
                 
                 invested_then = past_data['invested'].iloc[-1] if 'invested' in past_data.columns else past_data['value'].iloc[-1]
                 
@@ -898,10 +921,10 @@ def register_callbacks(app):
                     return pct_change, abs_change
                 return 0, 0
             
-            # YTD
+            # YTD (relative to filtered range)
             ytd_return, ytd_abs = 0, 0
-            ytd_start = df[df['date'] >= datetime(datetime.now().year, 1, 1)]
-            if len(ytd_start) > 0 and 'invested' in df.columns:
+            ytd_start = df_filtered[df_filtered['date'] >= datetime(datetime.now().year, 1, 1)]
+            if len(ytd_start) > 0 and 'invested' in df_filtered.columns:
                 ytd_invested = ytd_start['invested'].iloc[0]
                 ytd_value = ytd_start['value'].iloc[0]
                 ytd_profit = ytd_value - ytd_invested
@@ -910,9 +933,11 @@ def register_callbacks(app):
                 if total_invested > 0:
                     ytd_return = ytd_abs / total_invested * 100
             
-            # Total return
-            total_abs = current_value - total_invested
-            total_return = (total_abs / total_invested * 100) if total_invested > 0 else 0
+            # Total return within filtered range
+            first_value = df_filtered['value'].iloc[0]
+            first_invested = df_filtered['invested'].iloc[0] if 'invested' in df_filtered.columns else first_value
+            total_abs = (current_value - total_invested) - (first_value - first_invested)
+            total_return = (total_abs / first_invested * 100) if first_invested > 0 else 0
             
             m1_return, m1_abs = calc_return_on_investment(30)
             m3_return, m3_abs = calc_return_on_investment(90)
@@ -1432,7 +1457,7 @@ def register_callbacks(app):
             return go.Figure()  # Return empty figure instead of raising exception
 
         fig = go.Figure()
-        selected_range = selected_range or "max"
+        selected_range = (selected_range or "max").lower()
         benchmarks = benchmarks or []
         cache_key = None
         
@@ -1654,13 +1679,28 @@ def register_callbacks(app):
             # Portfolio line
             if chart_type == "tab-value":
                 portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
+                
+                # Invisible baseline trace at the min value of all visible series
+                # so fill='tonexty' doesn't go all the way to zero
+                all_values = list(y_data)
+                if 'invested' in df.columns:
+                    all_values += list(df['invested'])
+                y_min = min(v for v in all_values if v is not None and v > 0) * 0.98 if all_values else 0
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=[y_min] * len(x_dates),
+                    mode='lines',
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo='skip',
+                ))
                 fig.add_trace(go.Scatter(
                     x=x_dates,
                     y=_series_to_number_list(y_data),
                     mode='lines',
                     name='Portfolio',
                     line=dict(color='#6366f1', width=2),
-                    fill='tozeroy' if fill_color else None,
+                    fill='tonexty',
                     fillcolor=fill_color,
                     hovertemplate=portfolio_hover,
                 ))
@@ -1837,6 +1877,7 @@ def register_callbacks(app):
                     zeroline=True if chart_type == "tab-performance" else False,
                     zerolinecolor="#9ca3af",
                     zerolinewidth=1,
+                    rangemode="tozero" if chart_type == "tab-performance" else "normal",
                 ),
                 hovermode="x unified",
             )
@@ -2001,6 +2042,8 @@ def register_callbacks(app):
                 return 0  # fallback to earliest
 
             # Period returns via TWR (excludes effect of cash flows)
+            d1_return = _twr_return_since(_idx_for_days_ago(1))
+            w1_return = _twr_return_since(_idx_for_days_ago(7))
             m1_return = _twr_return_since(_idx_for_days_ago(30))
             m3_return = _twr_return_since(_idx_for_days_ago(90))
             y1_return = _twr_return_since(_idx_for_days_ago(365))
@@ -2014,6 +2057,8 @@ def register_callbacks(app):
             
             rows = [{
                 "Asset": "Your Portfolio",
+                "1D": f"{d1_return:+.1f}%",
+                "1W": f"{w1_return:+.1f}%",
                 "1M": f"{m1_return:+.1f}%",
                 "3M": f"{m3_return:+.1f}%",
                 "YTD": f"{ytd_return:+.1f}%",
@@ -2059,6 +2104,8 @@ def register_callbacks(app):
                     
                     rows.append({
                         "Asset": benchmark_names.get(bench, bench),
+                        "1D": f"{bench_return(1):+.1f}%",
+                        "1W": f"{bench_return(7):+.1f}%",
                         "1M": f"{bench_return(30):+.1f}%",
                         "3M": f"{bench_return(90):+.1f}%",
                         "YTD": f"{ytd_b:+.1f}%",
@@ -2070,6 +2117,8 @@ def register_callbacks(app):
                 data=rows,
                 columns=[
                     {"name": "Asset", "id": "Asset"},
+                    {"name": "1D", "id": "1D"},
+                    {"name": "1W", "id": "1W"},
                     {"name": "1M", "id": "1M"},
                     {"name": "3M", "id": "3M"},
                     {"name": "YTD", "id": "YTD"},
@@ -2080,6 +2129,10 @@ def register_callbacks(app):
                 style_header={"fontWeight": "600", "backgroundColor": "#f8fafc", "borderBottom": "1px solid #e5e7eb"},
                 style_data={"borderBottom": "1px solid #f3f4f6"},
                 style_data_conditional=[
+                    {"if": {"filter_query": "{1D} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{1D} contains \"-\""}, "color": "#ef4444"},
+                    {"if": {"filter_query": "{1W} contains \"+\""}, "color": "#10b981"},
+                    {"if": {"filter_query": "{1W} contains \"-\""}, "color": "#ef4444"},
                     {"if": {"filter_query": "{1M} contains \"+\""}, "color": "#10b981"},
                     {"if": {"filter_query": "{1M} contains \"-\""}, "color": "#ef4444"},
                     {"if": {"filter_query": "{3M} contains \"+\""}, "color": "#10b981"},

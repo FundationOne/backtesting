@@ -120,25 +120,29 @@ def load_rules_from_store(rule_name, store_data):
 rule_generation_modal = dbc.Modal(
     [
         dbc.ModalHeader(dbc.ModalTitle("Add New Rule")),
-        dbc.ModalBody(
+        dbc.ModalBody([
             dcc.Input(
                 id="input-generate-rule",
                 type="text",
-                placeholder="Enter GPT Prompt"
-            )
-        ),
+                placeholder="Describe your rule in plain English (e.g. 'buy when price is below the 200-day moving average')",
+                style={"width": "100%", "marginBottom": "12px"}
+            ),
+            # Feedback area — shows generated rule or error
+            html.Div(id="rule-gen-feedback", style={"marginTop": "4px"}),
+        ]),
         dbc.ModalFooter([
-            dbc.Button("Add Empty Sell", id="apply-modal-button-sell", className="ml-auto", 
+            dbc.Button("Add Empty Sell", id="apply-modal-button-sell", className="me-auto", 
                        style={"backgroundColor": "#d6d6d6", "color": "black", "fontSize": "0.7rem", "padding": "10px"}),
-            dbc.Button("Add Empty Buy", id="apply-modal-button-buy", className="ml-auto", 
+            dbc.Button("Add Empty Buy", id="apply-modal-button-buy",
                        style={"backgroundColor": "#d6d6d6", "color": "black", "fontSize": "0.7rem", "padding": "10px"}),
-            dbc.Button("Generate Rule", id="apply-modal-button", className="ml-auto"),
-            dbc.Button("Close", id="close-modal-button", className="ml-auto", style={"display":"none"})
+            dbc.Button("Generate Rule", id="apply-modal-button", color="primary"),
+            dbc.Button("Close", id="close-modal-button", color="secondary", outline=True)
             ]
         ),
     ],
     id="rule-generation-modal",
     is_open=False,
+    size="lg",
 )
 
 def register_callbacks(app):
@@ -166,7 +170,8 @@ def register_callbacks(app):
     
     @app.callback(
         [Output("trading-rules-container", "children"),
-        Output("rule-generation-modal", "is_open")],
+        Output("rule-generation-modal", "is_open"),
+        Output("rule-gen-feedback", "children")],
         [Input({'type': 'generate-rule-button', 'index': ALL}, 'n_clicks'),
         Input("apply-modal-button", "n_clicks"),
         Input("apply-modal-button-buy", "n_clicks"),
@@ -186,30 +191,61 @@ def register_callbacks(app):
         except Exception as e:
             button_clicked = None
 
+        empty_feedback = ""
+
         if button_clicked and button_clicked.get("type") == "generate-rule-button":
-            return children, True  # Open the modal
+            return children, True, empty_feedback  # Open the modal
 
         elif trigger_id == "apply-modal-button-buy.n_clicks":
             children.append(create_rule_input("buy", len(children), ""))
-            return children, False  # Close the modal after adding the new rule
+            return children, False, empty_feedback
         
         elif trigger_id == "apply-modal-button-sell.n_clicks":
             children.append(create_rule_input("sell", len(children), ""))
-            return children, False  # Close the modal after adding the new rule
+            return children, False, empty_feedback
         
         elif trigger_id == "apply-modal-button.n_clicks":
             if not rule_instruction:
-                return children, is_modal_open
+                feedback = dbc.Alert(
+                    "Please enter a rule description first.",
+                    color="warning", className="mt-2 mb-0", duration=4000
+                )
+                return children, True, feedback
+            
+            if not openai_api_key:
+                feedback = dbc.Alert(
+                    [html.I(className="bi bi-key me-2"), "OpenAI API key is missing. Set it in Settings (gear icon in the sidebar)."],
+                    color="danger", className="mt-2 mb-0"
+                )
+                return children, True, feedback
             
             rule_expression, rule_type = generate_rule(rule_instruction, openai_api_key)
+            
+            # Check for errors
+            if rule_type in ("Rule Error", "GPT Error", False):
+                error_msg = str(rule_expression) if rule_expression else "Unknown error"
+                feedback = dbc.Alert(
+                    [html.Strong(f"Error ({rule_type}): "), error_msg],
+                    color="danger", className="mt-2 mb-0"
+                )
+                return children, True, feedback  # Keep modal open, show error
+            
+            # Success — show the generated rule and apply it
             children.append(create_rule_input(rule_type, len(children), rule_expression))
-
-            return children, False  # Close the modal after adding the new rule
+            feedback = dbc.Alert(
+                [
+                    html.Div([html.I(className="bi bi-check-circle me-1"), html.Strong(f"Generated {rule_type} rule:")], className="mb-1"),
+                    html.Code(str(rule_expression), style={"fontSize": "0.82rem", "wordBreak": "break-all"}),
+                    html.Div("Rule has been added to your strategy.", className="mt-1", style={"fontSize": "0.8rem", "color": "#6b7280"})
+                ],
+                color="success", className="mt-2 mb-0"
+            )
+            return children, True, feedback  # Keep modal open so user sees what was generated
 
         elif trigger_id == "close-modal-button.n_clicks":
-            return children, False  # Close the modal
+            return children, False, empty_feedback
 
-        return children, is_modal_open
+        return children, is_modal_open, empty_feedback
 
     @app.callback(
         Output("trading-rules-container", "children", allow_duplicate=True),

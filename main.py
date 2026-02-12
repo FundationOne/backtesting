@@ -8,6 +8,7 @@ from pages.backtesting_sim import layout as l1, register_callbacks as rc1
 from pages.portfolio_sim import layout as l2, register_callbacks as rc2
 from pages.riskbands import layout as l3, register_callbacks as rc3
 from pages.portfolio_analysis import layout as l4, register_callbacks as rc4
+from pages.the_real_cost import layout as l5, register_callbacks as rc5
 
 # Component imports
 from components.settings_modal import (
@@ -62,6 +63,11 @@ sidebar = html.Div([
             html.I(className="bi bi-shield-check me-2"), 
             "Exit Strategy Riskbands"
         ], href="/riskbands", id="riskbands-link", className="nav-link-modern"),
+
+        dbc.NavLink([
+            html.I(className="bi bi-currency-dollar me-2"), 
+            "The Real Cost"
+        ], href="/realcost", id="realcost-link", className="nav-link-modern"),
     ], vertical=True, pills=True, className="sidebar-nav"),
     
     # Bottom section with settings + user
@@ -128,11 +134,13 @@ def render_page_content(pathname, current_user):
     if pathname == "/backtesting":
         return l1
     elif pathname == "/portfolio":
-        return l2
+        return l2()
     elif pathname == "/compare":
         return l4
     elif pathname == "/riskbands":
         return l3
+    elif pathname == "/realcost":
+        return l5
     else:
         return html.Div([
             html.H3("404 - Page Not Found", className="text-center mt-5"),
@@ -144,7 +152,8 @@ def render_page_content(pathname, current_user):
     [Output("backtesting-link", "active"),
      Output("portfolio-link", "active"),
      Output("compare-link", "active"),
-     Output("riskbands-link", "active")],
+     Output("riskbands-link", "active"),
+     Output("realcost-link", "active")],
     [Input("url", "pathname")]
 )
 def set_active_link(pathname):
@@ -153,6 +162,7 @@ def set_active_link(pathname):
         pathname == "/portfolio",
         pathname == "/compare",
         pathname == "/riskbands",
+        pathname == "/realcost",
     )
 
 
@@ -164,6 +174,7 @@ rc4(app)  # Portfolio comparison callbacks
 rc3(app)  # Riskbands callbacks
 rc2(app)  # Portfolio simulation callbacks
 rc1(app)  # Backtesting callbacks
+rc5(app)  # The Real Cost callbacks
 
 # Run
 if __name__ == '__main__':

@@ -189,12 +189,110 @@ for i in range(num_bands):
 layout = html.Div([
     # Page Header  
     html.Div([
-        html.H4([
-            html.I(className="bi bi-shield-check me-2"),
-            "Risk Bands"
-        ], className="page-title"),
-        html.P("Simulate multi-band exit strategies with stop-loss scenarios", className="page-subtitle")
-    ], className="page-header"),
+        html.Div([
+            html.Div([
+                html.I(className="bi bi-shield-check", 
+                       style={"fontSize": "2.4rem", "color": "#6366f1"}),
+            ], style={
+                "width": "64px", "height": "64px", "borderRadius": "50%",
+                "background": "rgba(99, 102, 241, 0.1)",
+                "display": "flex", "alignItems": "center", "justifyContent": "center",
+                "margin": "0 auto 16px"
+            }),
+            html.H3("Bitcoin Exit Strategy — Risk Bands", 
+                     style={"fontWeight": "700", "color": "#1e293b", "marginBottom": "8px"}),
+            html.P(
+                "Plan your Bitcoin exit strategy by defining price bands where you "
+                "progressively take profits. This tool simulates every possible path "
+                "Bitcoin's price could take through your bands and shows you the "
+                "expected outcome of each scenario.",
+                style={"color": "#64748b", "maxWidth": "640px", "margin": "0 auto", "lineHeight": "1.6"}
+            ),
+        ], className="text-center"),
+    ], style={"padding": "32px 0 12px"}),
+
+    # How-it-works collapsible
+    html.Div([
+        dbc.Button(
+            [html.I(className="bi bi-question-circle me-2"), "How does this work?"],
+            id="riskband-help-toggle",
+            color="link",
+            size="sm",
+            style={"color": "#6366f1", "fontWeight": "600", "fontSize": "0.85rem", "textDecoration": "none"},
+        ),
+        dbc.Collapse(
+            dbc.Card(
+                dbc.CardBody([
+                    html.Div([
+                        html.Div([
+                            html.Span("1", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "width": "24px", "height": "24px", "borderRadius": "50%",
+                                "background": "#6366f1", "color": "#fff", "fontSize": "0.75rem",
+                                "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
+                            }),
+                            html.Span([
+                                html.Strong("Define your bands. "),
+                                "Set price levels (Stop Loss) at which you'd sell. "
+                                "For example, Band 1 at $79k, Band 5 at $167k."
+                            ]),
+                        ], className="d-flex align-items-start mb-3"),
+                        html.Div([
+                            html.Span("2", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "width": "24px", "height": "24px", "borderRadius": "50%",
+                                "background": "#6366f1", "color": "#fff", "fontSize": "0.75rem",
+                                "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
+                            }),
+                            html.Span([
+                                html.Strong("Set probabilities. "),
+                                "How likely is Bitcoin to reach each band? "
+                                "Lower bands are more likely (e.g. 100%) while higher bands are less likely (e.g. 20%)."
+                            ]),
+                        ], className="d-flex align-items-start mb-3"),
+                        html.Div([
+                            html.Span("3", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "width": "24px", "height": "24px", "borderRadius": "50%",
+                                "background": "#6366f1", "color": "#fff", "fontSize": "0.75rem",
+                                "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
+                            }),
+                            html.Span([
+                                html.Strong("Push % controls how much BTC moves up. "),
+                                "When Bitcoin’s price rises from one band to the next, this percentage of your BTC "
+                                "in the current band gets moved (\"pushed\") up to that higher band — it is NOT sold yet, "
+                                "it just sits there waiting. If the price later drops back down, that BTC gets sold "
+                                "at the higher band’s stop-loss price. ",
+                                html.Br(),
+                                html.Em(
+                                    "Example: You have 1 BTC in Band 1 ($79k) and Push is 80%. "
+                                    "Price rises to Band 2 ($88k) → 0.8 BTC moves up to Band 2, 0.2 BTC stays in Band 1. "
+                                    "If the price then drops, that 0.8 BTC is sold at Band 2’s $88k stop-loss.",
+                                    style={"color": "#6366f1", "fontSize": "0.82rem"}
+                                ),
+                            ]),
+                        ], className="d-flex align-items-start mb-3"),
+                        html.Div([
+                            html.Span("4", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "width": "24px", "height": "24px", "borderRadius": "50%",
+                                "background": "#6366f1", "color": "#fff", "fontSize": "0.75rem",
+                                "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
+                            }),
+                            html.Span([
+                                html.Strong("Read the results. "),
+                                "The chart shows all possible price paths color-coded by total exit value "
+                                "(green = best, red = worst). The table lists every scenario ranked by outcome."
+                            ]),
+                        ], className="d-flex align-items-start"),
+                    ], style={"fontSize": "0.85rem", "color": "#475569", "lineHeight": "1.6"}),
+                ]),
+                style={"border": "1px solid #e2e8f0", "borderRadius": "12px", "marginTop": "8px"}
+            ),
+            id="riskband-help-collapse",
+            is_open=False,
+        ),
+    ], className="text-center mb-4"),
     
     dbc.Row([
         # Input fields on the left
@@ -205,9 +303,24 @@ layout = html.Div([
                     "Band Configuration"
                 ], className="card-header-modern"),
                 dbc.CardBody([
+                    html.P(
+                        "Configure your price bands from lowest to highest. "
+                        "Adjust stop-loss prices, probability of reaching each band, "
+                        "and the % of holdings pushed to the next band.",
+                        style={"fontSize": "0.8rem", "color": "#94a3b8", "marginBottom": "12px", "lineHeight": "1.5"}
+                    ),
                     *risk_band_inputs,
                     # Heatmap below the inputs
                     html.Div([
+                        html.H6("Sensitivity Heatmap", style={
+                            "fontSize": "0.8rem", "fontWeight": "600", "color": "#64748b",
+                            "textTransform": "uppercase", "letterSpacing": "0.04em",
+                            "marginTop": "16px", "marginBottom": "4px"
+                        }),
+                        html.P(
+                            "Click any cell to apply that combination of push % and probability spread.",
+                            style={"fontSize": "0.75rem", "color": "#94a3b8", "marginBottom": "8px"}
+                        ),
                         dcc.Graph(id='heatmap-graph',
                                   config={"displayModeBar": False, "displaylogo": False})
                     ])
@@ -222,16 +335,26 @@ layout = html.Div([
                         "Scenario Analysis"
                     ], className="card-header-modern"),
                     dbc.CardBody([
+                        html.P(
+                            "Each line represents a possible price path through your bands. "
+                            "Green lines are the most profitable outcomes, red lines the least.",
+                            style={"fontSize": "0.8rem", "color": "#94a3b8", "marginBottom": "8px", "lineHeight": "1.5"}
+                        ),
                         dcc.Graph(id='scenario-graph', className="chart-container",
                                   config={"displayModeBar": False, "displaylogo": False}),
                         # Totals Div
                         html.Div(id='totals-div', style={"marginTop": "20px"}),
+                        html.H6("All Scenarios", style={
+                            "fontSize": "0.8rem", "fontWeight": "600", "color": "#64748b",
+                            "textTransform": "uppercase", "letterSpacing": "0.04em",
+                            "marginTop": "16px", "marginBottom": "8px"
+                        }),
                         dash_table.DataTable(
                             id='scenario-table',
                             columns=[
                                 {'name': 'Scenario', 'id': 'Scenario'},
                                 {'name': 'Total Value', 'id': 'Total Value'},
-                                {'name': 'Total Value Times Probability', 'id': 'Total Value Times Probability'}
+                                {'name': 'Value × Probability', 'id': 'Total Value Times Probability'}
                             ],
                             data=df_dash.to_dict('records'),
                             style_table={'height': '400px', 'overflowY': 'auto'},
@@ -249,6 +372,16 @@ layout = html.Div([
 
 # Register the callbacks for the riskbands page
 def register_callbacks(app):
+    # Toggle the how-it-works help section
+    @app.callback(
+        Output("riskband-help-collapse", "is_open"),
+        Input("riskband-help-toggle", "n_clicks"),
+        State("riskband-help-collapse", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_help(n, is_open):
+        return not is_open
+
     @app.callback(
         [Output('scenario-graph', 'figure'),
          Output('scenario-table', 'data'),
@@ -428,24 +561,27 @@ def register_callbacks(app):
                     total_sum_spread += total_value_times_probability
                 Z[i, j] = total_sum_spread
 
-        # Create the heatmap
+        # Create the heatmap — convert numpy types to native Python for plotly
         heatmap_fig = go.Figure(data=go.Heatmap(
-            z=Z,
-            x=percentage_pushed_values,
-            y=spreads,
+            z=Z.tolist(),
+            x=[int(v) for v in percentage_pushed_values],
+            y=[str(int(s)) for s in spreads],
             colorscale='Viridis',
-            showscale=False,  # Hides the color bar
-            hovertemplate='Percentage Pushed: %{x}%<br>Probability Spread: %{y:.2f}<br>Total Sum X Prob: $%{z:,.2f}<extra></extra>'
+            showscale=False,
+            hovertemplate='Push %%: %{x}%<br>Prob Spread: %{y}<br>Expected Value: $%{z:,.2f}<extra></extra>'
         ))
 
         heatmap_fig.update_layout(
-            title='Heatmap of Total Sums',
-            xaxis_title='Percentage Pushed to Next Risk Band (%)',
-            yaxis_title='Probability Spread',
+            title=None,
+            xaxis_title='Push %',
+            yaxis_title='Prob. Spread',
             yaxis_type='category',
             showlegend=False,
-            height=300,
-            margin=dict(l=50, r=50, t=50, b=50)
+            height=280,
+            margin=dict(l=60, r=20, t=10, b=40),
+            font=dict(family='Inter, sans-serif', size=11),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
         )
 
         # Return the figure, table data, totals content, and heatmap
