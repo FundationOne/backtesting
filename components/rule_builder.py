@@ -48,6 +48,7 @@ def _empty_hint():
 
 def create_rule_pill(rule_type, rule_index, rule_expression):
     """Create a modern pill-style rule component."""
+    rule_type = str(rule_type or "buy").lower()
     is_buy = rule_type == "buy"
     icon = "bi-arrow-up-circle-fill" if is_buy else "bi-arrow-down-circle-fill"
     
@@ -479,8 +480,14 @@ def register_rule_builder_callbacks(app):
         
         # AI generated rule
         if trigger == "apply-modal-button" and ai_prompt:
+            if not api_key:
+                print("OpenAI Key is missing — user must set it in Settings.")
+                return children
             try:
                 rule_expression, rule_type = generate_rule(ai_prompt, api_key)
+                if rule_type in (False, None, "Rule Error", "GPT Error"):
+                    print(f"Error generating rule: {rule_expression}")
+                    return children
                 children.append(create_rule_pill(rule_type, len(children), rule_expression))
             except Exception as e:
                 print(f"Error generating rule: {e}")

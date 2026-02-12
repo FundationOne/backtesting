@@ -585,7 +585,7 @@ layout = dbc.Container([
                                 html.Div([
                                     dbc.Checkbox(
                                         id='start-invested',
-                                        value=False,
+                                        value=True,
                                         className="me-2"
                                     ),
                                     html.Label("Start fully invested", className="form-check-label", style={"fontSize": "0.75rem", "marginTop": "0"}),
@@ -653,41 +653,101 @@ layout = dbc.Container([
 # ── Shared helpers ──────────────────────────────────────────────────────────
 
 _asset_cache: dict = {}                    # {ticker: DataFrame}
+_ASSET_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "asset_cache"
 
 def _download_asset(asset_ticker):
     """Download price data for *any* ticker via yfinance.
     Returns a DataFrame with lowercase columns and a 'price' column,
-    or None on failure.  Results are cached in-memory for the session."""
+    or None on failure.
+
+    Caching hierarchy:
+      1. In-memory dict (_asset_cache) — instant, per-session.
+      2. Local CSV file (data/asset_cache/<TICKER>.csv) — persistent across restarts.
+         On subsequent calls only the *delta* (new rows since last saved date)
+         is fetched from Yahoo Finance and appended to the local file.
+    """
 
     if asset_ticker in _asset_cache:
         return _asset_cache[asset_ticker].copy()
 
-    try:
-        yf_data = yf.download(asset_ticker, period="max", progress=False)
-    except Exception as e:
-        print(f"yfinance download error for {asset_ticker}: {e}")
-        return None
-    if yf_data is None or yf_data.empty:
-        print(f"No data returned for {asset_ticker}")
-        return None
+    # --- Try loading from local CSV first ---
+    _ASSET_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    safe_name = asset_ticker.replace("^", "_").replace("/", "_")
+    csv_path = _ASSET_CACHE_DIR / f"{safe_name}.csv"
 
-    # Flatten MultiIndex columns (yfinance >= 0.2)
-    if isinstance(yf_data.columns, pd.MultiIndex):
-        yf_data.columns = [c[0] for c in yf_data.columns]
+    local_df = None
+    if csv_path.exists():
+        try:
+            local_df = pd.read_csv(csv_path, parse_dates=["Date"], index_col="Date")
+            local_df.sort_index(inplace=True)
+            # Fetch only the delta — rows after the last date we already have
+            last_date = local_df.index[-1]
+            delta_start = (last_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            try:
+                delta = yf.download(asset_ticker, start=delta_start, progress=False)
+            except Exception:
+                delta = None
+            if delta is not None and not delta.empty:
+                if isinstance(delta.columns, pd.MultiIndex):
+                    delta.columns = [c[0] for c in delta.columns]
+                if 'Date' in delta.columns:
+                    delta['Date'] = pd.to_datetime(delta['Date'])
+                    delta.set_index('Date', inplace=True)
+                elif not isinstance(delta.index, pd.DatetimeIndex):
+                    delta.index = pd.to_datetime(delta.index)
+                if hasattr(delta.index, 'tz') and delta.index.tz is not None:
+                    delta.index = delta.index.tz_localize(None)
+                delta.columns = delta.columns.str.lower()
+                if not delta.empty:
+                    local_df = pd.concat([local_df, delta])
+                    local_df = local_df[~local_df.index.duplicated(keep='last')]
+                    local_df.sort_index(inplace=True)
+                    local_df.to_csv(csv_path)
+                    print(f"[{asset_ticker}] appended {len(delta)} new rows from Yahoo")
+            # Now process local_df as usual
+            yf_data = local_df
+        except Exception as e:
+            print(f"[{asset_ticker}] local cache read failed, re-downloading: {e}")
+            local_df = None
 
-    # Ensure DatetimeIndex
-    if 'Date' in yf_data.columns:
-        yf_data['Date'] = pd.to_datetime(yf_data['Date'])
-        yf_data.set_index('Date', inplace=True)
-    elif not isinstance(yf_data.index, pd.DatetimeIndex):
-        yf_data.index = pd.to_datetime(yf_data.index)
+    # --- Full download if no local cache ---
+    if local_df is None:
+        try:
+            yf_data = yf.download(asset_ticker, period="max", progress=False)
+        except Exception as e:
+            print(f"yfinance download error for {asset_ticker}: {e}")
+            return None
+        if yf_data is None or yf_data.empty:
+            print(f"No data returned for {asset_ticker}")
+            return None
 
-    # Strip timezone info (some tickers return tz-aware dates)
-    if hasattr(yf_data.index, 'tz') and yf_data.index.tz is not None:
-        yf_data.index = yf_data.index.tz_localize(None)
+        # Flatten MultiIndex columns (yfinance >= 0.2)
+        if isinstance(yf_data.columns, pd.MultiIndex):
+            yf_data.columns = [c[0] for c in yf_data.columns]
 
-    yf_data.columns = yf_data.columns.str.lower()
+        # Ensure DatetimeIndex
+        if 'Date' in yf_data.columns:
+            yf_data['Date'] = pd.to_datetime(yf_data['Date'])
+            yf_data.set_index('Date', inplace=True)
+        elif not isinstance(yf_data.index, pd.DatetimeIndex):
+            yf_data.index = pd.to_datetime(yf_data.index)
 
+        # Strip timezone info (some tickers return tz-aware dates)
+        if hasattr(yf_data.index, 'tz') and yf_data.index.tz is not None:
+            yf_data.index = yf_data.index.tz_localize(None)
+
+        yf_data.columns = yf_data.columns.str.lower()
+        yf_data.sort_index(inplace=True)
+        yf_data = yf_data[~yf_data.index.duplicated(keep='last')]
+
+        # Save to local CSV for next time
+        try:
+            yf_data.to_csv(csv_path)
+            print(f"[{asset_ticker}] saved {len(yf_data)} rows to {csv_path.name}")
+        except Exception as e:
+            print(f"[{asset_ticker}] could not save cache: {e}")
+
+    # --- Common post-processing ---
     # Map to a 'price' column – prefer adj close (split-adjusted), fall back to close
     col_map = {}
     if 'adj close' in yf_data.columns:

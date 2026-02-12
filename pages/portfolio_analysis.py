@@ -26,6 +26,17 @@ from components.benchmark_data import get_benchmark_data, initialize_benchmarks,
 # Initialize benchmark cache on module load
 initialize_benchmarks()
 
+# ── Demo account data ────────────────────────────────────────────────
+_DEMO_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "demo_portfolio.json"
+
+def _load_demo_json() -> str:
+    """Return the demo portfolio JSON string (static file, ~/10 of real data)."""
+    try:
+        return _DEMO_JSON_PATH.read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"[Demo] Could not load demo data: {e}")
+        return json.dumps({"success": False, "error": "Demo data file not found"})
+
 # Timeframe pill-bar constants (shared between layout and callbacks)
 _TF_IDS  = ["tf-1w", "tf-1m", "tf-ytd", "tf-1y", "tf-3y", "tf-5y", "tf-max"]
 _TF_VALS = ["1W",    "1M",    "YTD",    "1Y",    "3Y",    "5Y",    "MAX"]
@@ -211,6 +222,29 @@ def get_position_asset_class(position):
 
 # Layout for the analysis page
 layout = dbc.Container([
+    # Demo Account Banner — only visible in demo mode
+    html.Div(
+        [
+            html.I(className="bi bi-info-circle-fill me-2"),
+            html.Strong("DEMO ACCOUNT"),
+            html.Span(" — You are viewing sample data. ", className="ms-1"),
+            html.A("Log in", href="#", id="demo-login-link", className="text-white fw-bold text-decoration-underline ms-1"),
+            html.Span(" and sync your Trade Republic account to see your real portfolio."),
+        ],
+        id="demo-banner",
+        style={
+            "display": "none",
+            "backgroundColor": "#f59e0b",
+            "color": "#fff",
+            "padding": "8px 16px",
+            "textAlign": "center",
+            "fontSize": "0.85rem",
+            "fontWeight": "500",
+            "borderRadius": "6px",
+            "marginBottom": "8px",
+        },
+    ),
+
     # Sticky Header Bar
     html.Div([
         # Left side - compact title + metadata
@@ -226,7 +260,12 @@ layout = dbc.Container([
             dbc.Button([
                 html.I(className="bi bi-arrow-repeat"),
             ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Sync"),
-            
+
+            # Demo mode toggle
+            dbc.Button([
+                html.I(className="bi bi-person-badge", id="demo-toggle-icon"),
+            ], id="demo-toggle-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Switch to Demo Account"),
+
             # Privacy toggle
             dbc.Button([
                 html.I(className="bi bi-eye-slash", id="privacy-icon"),
@@ -479,6 +518,7 @@ layout = dbc.Container([
     dcc.Store(id="securities-sort", data={"col": "value", "asc": False}),
     dcc.Store(id="securities-data", data=[]),
     dcc.Store(id="privacy-mode", data=False),
+    dcc.Store(id="demo-mode", data=False),
     dcc.Store(id="tr-session-data", storage_type="session"),
     dcc.Store(id="tr-auth-step", data="initial"),
     dcc.Store(id="tr-check-creds-trigger", data=0),
@@ -532,15 +572,16 @@ def register_callbacks(app):
         Output("portfolio-data-store", "data", allow_duplicate=True),
         Input("load-cached-data-interval", "n_intervals"),
         [State("portfolio-data-store", "data"),
-         State("current-user-store", "data")],
+         State("current-user-store", "data"),
+         State("demo-mode", "data")],
         prevent_initial_call='initial_duplicate'
     )
-    def load_from_server_cache(n_intervals, current_data, current_user):
-        """Load portfolio data from server cache.
-        
-        ALWAYS prefer server cache over browser localStorage to ensure
-        fresh data after recalculations (e.g., correct EUR values).
-        """
+    def load_from_server_cache(n_intervals, current_data, current_user, demo_mode):
+        """Load portfolio data from server cache, or demo data if not logged in."""
+        # If in demo mode or no user, load demo data
+        if demo_mode or not current_user:
+            return _load_demo_json()
+
         from components.tr_api import get_cached_portfolio
         uid = current_user or "_default"
         
@@ -548,24 +589,34 @@ def register_callbacks(app):
         cached = get_cached_portfolio(user_id=uid)
         
         if cached and cached.get("success"):
-            # ALWAYS use server cache. Browser storage is not authoritative and can be stale/wrong.
-            # Do not trigger history rebuilds here; page load must be fast and stable.
             return json.dumps(cached)
         
+        # Fallback: if no server cache and no user, show demo
+        if not current_user:
+            return _load_demo_json()
+
         return no_update
     
     # Modal: auto-open on first load if no data; close on successful sync
+    # NEVER auto-open if user is not logged in — show demo instead
     @app.callback(
         Output("tr-connect-modal", "is_open"),
         [Input("portfolio-data-store", "data"),
-         Input("load-cached-data-interval", "n_intervals")],
+         Input("load-cached-data-interval", "n_intervals"),
+         Input("demo-login-link", "n_clicks")],
         [State("tr-connect-modal", "is_open"),
-         State("tr-encrypted-creds", "data")],
+         State("tr-encrypted-creds", "data"),
+         State("current-user-store", "data")],
         prevent_initial_call=False
     )
-    def toggle_tr_modal(portfolio_data, n_intervals, is_open, encrypted_creds):
+    def toggle_tr_modal(portfolio_data, n_intervals, demo_login_click,
+                        is_open, encrypted_creds, current_user):
         triggered = ctx.triggered_id
         
+        # "Log in" link in demo banner opens the modal
+        if triggered == "demo-login-link" and demo_login_click:
+            return True
+
         # Close modal when data loads successfully
         if triggered == "portfolio-data-store" and portfolio_data:
             try:
@@ -575,12 +626,65 @@ def register_callbacks(app):
             except:
                 pass
         
-        # On initial load, if no data and no credentials, prompt login
+        # On initial load: only prompt if user IS logged in but has no data/creds
         if triggered == "load-cached-data-interval":
-            if not portfolio_data and not encrypted_creds:
+            if current_user and not portfolio_data and not encrypted_creds:
                 return True
         
         return is_open
+    
+    # ── Demo mode toggle ──
+    @app.callback(
+        [Output("demo-mode", "data"),
+         Output("portfolio-data-store", "data", allow_duplicate=True)],
+        Input("demo-toggle-btn", "n_clicks"),
+        [State("demo-mode", "data"),
+         State("current-user-store", "data")],
+        prevent_initial_call=True,
+    )
+    def toggle_demo_mode(n_clicks, demo_mode, current_user):
+        if not n_clicks:
+            raise PreventUpdate
+        new_mode = not demo_mode
+        if new_mode:
+            # Switching TO demo
+            return True, _load_demo_json()
+        else:
+            # Switching OFF demo — reload real data if logged in
+            if current_user:
+                from components.tr_api import get_cached_portfolio
+                cached = get_cached_portfolio(user_id=current_user)
+                if cached and cached.get("success"):
+                    return False, json.dumps(cached)
+            return False, no_update
+
+    # ── Demo banner visibility ──
+    @app.callback(
+        [Output("demo-banner", "style"),
+         Output("demo-toggle-btn", "title"),
+         Output("demo-toggle-icon", "className")],
+        [Input("demo-mode", "data"),
+         Input("current-user-store", "data"),
+         Input("portfolio-data-store", "data")],
+        prevent_initial_call=False,
+    )
+    def update_demo_banner(demo_mode, current_user, portfolio_data):
+        # Show banner when in demo mode or when not logged in
+        show_demo = demo_mode or not current_user
+        banner_style = {
+            "display": "block" if show_demo else "none",
+            "backgroundColor": "#f59e0b",
+            "color": "#fff",
+            "padding": "8px 16px",
+            "textAlign": "center",
+            "fontSize": "0.85rem",
+            "fontWeight": "500",
+            "borderRadius": "6px",
+            "marginBottom": "8px",
+        }
+        if show_demo:
+            return banner_style, "Switch to Real Account", "bi bi-briefcase-fill"
+        return banner_style, "Switch to Demo Account", "bi bi-person-badge"
     
     # Sync button: if connected → sync; if not → open login modal
     @app.callback(

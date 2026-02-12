@@ -122,7 +122,11 @@ def redirect_to_default(pathname):
      Input('current-user-store', 'data')]
 )
 def render_page_content(pathname, current_user):
-    # Don't render content if not logged in
+    # Allow portfolio analysis (compare) even without login — will show demo
+    if pathname == "/compare":
+        return l4
+
+    # Other pages still require login
     if not current_user:
         return html.Div([
             html.Div([
