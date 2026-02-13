@@ -149,21 +149,50 @@ tr_connect_modal = dbc.Modal([
 
 
 def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class=""):
-    """Create a metric card component."""
+    """Create a metric card component with auto-shrinking text."""
+    # Inline styles guarantee correct sizing even when the CSS file
+    # is cached.  Container-query CSS in style.css will enhance this.
+    label_style = {
+        "whiteSpace": "nowrap",
+        "overflow": "hidden",
+        "fontSize": "clamp(0.35rem, 6.5cqw, 0.6875rem)",
+        "letterSpacing": "0.03em",
+        "textTransform": "uppercase",
+    }
+    value_style = {
+        "whiteSpace": "nowrap",
+        "overflow": "hidden",
+        "fontSize": "clamp(0.45rem, 10cqw, 1.05rem)",
+        "fontVariantNumeric": "tabular-nums",
+        "lineHeight": "1.15",
+    }
+    subtitle_style = {
+        "whiteSpace": "nowrap",
+        "overflow": "hidden",
+        "fontSize": "clamp(0.35rem, 6.5cqw, 0.7rem)",
+        "fontVariantNumeric": "tabular-nums",
+    }
+    card_style = {
+        "containerType": "inline-size",
+        "overflow": "hidden",
+        "padding": "10px 8px",
+    }
     return html.Div([
         html.Div([
-            html.Div(title, className="metric-label"),
-            html.Div(id=value_id, className=f"metric-value sensitive {color_class}", children="--"),
+            html.Div(title, className="metric-label", style=label_style),
+            html.Div(id=value_id, className=f"metric-value sensitive {color_class}",
+                     children="--", style=value_style),
             html.Div(
                 id=subtitle_id,
                 className="metric-subtitle sensitive",
                 children="",
+                style=subtitle_style,
             ) if subtitle_id else html.Div(
                 className="metric-subtitle metric-subtitle-placeholder",
                 children="",
             ),
         ], className="metric-content"),
-    ], className="metric-card")
+    ], className="metric-card", style=card_style)
 
 
 def get_position_asset_class(position):
@@ -518,7 +547,7 @@ layout = dbc.Container([
     dcc.Store(id="securities-sort", data={"col": "value", "asc": False}),
     dcc.Store(id="securities-data", data=[]),
     dcc.Store(id="privacy-mode", data=False),
-    dcc.Store(id="demo-mode", data=False, storage_type="local"),
+    dcc.Store(id="demo-mode", data=True, storage_type="local"),
     dcc.Store(id="tr-session-data", storage_type="session"),
     dcc.Store(id="tr-auth-step", data="initial"),
     dcc.Store(id="tr-check-creds-trigger", data=0),
@@ -689,7 +718,8 @@ def register_callbacks(app):
         [Output("portfolio-data-store", "data", allow_duplicate=True),
          Output("sync-tr-data-btn", "children"),
          Output("sync-tr-data-btn", "disabled"),
-         Output("tr-connect-modal", "is_open", allow_duplicate=True)],
+         Output("tr-connect-modal", "is_open", allow_duplicate=True),
+         Output("demo-mode", "data", allow_duplicate=True)],
         Input("sync-tr-data-btn", "n_clicks"),
         [State("tr-encrypted-creds", "data"),
          State("tr-connect-modal", "is_open"),
@@ -713,14 +743,15 @@ def register_callbacks(app):
         
         # Still not connected? Open login modal
         if not is_connected(user_id=uid):
-            return no_update, html.I(className="bi bi-arrow-repeat"), False, True
+            return no_update, html.I(className="bi bi-arrow-repeat"), False, True, no_update
         
         # Connected — fetch data (uses server cache if fresh)
         data = fetch_all_data(user_id=uid)
         if data.get("success"):
-            return json.dumps(data), html.I(className="bi bi-check-circle"), False, False
+            # Switch out of demo mode on successful sync
+            return json.dumps(data), html.I(className="bi bi-check-circle"), False, False, False
         
-        return no_update, html.I(className="bi bi-x-circle"), False, modal_open
+        return no_update, html.I(className="bi bi-x-circle"), False, modal_open, no_update
     
     # Update metrics when data changes
     @app.callback(
@@ -788,69 +819,76 @@ def register_callbacks(app):
         
         fig = go.Figure()
         
+        _empty_layout = dict(
+            showlegend=False,
+            margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+
         if not data_json:
-            # Empty donut
             fig.add_trace(go.Pie(
                 values=[1], labels=["No data"], hole=0.7,
                 marker=dict(colors=["#374151"]),
                 textinfo="none", hoverinfo="none"
             ))
             fig.update_layout(
-                showlegend=False, margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                annotations=[dict(text="No data", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="#94a3b8")]
+                **_empty_layout,
+                annotations=[dict(text="No data", x=0.5, y=0.5, showarrow=False,
+                                  font=dict(size=14, color="#94a3b8"))]
             )
             return fig
-        
+
         try:
             data = json.loads(data_json) if isinstance(data_json, str) else data_json
             positions = data.get("data", {}).get("positions", [])
             selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
             all_classes = {"etf", "stock", "crypto", "bond", "cash"}
-            default_classes = {"etf", "stock", "crypto", "bond"}  # Default excludes cash
-            # Only filter if not all classes are selected and not default selection
+            default_classes = {"etf", "stock", "crypto", "bond"}
             if selected_classes and set(selected_classes) != all_classes and set(selected_classes) != default_classes:
                 positions = [p for p in positions if get_position_asset_class(p) in selected_classes]
 
             if not positions:
-                fig.add_trace(go.Pie(values=[1], labels=["Empty"], hole=0.7, marker=dict(colors=["#374151"]), textinfo="none"))
-                fig.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                fig.add_trace(go.Pie(values=[1], labels=["Empty"], hole=0.7,
+                                     marker=dict(colors=["#374151"]), textinfo="none"))
+                fig.update_layout(**_empty_layout)
                 return fig
-            
-            # Sort by value
+
             positions = sorted(positions, key=lambda x: x.get("value", 0), reverse=True)
-            
             labels = [p.get("name", "Unknown")[:25] for p in positions]
             values = [p.get("value", 0) for p in positions]
             total = sum(values)
-            
-            # Center text: total portfolio value
-            center_name = "Portfolio"
             center_value = f"€{total:,.2f}"
-            
+
             fig.add_trace(go.Pie(
                 values=values, labels=labels, hole=0.7,
                 marker=dict(colors=colors[:len(values)]),
                 textinfo="none",
                 hovertemplate="<b>%{label}</b><br>€%{value:,.2f}<br>%{percent:.1%}<extra></extra>",
             ))
-            
+
             fig.update_layout(
                 showlegend=False,
                 margin=dict(l=10, r=10, t=10, b=10),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 annotations=[
-                    dict(text=center_name, x=0.5, y=0.55, font_size=11, showarrow=False, font_color="#94a3b8"),
-                    dict(text=center_value, x=0.5, y=0.45, font_size=18, showarrow=False, font_color="#f8fafc", font_weight="bold"),
+                    dict(text="Portfolio", x=0.5, y=0.55, showarrow=False,
+                         font=dict(size=11, color="#94a3b8")),
+                    dict(text=center_value, x=0.5, y=0.45, showarrow=False,
+                         font=dict(size=18, color="#f8fafc")),
                 ]
             )
             return fig
-            
+
         except Exception as e:
+            import traceback
             print(f"Donut chart error: {e}")
-            fig.add_trace(go.Pie(values=[1], labels=["Error"], hole=0.7, marker=dict(colors=["#374151"]), textinfo="none"))
-            fig.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+            traceback.print_exc()
+            fig = go.Figure()
+            fig.add_trace(go.Pie(values=[1], labels=["Error"], hole=0.7,
+                                 marker=dict(colors=["#374151"]), textinfo="none"))
+            fig.update_layout(**_empty_layout)
             return fig
     
     # Time return metrics
