@@ -10,3 +10,4 @@
 
 # Large indicator data folders
 /indicators/*
+/.env
