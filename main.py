@@ -30,6 +30,7 @@ print("STARTING APP")
 # Initialize app with modern Bootstrap and icons
 app = dash.Dash(
     __name__, 
+    title="Apex",
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
         dbc.icons.BOOTSTRAP,
