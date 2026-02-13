@@ -481,16 +481,39 @@ def register_rule_builder_callbacks(app):
         # AI generated rule
         if trigger == "apply-modal-button" and ai_prompt:
             if not api_key:
-                print("OpenAI Key is missing — user must set it in Settings.")
+                children.append(html.Div(
+                    [html.I(className="bi bi-key me-2"),
+                     "OpenAI API key is missing. Set it in ",
+                     html.Strong("Settings"), " (gear icon in the sidebar)."],
+                    className="text-danger small p-2 mb-2",
+                    style={"backgroundColor": "#fef2f2", "borderRadius": "6px"},
+                ))
                 return children
             try:
                 rule_expression, rule_type = generate_rule(ai_prompt, api_key)
                 if rule_type in (False, None, "Rule Error", "GPT Error"):
-                    print(f"Error generating rule: {rule_expression}")
+                    error_msg = str(rule_expression) if rule_expression else "Unknown error"
+                    # Extract user-friendly message from OpenAI errors
+                    if "invalid_api_key" in error_msg or "401" in error_msg:
+                        error_msg = "Invalid OpenAI API key. Check your key in Settings (gear icon in the sidebar)."
+                    children.append(html.Div(
+                        [html.I(className="bi bi-exclamation-triangle me-2"),
+                         html.Strong("AI Error: "), error_msg],
+                        className="text-danger small p-2 mb-2",
+                        style={"backgroundColor": "#fef2f2", "borderRadius": "6px"},
+                    ))
                     return children
                 children.append(create_rule_pill(rule_type, len(children), rule_expression))
             except Exception as e:
-                print(f"Error generating rule: {e}")
+                error_msg = str(e)
+                if "invalid_api_key" in error_msg or "401" in error_msg:
+                    error_msg = "Invalid OpenAI API key. Check your key in Settings (gear icon in the sidebar)."
+                children.append(html.Div(
+                    [html.I(className="bi bi-exclamation-triangle me-2"),
+                     html.Strong("AI Error: "), error_msg],
+                    className="text-danger small p-2 mb-2",
+                    style={"backgroundColor": "#fef2f2", "borderRadius": "6px"},
+                ))
             return children
         
         # Quick builder - Buy

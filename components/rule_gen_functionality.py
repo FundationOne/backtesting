@@ -224,8 +224,10 @@ def register_callbacks(app):
             # Check for errors
             if rule_type in ("Rule Error", "GPT Error", False):
                 error_msg = str(rule_expression) if rule_expression else "Unknown error"
+                if "invalid_api_key" in error_msg or "401" in error_msg:
+                    error_msg = "Invalid OpenAI API key. Check your key in Settings (gear icon in the sidebar)."
                 feedback = dbc.Alert(
-                    [html.Strong(f"Error ({rule_type}): "), error_msg],
+                    [html.Strong(f"Error: "), error_msg],
                     color="danger", className="mt-2 mb-0"
                 )
                 return children, True, feedback  # Keep modal open, show error

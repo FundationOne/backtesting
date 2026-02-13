@@ -34,7 +34,7 @@ def register_auth_callbacks(app):
     # Main auth callback - handles login/register/logout with user-namespaced data
     app.clientside_callback(
         """
-        function(login_clicks, register_clicks, logout_clicks, username, password, current_user, active_portfolio, active_creds) {
+        function(login_clicks, register_clicks, logout_clicks, username, password, current_user, active_portfolio) {
             try {
                 const ctx = dash_clientside.callback_context;
                 const triggered = (ctx && ctx.triggered && ctx.triggered.length)
@@ -50,35 +50,49 @@ def register_auth_callbacks(app):
                     return h.toString(16);
                 }
 
+                // Helper: read tr-encrypted-creds directly from localStorage
+                // (the dcc.Store with storage_type="local" key is "_dash_persistence_tr-encrypted-creds.data")
+                function getTrCreds() {
+                    try {
+                        const raw = localStorage.getItem("tr-encrypted-creds");
+                        return raw ? raw : null;
+                    } catch(e) { return null; }
+                }
+
                 // Logout - SAVE user's data to their namespace, then clear active stores
                 if (triggered === "logout-btn" && current_user) {
                     // Save current data to user-specific keys before clearing
                     if (active_portfolio) {
                         localStorage.setItem("portfolio-data-" + current_user, active_portfolio);
                     }
-                    if (active_creds) {
-                        localStorage.setItem("tr-creds-" + current_user, active_creds);
+                    const creds = getTrCreds();
+                    if (creds) {
+                        localStorage.setItem("tr-creds-" + current_user, creds);
                     }
-                    // Clear ACTIVE stores (not the user-namespaced backups)
-                    return [null, true, "", null, null];
+                    // Clear tr-encrypted-creds directly in localStorage
+                    localStorage.removeItem("tr-encrypted-creds");
+                    return [null, true, "", null];
                 }
 
                 // Check if already logged in - restore their data
                 if (current_user && !triggered) {
-                    // User already logged in, restore their namespaced data
                     const userPortfolio = localStorage.getItem("portfolio-data-" + current_user);
                     const userCreds = localStorage.getItem("tr-creds-" + current_user);
-                    return [current_user, false, "", userPortfolio || dash_clientside.no_update, userCreds || dash_clientside.no_update];
+                    // Restore TR creds directly into localStorage for the store
+                    if (userCreds) {
+                        localStorage.setItem("tr-encrypted-creds", userCreds);
+                    }
+                    return [current_user, false, "", userPortfolio || dash_clientside.no_update];
                 }
                 
                 // Initial load - no user, show login
                 if (!triggered) {
-                    return [dash_clientside.no_update, true, "", dash_clientside.no_update, dash_clientside.no_update];
+                    return [dash_clientside.no_update, true, "", dash_clientside.no_update];
                 }
                 
                 // Need credentials for login/register
                 if (!username || !password) {
-                    return [dash_clientside.no_update, true, "Enter username and password", dash_clientside.no_update, dash_clientside.no_update];
+                    return [dash_clientside.no_update, true, "Enter username and password", dash_clientside.no_update];
                 }
                 
                 const pwd_hash = simpleHash(password + "apex_salt");
@@ -86,39 +100,42 @@ def register_auth_callbacks(app):
                 const stored_hash = localStorage.getItem(stored_key);
                 
                 if (triggered === "register-btn") {
-                    if (stored_hash) return [dash_clientside.no_update, true, "User exists", dash_clientside.no_update, dash_clientside.no_update];
+                    if (stored_hash) return [dash_clientside.no_update, true, "User exists", dash_clientside.no_update];
                     localStorage.setItem(stored_key, pwd_hash);
-                    // New user - no data to restore
-                    return [username, false, "", null, null];
+                    return [username, false, "", null];
                 }
                 
                 // Login - restore user's saved data
-                if (!stored_hash) return [dash_clientside.no_update, true, "User not found", dash_clientside.no_update, dash_clientside.no_update];
-                if (stored_hash !== pwd_hash) return [dash_clientside.no_update, true, "Wrong password", dash_clientside.no_update, dash_clientside.no_update];
+                if (!stored_hash) return [dash_clientside.no_update, true, "User not found", dash_clientside.no_update];
+                if (stored_hash !== pwd_hash) return [dash_clientside.no_update, true, "Wrong password", dash_clientside.no_update];
                 
                 // Successful login - restore this user's data from their namespace
                 const userPortfolio = localStorage.getItem("portfolio-data-" + username);
                 const userCreds = localStorage.getItem("tr-creds-" + username);
-                return [username, false, "", userPortfolio || null, userCreds || null];
+                // Restore TR creds directly
+                if (userCreds) {
+                    localStorage.setItem("tr-encrypted-creds", userCreds);
+                } else {
+                    localStorage.removeItem("tr-encrypted-creds");
+                }
+                return [username, false, "", userPortfolio || null];
             } catch (e) {
                 console.error("Auth error:", e);
-                return [dash_clientside.no_update, true, "Auth error", dash_clientside.no_update, dash_clientside.no_update];
+                return [dash_clientside.no_update, true, "Auth error", dash_clientside.no_update];
             }
         }
         """,
         [Output("current-user-store", "data"),
          Output("login-modal", "is_open"),
          Output("login-error", "children"),
-         Output("portfolio-data-store", "data", allow_duplicate=True),
-         Output("tr-encrypted-creds", "data", allow_duplicate=True)],
+         Output("portfolio-data-store", "data", allow_duplicate=True)],
         [Input("login-btn", "n_clicks"),
          Input("register-btn", "n_clicks"),
          Input("logout-btn", "n_clicks")],
         [State("login-username", "value"),
          State("login-password", "value"),
          State("current-user-store", "data"),
-         State("portfolio-data-store", "data"),
-         State("tr-encrypted-creds", "data")],
+         State("portfolio-data-store", "data")],
         prevent_initial_call='initial_duplicate'
     )
     

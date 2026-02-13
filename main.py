@@ -9,6 +9,7 @@ from pages.portfolio_sim import layout as l2, register_callbacks as rc2
 from pages.riskbands import layout as l3, register_callbacks as rc3
 from pages.portfolio_analysis import layout as l4, register_callbacks as rc4
 from pages.the_real_cost import layout as l5, register_callbacks as rc5
+from pages.bank_sync import layout as l6, register_callbacks as rc6
 
 # Component imports
 from components.settings_modal import (
@@ -59,6 +60,11 @@ sidebar = html.Div([
             "Investment Simulator"
         ], href="/portfolio", id="portfolio-link", className="nav-link-modern"),
         
+        dbc.NavLink([
+            html.I(className="bi bi-bank me-2"), 
+            "Bank Account Sync"
+        ], href="/banksync", id="banksync-link", className="nav-link-modern"),
+
         dbc.NavLink([
             html.I(className="bi bi-shield-check me-2"), 
             "Exit Strategy Riskbands"
@@ -141,6 +147,8 @@ def render_page_content(pathname, current_user):
         return l2()
     elif pathname == "/compare":
         return l4
+    elif pathname == "/banksync":
+        return l6
     elif pathname == "/riskbands":
         return l3
     elif pathname == "/realcost":
@@ -156,6 +164,7 @@ def render_page_content(pathname, current_user):
     [Output("backtesting-link", "active"),
      Output("portfolio-link", "active"),
      Output("compare-link", "active"),
+     Output("banksync-link", "active"),
      Output("riskbands-link", "active"),
      Output("realcost-link", "active")],
     [Input("url", "pathname")]
@@ -165,6 +174,7 @@ def set_active_link(pathname):
         pathname == "/backtesting",
         pathname == "/portfolio",
         pathname == "/compare",
+        pathname == "/banksync",
         pathname == "/riskbands",
         pathname == "/realcost",
     )
@@ -179,6 +189,7 @@ rc3(app)  # Riskbands callbacks
 rc2(app)  # Portfolio simulation callbacks
 rc1(app)  # Backtesting callbacks
 rc5(app)  # The Real Cost callbacks
+rc6(app)  # Bank Account Sync callbacks
 
 # Run
 if __name__ == '__main__':
