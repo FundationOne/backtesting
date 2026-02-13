@@ -743,7 +743,7 @@ def register_callbacks(app):
             return ("€0.00", "", "fs-5", "€0.00", "€0.00", "metric-value sensitive", "", "€0.00")
         
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             if not data.get("success") or not data.get("data"):
                 raise ValueError("No data")
             
@@ -805,7 +805,7 @@ def register_callbacks(app):
             return fig
         
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             positions = data.get("data", {}).get("positions", [])
             selected_classes = asset_class if isinstance(asset_class, list) else [asset_class] if asset_class else []
             all_classes = {"etf", "stock", "crypto", "bond", "cash"}
@@ -914,7 +914,7 @@ def register_callbacks(app):
         if not data_json:
             return "Not connected", ""
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             if not data.get("success"):
                 return "Not connected", ""
             portfolio = data.get("data", {})
@@ -962,7 +962,7 @@ def register_callbacks(app):
             return default
         
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             history = data.get("data", {}).get("history", [])
             
             if not history:
@@ -1088,7 +1088,7 @@ def register_callbacks(app):
             )
 
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             if not data.get("success"):
                 raise ValueError("No data")
 
@@ -1589,7 +1589,7 @@ def register_callbacks(app):
             return fig
         
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
 
             cached_at = data.get("cached_at") or ""
             # Include asset filter in cache key
@@ -2109,7 +2109,7 @@ def register_callbacks(app):
             return html.Div("No data available", className="text-muted text-center py-3")
         
         try:
-            data = json.loads(data_json)
+            data = json.loads(data_json) if isinstance(data_json, str) else data_json
             history = data.get("data", {}).get("history", [])
             portfolio = data.get("data", {})
             

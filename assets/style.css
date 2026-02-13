@@ -1989,18 +1989,14 @@ hr {
     background: rgba(255, 255, 255, 0.04);
     border-color: rgba(148, 163, 184, 0.16);
     min-height: 98px;
-    overflow: hidden;
 }
 
 .portfolio-analysis-page .portfolio-top-summary .metric-value {
     color: #f8fafc !important;
-    font-size: clamp(0.7rem, 2.4vw, 1.05rem) !important;
+    font-size: clamp(0.65rem, 1.8vw, 1.05rem) !important;
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
 }
 
 .portfolio-analysis-page .portfolio-top-summary .metric-label {
@@ -2037,43 +2033,44 @@ hr {
 #portfolio-total-value,
 .portfolio-analysis-page .portfolio-top-summary .portfolio-hero-value {
     color: #ffffff !important;
-    font-size: clamp(1.05rem, 4.5vw, 2rem) !important;
+    font-size: clamp(0.95rem, 3.5vw, 2rem) !important;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     letter-spacing: -0.01em;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 @media (max-width: 1100px) {
     .portfolio-analysis-page .portfolio-top-summary .metric-label {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
         letter-spacing: 0.04em;
         line-height: 1.1;
+    }
+    .portfolio-analysis-page .portfolio-top-summary .metric-value {
+        font-size: clamp(0.6rem, 1.6vw, 0.9rem) !important;
+    }
+    .portfolio-analysis-page .portfolio-top-summary .metric-subtitle {
+        font-size: 0.65rem;
     }
 }
 
 @media (max-width: 768px) {
     .portfolio-analysis-page .portfolio-top-summary .metric-value {
-        font-size: clamp(0.6rem, 2vw, 0.85rem) !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: clamp(0.55rem, 2.5vw, 0.8rem) !important;
     }
     .portfolio-analysis-page .portfolio-top-summary .metric-label {
-        font-size: 0.55rem;
+        font-size: 0.5rem;
         letter-spacing: 0.02em;
     }
     .portfolio-analysis-page .portfolio-top-summary .metric-card {
-        min-height: 75px;
-        padding: 8px 10px;
+        min-height: 70px;
+        padding: 6px 8px;
     }
     .portfolio-analysis-page .portfolio-top-summary .metric-subtitle {
-        font-size: 0.6rem;
+        font-size: 0.55rem;
     }
     #portfolio-total-value,
     .portfolio-analysis-page .portfolio-top-summary .portfolio-hero-value {
-        font-size: clamp(0.9rem, 3.5vw, 1.5rem) !important;
+        font-size: clamp(0.85rem, 3vw, 1.4rem) !important;
     }
 }
 
