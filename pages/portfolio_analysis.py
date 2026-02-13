@@ -529,11 +529,9 @@ layout = dbc.Container([
     dcc.Store(id="securities-sort", data={"col": "value", "asc": False}),
     dcc.Store(id="securities-data", data=[]),
     dcc.Store(id="privacy-mode", data=False),
-    dcc.Store(id="demo-mode", data=True, storage_type="local"),
     dcc.Store(id="tr-session-data", storage_type="session"),
     dcc.Store(id="tr-auth-step", data="initial"),
     dcc.Store(id="tr-check-creds-trigger", data=0),
-    dcc.Interval(id="load-cached-data-interval", interval=500, max_intervals=1),
     html.Div(id="comparison-page", style={"display": "none"}),
     
     # Hidden placeholders for removed outputs still referenced by callbacks
@@ -608,44 +606,42 @@ def register_callbacks(app):
         # No cached data yet → show demo until they sync
         return _load_demo_json()
     
-    # Modal: auto-open on first load if no data; close on successful sync
-    # NEVER auto-open if user is not logged in — show demo instead
-    # "Log in" link handling: If NOT logged in, open login-modal. Else open TR modal.
+    # Modal: close on successful sync
     @app.callback(
-        [Output("tr-connect-modal", "is_open"),
-         Output("login-modal", "is_open", allow_duplicate=True)],
-        [Input("portfolio-data-store", "data"),
-         Input("load-cached-data-interval", "n_intervals"),
-         Input("demo-login-link", "n_clicks")],
-        [State("tr-connect-modal", "is_open"),
-         State("tr-encrypted-creds", "data"),
-         State("current-user-store", "data")],
-        prevent_initial_call='initial_duplicate'
+        Output("tr-connect-modal", "is_open"),
+        Input("portfolio-data-store", "data"),
+        State("tr-connect-modal", "is_open"),
+        prevent_initial_call=True,
     )
-    def toggle_tr_modal(portfolio_data, n_intervals, demo_login_click,
-                        is_open, encrypted_creds, current_user):
-        triggered = ctx.triggered_id
-        
-        # "Log in" link in demo banner opens the modal
-        if triggered == "demo-login-link" and demo_login_click:
-            # If not logged in, open Login Modal instead of TR modal
-            if not current_user:
-                return False, True
-            return True, no_update
-
+    def toggle_tr_modal(portfolio_data, is_open):
         # Close TR modal when data loads successfully
-        if triggered == "portfolio-data-store" and portfolio_data:
+        if portfolio_data:
             try:
                 data = json.loads(portfolio_data) if isinstance(portfolio_data, str) else portfolio_data
                 if data.get("success"):
-                    return False, no_update
+                    return False
             except:
                 pass
-        
-        # Never auto-open the modal on page load.
-        # The user can click "Log in" or the sync button to open it.
-        
-        return is_open, no_update
+        return is_open
+
+    # "Log in" link in demo banner — page-level click handler
+    # Only fires on actual clicks (prevent_initial_call=True), so
+    # demo-login-link is guaranteed to exist in the DOM.
+    @app.callback(
+        [Output("tr-connect-modal", "is_open", allow_duplicate=True),
+         Output("login-modal", "is_open", allow_duplicate=True)],
+        Input("demo-login-link", "n_clicks"),
+        State("current-user-store", "data"),
+        prevent_initial_call=True,
+    )
+    def handle_demo_login_click(n_clicks, current_user):
+        if not n_clicks:
+            raise PreventUpdate
+        # Not logged in → open login modal
+        if not current_user:
+            return no_update, True
+        # Logged in → open TR connect modal
+        return True, no_update
     
     # ── Auto-reset demo mode on login/logout ──
     # This is the SINGLE source of truth for demo-mode transitions

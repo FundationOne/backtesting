@@ -112,6 +112,20 @@ sidebar = html.Div([
 # Main content area
 content = html.Div(id="page-content", className='main-content')
 
+# Mobile hamburger button (visible only on small screens)
+mobile_header = html.Div([
+    html.Button(
+        html.I(className="bi bi-list", style={"fontSize": "1.5rem"}),
+        id="mobile-menu-btn",
+        className="mobile-menu-btn",
+        n_clicks=0,
+    ),
+    html.Span("APE•X", className="mobile-header-title"),
+], className="mobile-header")
+
+# Mobile overlay (click to close sidebar)
+mobile_overlay = html.Div(id="mobile-overlay", className="mobile-overlay", n_clicks=0)
+
 # App layout
 app.layout = dbc.Container([
     dcc.Location(id="url", refresh=False),
@@ -119,8 +133,13 @@ app.layout = dbc.Container([
     user_store,  # User auth store
     dcc.Store(id="portfolio-data-store", storage_type="memory"),  # Portfolio data - memory only, no persistence
     dcc.Store(id="tr-encrypted-creds", storage_type="local"),  # TR credentials - MUST be in main layout for auth
+    dcc.Store(id="demo-mode", data=True, storage_type="local"),  # Demo mode flag - must be in main layout for auth callbacks
+    dcc.Interval(id="load-cached-data-interval", interval=500, max_intervals=1),  # Initial data load trigger
     login_modal,  # Login gate
     settings_modal,
+    mobile_header,
+    mobile_overlay,
+    dcc.Store(id="mobile-sidebar-dummy"),
     dbc.Row([
         dbc.Col(sidebar, width=2, className='p-0 sidebar-col'),
         dbc.Col(content, width=10, className='p-0'),
@@ -140,12 +159,13 @@ def redirect_to_default(pathname):
 
 @app.callback(
     Output('page-content', 'children'),
-    [Input('url', 'pathname'),
-     Input('current-user-store', 'data')]
+    Input('url', 'pathname'),
 )
-def render_page_content(pathname, current_user):
-    # All pages accessible without login (demo/read-only mode)
-    # Only bank sync and TR sync require login
+def render_page_content(pathname):
+    # Pages render based on URL only — no auth dependency here.
+    # Each page handles its own auth state internally via callbacks.
+    # This prevents full page re-renders on login/logout which would
+    # temporarily remove page-level components and break callbacks.
     if pathname == "/compare":
         return l4
     elif pathname == "/backtesting":
@@ -153,13 +173,6 @@ def render_page_content(pathname, current_user):
     elif pathname == "/portfolio":
         return l2()
     elif pathname == "/banksync":
-        if not current_user:
-            return html.Div([
-                html.Div([
-                    html.I(className="bi bi-lock-fill", style={"fontSize": "4rem", "color": "#6c757d"}),
-                    html.H4("Please log in to access Bank Sync", className="mt-3 text-muted"),
-                ], className="text-center", style={"marginTop": "20vh"})
-            ])
         return l6
     elif pathname == "/riskbands":
         return l3
@@ -191,6 +204,35 @@ def set_active_link(pathname):
         pathname == "/realcost",
     )
 
+
+# Mobile sidebar toggle (clientside for instant response)
+app.clientside_callback(
+    """
+    function(menu_clicks, overlay_clicks, pathname) {
+        const ctx = dash_clientside.callback_context;
+        const triggered = (ctx && ctx.triggered && ctx.triggered.length)
+            ? ctx.triggered[0].prop_id.split(".")[0]
+            : null;
+
+        // Close sidebar on navigation or overlay click
+        if (triggered === "mobile-overlay" || triggered === "url") {
+            document.body.classList.remove("sidebar-open");
+            return dash_clientside.no_update;
+        }
+
+        // Toggle sidebar on hamburger click
+        if (triggered === "mobile-menu-btn") {
+            document.body.classList.toggle("sidebar-open");
+        }
+        return dash_clientside.no_update;
+    }
+    """,
+    Output("mobile-sidebar-dummy", "data"),
+    [Input("mobile-menu-btn", "n_clicks"),
+     Input("mobile-overlay", "n_clicks"),
+     Input("url", "pathname")],
+    prevent_initial_call=True,
+)
 
 # Register all callbacks
 register_auth_callbacks(app)  # Auth first

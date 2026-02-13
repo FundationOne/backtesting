@@ -579,6 +579,49 @@ textarea::placeholder {
     text-align: center;
 }
 
+/* ===== Mobile Header (hidden on desktop) ===== */
+.mobile-header {
+    display: none;
+    position: sticky;
+    top: 0;
+    height: 48px;
+    background: var(--sidebar-bg);
+    color: #fff;
+    z-index: 1040;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+}
+.mobile-menu-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.mobile-menu-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+.mobile-header-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.mobile-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1049;
+}
+
 /* ===== Responsive Design ===== */
 @media (max-width: 992px) {
     .main-content {
@@ -587,13 +630,145 @@ textarea::placeholder {
 }
 
 @media (max-width: 768px) {
+    /* Show mobile header */
+    .mobile-header {
+        display: flex;
+    }
+
+    .main-content {
+        padding: 16px 12px !important;
+    }
+
+    /* Sticky header must sit below mobile header */
+    .sticky-header {
+        position: relative;
+        top: auto;
+        z-index: 50;
+    }
+
+    /* Sidebar: off-canvas drawer */
+    .sidebar-col {
+        position: fixed !important;
+        top: 0;
+        left: -280px;
+        width: 260px !important;
+        max-width: 260px !important;
+        flex: 0 0 260px !important;
+        height: 100vh;
+        z-index: 1050;
+        transition: left 0.25s ease;
+        overflow-y: auto;
+    }
     .sidebar {
         position: relative;
-        min-height: auto;
+        min-height: 100vh;
     }
-    
+
+    /* When sidebar is open */
+    body.sidebar-open .sidebar-col {
+        left: 0;
+    }
+    body.sidebar-open .mobile-overlay {
+        display: block;
+    }
+
+    /* Main content takes full width */
+    .sidebar-col + [class*="col"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Login modal must be above overlay */
+    .modal {
+        z-index: 1060 !important;
+    }
+    .modal-backdrop {
+        z-index: 1055 !important;
+    }
+
+    /* Portfolio metric cards: 2 per row */
+    .portfolio-analysis-page .portfolio-top-summary .metric-card {
+        min-height: 70px;
+        padding: 6px 4px;
+    }
+    #portfolio-total-value,
+    .portfolio-analysis-page .portfolio-top-summary .portfolio-hero-value {
+        font-size: clamp(0.85rem, 3vw, 1.4rem);
+    }
+
+    /* Real Cost preset cards */
+    .preset-row {
+        max-width: 100%;
+    }
+    .preset-col {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+    .preset-card {
+        padding: 14px 8px;
+    }
+    .preset-icon-circle {
+        width: 40px;
+        height: 40px;
+    }
+    .preset-label {
+        font-size: 0.75rem;
+    }
+    .preset-price {
+        font-size: 0.9rem;
+    }
+
+    /* Portfolio sticky header: wrap to two rows */
+    .sticky-header {
+        flex-wrap: wrap;
+        padding: 8px 10px;
+        gap: 6px;
+    }
+    .sticky-header .header-left {
+        flex: 1 1 100%;
+        order: -1;
+    }
+    .sticky-header .header-right {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .sticky-header .header-divider {
+        display: none;
+    }
+    .timeframe-pill-bar {
+        flex: 1 1 100%;
+    }
+    .timeframe-btn-group {
+        width: 100%;
+    }
+    .timeframe-btn-group .tf-pill {
+        flex: 1;
+    }
+
+    /* Portfolio top summary: stack donut and metrics vertically */
+    .portfolio-analysis-page .portfolio-top-summary [class*="col-md-4"],
+    .portfolio-analysis-page .portfolio-top-summary [class*="col-md-8"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Demo banner text */
+    .portfolio-analysis-page #demo-banner {
+        font-size: 0.78rem;
+        padding: 6px 10px;
+    }
+}
+
+@media (max-width: 480px) {
     .main-content {
-        padding: 16px;
+        padding: 12px 8px !important;
+    }
+    .preset-col {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+    .preset-card {
+        padding: 12px 6px;
     }
 }
 
@@ -2049,17 +2224,6 @@ hr {
     }
 }
 
-@media (max-width: 768px) {
-    .portfolio-analysis-page .portfolio-top-summary .metric-card {
-        min-height: 70px;
-        padding: 6px 4px;
-    }
-    #portfolio-total-value,
-    .portfolio-analysis-page .portfolio-top-summary .portfolio-hero-value {
-        font-size: clamp(0.85rem, 3vw, 1.4rem);
-    }
-}
-
 .portfolio-analysis-page .portfolio-top-summary .metric-card:hover {
     border-color: rgba(99, 102, 241, 0.45);
 }
@@ -2984,4 +3148,12 @@ hr {
 }
 .tx-row:last-child {
     border-bottom: none !important;
+}
+
+@media (max-width: 768px) {
+    .portfolio-analysis-page .sticky-header {
+        position: sticky !important;
+        top: 48px !important;
+        z-index: 100 !important;
+    }
 }

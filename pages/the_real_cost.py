@@ -43,7 +43,7 @@ def _make_preset_card(opt: dict, idx: int) -> dbc.Col:
             id={"type": "preset-card", "index": idx},
             n_clicks=0,
         ),
-        xs=6, sm=4, md=3, className="mb-3", style={"flex": "0 0 14.28%", "maxWidth": "14.28%"},
+        xs=6, sm=4, md=3, lg=True, className="mb-3 preset-col",
     )
 
 

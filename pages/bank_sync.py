@@ -345,34 +345,45 @@ layout = html.Div([
     dcc.Store(id="bs-transactions-cache", storage_type="memory"),
     dcc.Store(id="bs-active-requisition", storage_type="session"),
 
+    # Auth gate — shown when the user is not logged in
     html.Div([
-        html.H4([
-            html.I(className="bi bi-bank me-2"),
-            "Bank Account Sync",
-        ], className="page-title"),
-        html.P("Connect your bank, categorise transactions, track recurring payments.",
-               className="page-subtitle"),
-    ], className="page-header"),
+        html.Div([
+            html.I(className="bi bi-lock-fill", style={"fontSize": "4rem", "color": "#6c757d"}),
+            html.H4("Please log in to access Bank Sync", className="mt-3 text-muted"),
+        ], className="text-center", style={"marginTop": "20vh"})
+    ], id="bs-auth-gate", style={"display": "none"}),
 
-    html.Div(id="gc-setup-section", children=[_setup_card()]),
+    # Actual page content — hidden until auth passes
+    html.Div(id="bs-page-content", children=[
+        html.Div([
+            html.H4([
+                html.I(className="bi bi-bank me-2"),
+                "Bank Account Sync",
+            ], className="page-title"),
+            html.P("Connect your bank, categorise transactions, track recurring payments.",
+                   className="page-subtitle"),
+        ], className="page-header"),
 
-    html.Div(id="gc-main-section", style={"display": "none"}, children=[
-        dbc.Row([
-            dbc.Col([
-                _bank_connect_card(),
-                _connected_accounts_card(),
-            ], lg=4),
-            dbc.Col([
-                _transactions_card(),
-            ], lg=8),
+        html.Div(id="gc-setup-section", children=[_setup_card()]),
+
+        html.Div(id="gc-main-section", style={"display": "none"}, children=[
+            dbc.Row([
+                dbc.Col([
+                    _bank_connect_card(),
+                    _connected_accounts_card(),
+                ], lg=4),
+                dbc.Col([
+                    _transactions_card(),
+                ], lg=8),
+            ]),
+            dbc.Row([
+                dbc.Col([_rules_card()], lg=5),
+                dbc.Col([_monitoring_card()], lg=7),
+            ]),
         ]),
-        dbc.Row([
-            dbc.Col([_rules_card()], lg=5),
-            dbc.Col([_monitoring_card()], lg=7),
-        ]),
+
+        _add_rule_modal(),
     ]),
-
-    _add_rule_modal(),
 ], className="p-4")
 
 
@@ -503,6 +514,20 @@ def _monitoring_row(summary):
 # ── Callbacks ───────────────────────────────────────────────────────────
 
 def register_callbacks(app):
+
+    # 0. Auth gate — show/hide page content based on login state
+    @app.callback(
+        [Output("bs-auth-gate", "style"),
+         Output("bs-page-content", "style")],
+        [Input("url", "pathname"),
+         Input("current-user-store", "data")],
+    )
+    def check_bank_sync_auth(pathname, current_user):
+        if pathname != "/banksync":
+            raise PreventUpdate
+        if current_user:
+            return {"display": "none"}, {"display": "block"}
+        return {"display": "block"}, {"display": "none"}
 
     # 1. Show/hide setup vs main section
     @app.callback(
