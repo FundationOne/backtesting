@@ -413,7 +413,8 @@ def register_tr_callbacks(app):
          Output('tr-encrypted-creds', 'data', allow_duplicate=True),
          Output('portfolio-data-store', 'data', allow_duplicate=True),
          Output('tr-verify-otp-btn', 'disabled'),
-         Output('tr-verify-otp-btn', 'children')],
+         Output('tr-verify-otp-btn', 'children'),
+         Output('demo-mode', 'data', allow_duplicate=True)],
         [Input('tr-start-auth-btn', 'n_clicks'),
          Input('tr-verify-otp-btn', 'n_clicks'),
          Input('tr-back-btn', 'n_clicks'),
@@ -445,7 +446,8 @@ def register_tr_callbacks(app):
                 "connection-status disconnected", "Not Connected",
                 "", no_update, None,  # Clear encrypted creds on disconnect
                 no_update,  # Keep cached portfolio data
-                btn_disabled, btn_children
+                btn_disabled, btn_children,
+                no_update,
             )
         
         # Handle back button
@@ -456,7 +458,8 @@ def register_tr_callbacks(app):
                 "connection-status disconnected", "Not Connected",
                 no_update, no_update, no_update,
                 no_update,
-                btn_disabled, btn_children
+                btn_disabled, btn_children,
+                no_update,
             )
         
         # Handle refresh
@@ -471,7 +474,8 @@ def register_tr_callbacks(app):
                 create_portfolio_summary(portfolio_data),
                 no_update,  # Keep existing creds
                 json.dumps(portfolio_data),
-                btn_disabled, btn_children
+                btn_disabled, btn_children,
+                False,  # Exit demo mode
             )
         
         # Handle start authentication
@@ -485,7 +489,8 @@ def register_tr_callbacks(app):
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
             
             if not pin or len(pin) != 4:
@@ -497,7 +502,8 @@ def register_tr_callbacks(app):
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
             
             # Initiate login
@@ -510,7 +516,8 @@ def register_tr_callbacks(app):
                     "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
             else:
                 return (
@@ -521,7 +528,8 @@ def register_tr_callbacks(app):
                     "connection-status disconnected", "Not Connected",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
         
         # Handle OTP verification
@@ -534,7 +542,8 @@ def register_tr_callbacks(app):
                     "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
             
             # Complete login
@@ -556,7 +565,8 @@ def register_tr_callbacks(app):
                     create_portfolio_summary(portfolio_data),
                     encrypted_creds,  # Store encrypted creds in browser
                     json.dumps(portfolio_data),
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    False,  # Exit demo mode
                 )
             else:
                 return (
@@ -566,7 +576,8 @@ def register_tr_callbacks(app):
                     "connection-status connecting", "Enter code from TR app",
                     no_update, no_update, no_update,
                     no_update,
-                    btn_disabled, btn_children
+                    btn_disabled, btn_children,
+                    no_update,
                 )
         
         raise PreventUpdate

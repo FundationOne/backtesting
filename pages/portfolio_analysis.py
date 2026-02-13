@@ -578,34 +578,34 @@ def register_callbacks(app):
     
     # (debug clientside callbacks removed)
     
-    # Load from server cache if browser localStorage is empty
+    # ── Load initial data on page load (fires once) ──
     @app.callback(
         Output("portfolio-data-store", "data", allow_duplicate=True),
         Input("load-cached-data-interval", "n_intervals"),
-        [State("portfolio-data-store", "data"),
-         State("current-user-store", "data"),
+        [State("current-user-store", "data"),
          State("demo-mode", "data")],
         prevent_initial_call='initial_duplicate'
     )
-    def load_from_server_cache(n_intervals, current_data, current_user, demo_mode):
-        """Load portfolio data from server cache, or demo data if not logged in."""
-        # If in demo mode or no user, load demo data
-        if demo_mode or not current_user:
+    def load_initial_data(n_intervals, current_user, demo_mode):
+        """Load initial portfolio data once on page load."""
+        # Not logged in → always demo
+        if not current_user:
             return _load_demo_json()
 
+        # Logged in but user explicitly chose demo → demo
+        if demo_mode:
+            return _load_demo_json()
+
+        # Logged in, not in demo → try server cache
         try:
             from components.tr_api import get_cached_portfolio
-            uid = current_user or "_default"
-            
-            # Always load from server cache - it has the latest recalculated values
-            cached = get_cached_portfolio(user_id=uid)
-            
+            cached = get_cached_portfolio(user_id=current_user)
             if cached and cached.get("success"):
                 return json.dumps(cached)
         except Exception as e:
             print(f"[Portfolio] Error loading server cache: {e}")
-        
-        # Fallback: if no server cache, show demo data
+
+        # No cached data yet → show demo until they sync
         return _load_demo_json()
     
     # Modal: auto-open on first load if no data; close on successful sync
@@ -647,9 +647,35 @@ def register_callbacks(app):
         
         return is_open, no_update
     
-    # ── Demo mode toggle ──
+    # ── Auto-reset demo mode on login/logout ──
+    # This is the SINGLE source of truth for demo-mode transitions
+    # on auth changes. Everything else only reads demo-mode.
     @app.callback(
         [Output("demo-mode", "data"),
+         Output("portfolio-data-store", "data", allow_duplicate=True)],
+        Input("current-user-store", "data"),
+        State("demo-mode", "data"),
+        prevent_initial_call=True,
+    )
+    def on_auth_change(current_user, demo_mode):
+        """When user logs in → exit demo. When user logs out → enter demo."""
+        if not current_user:
+            # Logged out → demo
+            return True, _load_demo_json()
+        # Logged in → exit demo, load real cached data if available
+        try:
+            from components.tr_api import get_cached_portfolio
+            cached = get_cached_portfolio(user_id=current_user)
+            if cached and cached.get("success"):
+                return False, json.dumps(cached)
+        except Exception:
+            pass
+        # No cached data yet — stay in demo until they sync
+        return False, no_update
+
+    # ── Demo mode toggle (manual button) ──
+    @app.callback(
+        [Output("demo-mode", "data", allow_duplicate=True),
          Output("portfolio-data-store", "data", allow_duplicate=True)],
         Input("demo-toggle-btn", "n_clicks"),
         [State("demo-mode", "data"),
@@ -661,10 +687,8 @@ def register_callbacks(app):
             raise PreventUpdate
         new_mode = not demo_mode
         if new_mode:
-            # Switching TO demo
             return True, _load_demo_json()
         else:
-            # Switching OFF demo — reload real data if logged in
             if current_user:
                 from components.tr_api import get_cached_portfolio
                 cached = get_cached_portfolio(user_id=current_user)
@@ -678,12 +702,10 @@ def register_callbacks(app):
          Output("demo-toggle-btn", "title"),
          Output("demo-toggle-icon", "className")],
         [Input("demo-mode", "data"),
-         Input("current-user-store", "data"),
-         Input("portfolio-data-store", "data")],
+         Input("current-user-store", "data")],
         prevent_initial_call=False,
     )
-    def update_demo_banner(demo_mode, current_user, portfolio_data):
-        # Show banner when in demo mode or when not logged in
+    def update_demo_banner(demo_mode, current_user):
         show_demo = demo_mode or not current_user
         banner_style = {
             "display": "block" if show_demo else "none",
@@ -717,28 +739,26 @@ def register_callbacks(app):
     def sync_data(n_clicks, encrypted_creds, modal_open, current_user):
         if not n_clicks:
             raise PreventUpdate
-        
+
         # If not logged in, open LOGIN modal, do not sync
         if not current_user:
-            return no_update, html.I(className="bi bi-arrow-repeat"), False, False, no_update, True
-        
+            return no_update, no_update, False, False, no_update, True
+
         from components.tr_api import fetch_all_data, reconnect, is_connected
-        uid = current_user or "_default"
-        
+
         # If not connected, try silent reconnect with stored creds
-        if not is_connected(user_id=uid) and encrypted_creds:
-            reconnect(encrypted_creds, user_id=uid)
-        
+        if not is_connected(user_id=current_user) and encrypted_creds:
+            reconnect(encrypted_creds, user_id=current_user)
+
         # Still not connected? Open TR Connect modal
-        if not is_connected(user_id=uid):
-            return no_update, html.I(className="bi bi-arrow-repeat"), False, True, no_update, no_update
-        
-        # Connected — fetch data (uses server cache if fresh)
-        data = fetch_all_data(user_id=uid)
+        if not is_connected(user_id=current_user):
+            return no_update, no_update, False, True, no_update, no_update
+
+        # Connected — fetch data
+        data = fetch_all_data(user_id=current_user)
         if data.get("success"):
-            # Switch out of demo mode on successful sync
             return json.dumps(data), html.I(className="bi bi-check-circle"), False, False, False, no_update
-        
+
         return no_update, html.I(className="bi bi-x-circle"), False, modal_open, no_update, no_update
     
     # Update metrics when data changes
