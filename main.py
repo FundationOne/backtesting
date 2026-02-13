@@ -69,7 +69,7 @@ sidebar = html.Div([
         dbc.NavLink([
             html.I(className="bi bi-bank me-2"), 
             "Bank Account Sync"
-        ], href="/banksync", id="banksync-link", className="nav-link-modern"),
+        ], href="/banksync", id="banksync-link", className="nav-link-modern", style={"display": "none"}),
 
         dbc.NavLink([
             html.I(className="bi bi-shield-check me-2"), 
@@ -134,26 +134,22 @@ def redirect_to_default(pathname):
      Input('current-user-store', 'data')]
 )
 def render_page_content(pathname, current_user):
-    # Allow portfolio analysis (compare) even without login — will show demo
+    # All pages accessible without login (demo/read-only mode)
+    # Only bank sync and TR sync require login
     if pathname == "/compare":
         return l4
-
-    # Other pages still require login
-    if not current_user:
-        return html.Div([
-            html.Div([
-                html.I(className="bi bi-lock-fill", style={"fontSize": "4rem", "color": "#6c757d"}),
-                html.H4("Please log in to continue", className="mt-3 text-muted"),
-            ], className="text-center", style={"marginTop": "20vh"})
-        ])
-    
-    if pathname == "/backtesting":
+    elif pathname == "/backtesting":
         return l1
     elif pathname == "/portfolio":
         return l2()
-    elif pathname == "/compare":
-        return l4
     elif pathname == "/banksync":
+        if not current_user:
+            return html.Div([
+                html.Div([
+                    html.I(className="bi bi-lock-fill", style={"fontSize": "4rem", "color": "#6c757d"}),
+                    html.H4("Please log in to access Bank Sync", className="mt-3 text-muted"),
+                ], className="text-center", style={"marginTop": "20vh"})
+            ])
         return l6
     elif pathname == "/riskbands":
         return l3

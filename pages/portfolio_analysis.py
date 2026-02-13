@@ -582,20 +582,20 @@ def register_callbacks(app):
         if demo_mode or not current_user:
             return _load_demo_json()
 
-        from components.tr_api import get_cached_portfolio
-        uid = current_user or "_default"
+        try:
+            from components.tr_api import get_cached_portfolio
+            uid = current_user or "_default"
+            
+            # Always load from server cache - it has the latest recalculated values
+            cached = get_cached_portfolio(user_id=uid)
+            
+            if cached and cached.get("success"):
+                return json.dumps(cached)
+        except Exception as e:
+            print(f"[Portfolio] Error loading server cache: {e}")
         
-        # Always load from server cache - it has the latest recalculated values
-        cached = get_cached_portfolio(user_id=uid)
-        
-        if cached and cached.get("success"):
-            return json.dumps(cached)
-        
-        # Fallback: if no server cache and no user, show demo
-        if not current_user:
-            return _load_demo_json()
-
-        return no_update
+        # Fallback: if no server cache, show demo data
+        return _load_demo_json()
     
     # Modal: auto-open on first load if no data; close on successful sync
     # NEVER auto-open if user is not logged in — show demo instead

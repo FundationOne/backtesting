@@ -343,7 +343,6 @@ layout = dbc.Container([
     tr_connect_modal,
     
     # Hidden stores
-    dcc.Store(id="portfolio-data-store"),
     dcc.Store(id="positions-store", storage_type="session"),
     html.Div(id="comparison-page", style={"display": "none"}),
     

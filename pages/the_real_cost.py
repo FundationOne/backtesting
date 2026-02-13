@@ -10,11 +10,12 @@ import locale
 
 # ── Pre-defined purchase options ──────────────────────────────────────────────
 PRESET_OPTIONS = [
+    {"label": "Starbucks Coffee", "icon": "bi-cup-hot-fill",    "cost": 5,      "color": "#00704A"},
     {"label": "Used Car",        "icon": "bi-speedometer2",    "cost": 5_000,  "color": "#6366f1"},
-    {"label": "Heating System",  "icon": "bi-thermometer-half","cost": 12_000, "color": "#f59e0b"},
+    {"label": "Solar Panels",    "icon": "bi-sun-fill",        "cost": 12_000, "color": "#f59e0b"},
     {"label": "Flatscreen TV",   "icon": "bi-tv-fill",        "cost": 800,    "color": "#10b981"},
     {"label": "Designer Bag",    "icon": "bi-bag-fill",        "cost": 2_500,  "color": "#ec4899"},
-    {"label": "Vacation Trip",   "icon": "bi-sun-fill",        "cost": 3_500,  "color": "#3b82f6"},
+    {"label": "Vacation Trip",   "icon": "bi-airplane-fill",   "cost": 3_500,  "color": "#3b82f6"},
     {"label": "New iPhone",      "icon": "bi-phone-fill",      "cost": 1_200,  "color": "#8b5cf6"},
 ]
 
