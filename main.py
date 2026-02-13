@@ -1,4 +1,5 @@
 """APE•X - Portfolio & Backtesting Application"""
+import os
 import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output
@@ -191,6 +192,11 @@ rc1(app)  # Backtesting callbacks
 rc5(app)  # The Real Cost callbacks
 rc6(app)  # Bank Account Sync callbacks
 
+# Expose WSGI server for gunicorn (gunicorn main:server)
+server = app.server
+
 # Run
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8888, use_reloader=True)
+    debug = os.environ.get("DASH_DEBUG", "1") == "1"
+    port = int(os.environ.get("PORT", 8888))
+    app.run_server(debug=debug, port=port, use_reloader=debug)

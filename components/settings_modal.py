@@ -74,33 +74,7 @@ settings_modal = dbc.Modal(
                 ),
             ], className="settings-section"),
 
-            html.Hr(className="settings-divider"),
 
-            # GoCardless Bank Account Data Section
-            html.Div([
-                html.Label("GoCardless Bank Sync", className="settings-label"),
-                html.P([
-                    "Credentials for bank account sync (",
-                    html.A("Get free key", href="https://bankaccountdata.gocardless.com/signup",
-                           target="_blank", className="small"),
-                    ")",
-                ], className="settings-help"),
-                dbc.Input(
-                    id="settings-gc-secret-id",
-                    type="password",
-                    placeholder="Secret ID",
-                    className="settings-input mb-2",
-                    size="sm",
-                ),
-                dbc.Input(
-                    id="settings-gc-secret-key",
-                    type="password",
-                    placeholder="Secret Key",
-                    className="settings-input",
-                    size="sm",
-                ),
-                html.Div(id="settings-gc-feedback", className="mt-1"),
-            ], className="settings-section"),
         ]),
         dbc.ModalFooter(
             dbc.Button("Done", id="close-settings-modal", className="btn-primary", n_clicks=0)
@@ -151,33 +125,4 @@ def register_settings_callbacks(app):
             return data['api_key']
         return ''
 
-    # GoCardless credentials — save when both fields filled
-    @app.callback(
-        Output('settings-gc-feedback', 'children'),
-        [Input('settings-gc-secret-id', 'value'),
-         Input('settings-gc-secret-key', 'value')],
-        prevent_initial_call=True
-    )
-    def save_gc_from_settings(sid, skey):
-        if sid and skey:
-            try:
-                from components.gocardless_api import save_credentials
-                save_credentials(sid, skey)
-                return html.Span("Saved ✓", className="text-success small")
-            except Exception:
-                return html.Span("Save failed", className="text-danger small")
-        return ""
 
-    # Populate GC fields on page load
-    @app.callback(
-        [Output('settings-gc-secret-id', 'value'),
-         Output('settings-gc-secret-key', 'value')],
-        Input('url', 'pathname'),
-    )
-    def init_gc_fields(_pathname):
-        try:
-            from components.gocardless_api import get_credentials
-            sid, skey = get_credentials()
-            return sid or '', skey or ''
-        except Exception:
-            return '', ''
