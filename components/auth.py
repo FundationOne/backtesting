@@ -22,7 +22,7 @@ login_modal = dbc.Modal([
             dbc.Button("Register", id="register-btn", color="secondary", outline=True, className="w-100 mt-2", size="sm"),
         ], className="text-center p-3"),
     ]),
-], id="login-modal", centered=True, backdrop="static", keyboard=False, is_open=True)
+], id="login-modal", centered=True, backdrop=True, keyboard=True, is_open=False)
 
 # Store for current user - persisted in localStorage
 user_store = dcc.Store(id="current-user-store", storage_type="local")
@@ -85,9 +85,9 @@ def register_auth_callbacks(app):
                     return [current_user, false, "", userPortfolio || dash_clientside.no_update];
                 }
                 
-                // Initial load - no user, show login
+                // Initial load - no user, stay closed (demo mode)
                 if (!triggered) {
-                    return [dash_clientside.no_update, true, "", dash_clientside.no_update];
+                    return [dash_clientside.no_update, false, "", dash_clientside.no_update];
                 }
                 
                 // Need credentials for login/register
@@ -146,12 +146,26 @@ def register_auth_callbacks(app):
         """
         function(current_user) {
             if (!current_user) {
-                return ["", {"display": "none"}];
+                return ["", {"display": "none"}, {"display": "block"}];
             }
-            return ["@ " + current_user, {"display": "block"}];
+            return ["@ " + current_user, {"display": "block"}, {"display": "none"}];
         }
         """,
         [Output("current-user-label", "children"),
-         Output("logout-btn", "style")],
+         Output("logout-btn", "style"),
+         Output("open-login-btn", "style")],
         [Input("current-user-store", "data")]
+    )
+
+    # Open login modal from sidebar button
+    app.clientside_callback(
+        """
+        function(n) {
+            if (n) return true;
+            return dash_clientside.no_update;
+        }
+        """,
+        Output("login-modal", "is_open", allow_duplicate=True),
+        Input("open-login-btn", "n_clicks"),
+        prevent_initial_call=True,
     )

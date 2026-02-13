@@ -93,7 +93,16 @@ sidebar = html.Div([
                 color="secondary",
                 outline=True,
                 size="sm",
-                className="w-100"
+                className="w-100",
+                style={"display": "none"},
+            ),
+            dbc.Button(
+                [html.I(className="bi bi-person me-1"), "Login"],
+                id="open-login-btn",
+                color="primary",
+                outline=True,
+                size="sm",
+                className="w-100",
             ),
         ], className="mt-2")
     ], className='sidebar-bottom'),
