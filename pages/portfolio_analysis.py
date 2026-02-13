@@ -149,44 +149,26 @@ tr_connect_modal = dbc.Modal([
 
 
 def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class=""):
-    """Create a metric card component with auto-shrinking text."""
-    # Inline styles guarantee correct sizing even when the CSS file
-    # is cached.  Container-query CSS in style.css will enhance this.
-    label_style = {
-        "whiteSpace": "nowrap",
-        "overflow": "hidden",
-        "fontSize": "clamp(0.35rem, 6.5cqw, 0.6875rem)",
-        "letterSpacing": "0.03em",
-        "textTransform": "uppercase",
-    }
+    """Create a metric card component."""
     value_style = {
         "whiteSpace": "nowrap",
         "overflow": "hidden",
-        "fontSize": "clamp(0.45rem, 10cqw, 1.05rem)",
+        "fontSize": "clamp(0.7rem, 14cqw, 1.25rem)",
         "fontVariantNumeric": "tabular-nums",
-        "lineHeight": "1.15",
-    }
-    subtitle_style = {
-        "whiteSpace": "nowrap",
-        "overflow": "hidden",
-        "fontSize": "clamp(0.35rem, 6.5cqw, 0.7rem)",
-        "fontVariantNumeric": "tabular-nums",
+        "lineHeight": "1.2",
     }
     card_style = {
         "containerType": "inline-size",
-        "overflow": "hidden",
-        "padding": "10px 8px",
     }
     return html.Div([
         html.Div([
-            html.Div(title, className="metric-label", style=label_style),
+            html.Div(title, className="metric-label"),
             html.Div(id=value_id, className=f"metric-value sensitive {color_class}",
                      children="--", style=value_style),
             html.Div(
                 id=subtitle_id,
                 className="metric-subtitle sensitive",
                 children="",
-                style=subtitle_style,
             ) if subtitle_id else html.Div(
                 className="metric-subtitle metric-subtitle-placeholder",
                 children="",
