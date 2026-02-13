@@ -5,14 +5,11 @@ APE•X is a comprehensive web application for investors to analyze portfolios, 
 
 ## Screenshots
 
-### Portfolio Analysis
-![Portfolio Analysis](image/main/1769767595942.png)
-
 ### Backtesting
-![Backtesting](image/main/1769767610851.png)
+![Backtesting Interface](screenshot.png)
 
-### Exit Strategy Riskbands
-![Riskbands](image/main/1769767622179.png)
+### Investment Simulator
+![Portfolio Simulation](screenshot2.png)
 
 ## Features
 
