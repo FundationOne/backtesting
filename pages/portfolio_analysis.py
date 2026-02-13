@@ -610,8 +610,10 @@ def register_callbacks(app):
     
     # Modal: auto-open on first load if no data; close on successful sync
     # NEVER auto-open if user is not logged in — show demo instead
+    # "Log in" link handling: If NOT logged in, open login-modal. Else open TR modal.
     @app.callback(
-        Output("tr-connect-modal", "is_open"),
+        [Output("tr-connect-modal", "is_open"),
+         Output("login-modal", "is_open", allow_duplicate=True)],
         [Input("portfolio-data-store", "data"),
          Input("load-cached-data-interval", "n_intervals"),
          Input("demo-login-link", "n_clicks")],
@@ -626,21 +628,24 @@ def register_callbacks(app):
         
         # "Log in" link in demo banner opens the modal
         if triggered == "demo-login-link" and demo_login_click:
-            return True
+            # If not logged in, open Login Modal instead of TR modal
+            if not current_user:
+                return False, True
+            return True, no_update
 
-        # Close modal when data loads successfully
+        # Close TR modal when data loads successfully
         if triggered == "portfolio-data-store" and portfolio_data:
             try:
                 data = json.loads(portfolio_data) if isinstance(portfolio_data, str) else portfolio_data
                 if data.get("success"):
-                    return False
+                    return False, no_update
             except:
                 pass
         
         # Never auto-open the modal on page load.
         # The user can click "Log in" or the sync button to open it.
         
-        return is_open
+        return is_open, no_update
     
     # ── Demo mode toggle ──
     @app.callback(
@@ -695,13 +700,14 @@ def register_callbacks(app):
             return banner_style, "Switch to Real Account", "bi bi-briefcase-fill"
         return banner_style, "Switch to Demo Account", "bi bi-person-badge"
     
-    # Sync button: if connected → sync; if not → open login modal
+    # Sync button: if connected → sync; if not logged in → login; if not connected → open TR modal
     @app.callback(
         [Output("portfolio-data-store", "data", allow_duplicate=True),
          Output("sync-tr-data-btn", "children"),
          Output("sync-tr-data-btn", "disabled"),
          Output("tr-connect-modal", "is_open", allow_duplicate=True),
-         Output("demo-mode", "data", allow_duplicate=True)],
+         Output("demo-mode", "data", allow_duplicate=True),
+         Output("login-modal", "is_open", allow_duplicate=True)],
         Input("sync-tr-data-btn", "n_clicks"),
         [State("tr-encrypted-creds", "data"),
          State("tr-connect-modal", "is_open"),
@@ -716,6 +722,10 @@ def register_callbacks(app):
         if not n_clicks:
             raise PreventUpdate
         
+        # If not logged in, open LOGIN modal, do not sync
+        if not current_user:
+            return no_update, html.I(className="bi bi-arrow-repeat"), False, False, no_update, True
+        
         from components.tr_api import fetch_all_data, reconnect, is_connected
         uid = current_user or "_default"
         
@@ -723,17 +733,17 @@ def register_callbacks(app):
         if not is_connected(user_id=uid) and encrypted_creds:
             reconnect(encrypted_creds, user_id=uid)
         
-        # Still not connected? Open login modal
+        # Still not connected? Open TR Connect modal
         if not is_connected(user_id=uid):
-            return no_update, html.I(className="bi bi-arrow-repeat"), False, True, no_update
+            return no_update, html.I(className="bi bi-arrow-repeat"), False, True, no_update, no_update
         
         # Connected — fetch data (uses server cache if fresh)
         data = fetch_all_data(user_id=uid)
         if data.get("success"):
             # Switch out of demo mode on successful sync
-            return json.dumps(data), html.I(className="bi bi-check-circle"), False, False, False
+            return json.dumps(data), html.I(className="bi bi-check-circle"), False, False, False, no_update
         
-        return no_update, html.I(className="bi bi-x-circle"), False, modal_open, no_update
+        return no_update, html.I(className="bi bi-x-circle"), False, modal_open, no_update, no_update
     
     # Update metrics when data changes
     @app.callback(

@@ -1,20 +1,20 @@
 {
   "success": true,
   "data": {
-    "totalValue": 92262.72,
-    "investedAmount": 79747.39,
-    "cash": 6509.48,
-    "totalProfit": 6005.85,
+    "totalValue": 46131.36,
+    "investedAmount": 39873.69,
+    "cash": 3254.74,
+    "totalProfit": 3002.93,
     "totalProfitPercent": 7.53,
     "positions": [
       {
         "name": "Eureka Lithium",
         "isin": "CA2985962067",
-        "quantity": 100.0,
+        "quantity": 50.0,
         "averageBuyIn": 0.341,
         "currentPrice": 0.341,
-        "value": 34.1,
-        "invested": 34.1,
+        "value": 17.05,
+        "invested": 17.05,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/CA2985962067/v2"
@@ -22,23 +22,23 @@
       {
         "name": "BYD",
         "isin": "CNE100000296",
-        "quantity": 37.5,
+        "quantity": 18.75,
         "averageBuyIn": 13.3464,
         "currentPrice": 10.7,
-        "value": 401.25,
-        "invested": 500.49,
-        "profit": -99.24,
+        "value": 200.62,
+        "invested": 250.25,
+        "profit": -49.62,
         "instrumentType": "stock",
         "imageId": "logos/CNE100000296/v2"
       },
       {
         "name": "Rheinmetall",
         "isin": "DE0007030009",
-        "quantity": 0.1,
+        "quantity": 0.05,
         "averageBuyIn": 929.2,
         "currentPrice": 929.2,
-        "value": 92.92,
-        "invested": 92.92,
+        "value": 46.46,
+        "invested": 46.46,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/DE0007030009/v2"
@@ -46,23 +46,23 @@
       {
         "name": "Siemens Energy",
         "isin": "DE000ENER6Y0",
-        "quantity": 1.0,
+        "quantity": 0.5,
         "averageBuyIn": 131.7,
         "currentPrice": 132.2111111111111,
-        "value": 132.21,
-        "invested": 131.7,
-        "profit": 0.51,
+        "value": 66.11,
+        "invested": 65.85,
+        "profit": 0.26,
         "instrumentType": "stock",
         "imageId": "logos/DE000ENER6Y0/v2"
       },
       {
         "name": "Novo-Nordisk (B)",
         "isin": "DK0062498333",
-        "quantity": 1.0,
+        "quantity": 0.5,
         "averageBuyIn": 50.16,
         "currentPrice": 50.160000000000004,
-        "value": 50.16,
-        "invested": 50.16,
+        "value": 25.08,
+        "invested": 25.08,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/DK0062498333/v2"
@@ -70,95 +70,95 @@
       {
         "name": "MSCI USA Daily (2x) Leveraged EUR (Acc)",
         "isin": "FR0010755611",
-        "quantity": 5.791613,
+        "quantity": 2.8958065,
         "averageBuyIn": 25.3315,
         "currentPrice": 26.205004369684477,
-        "value": 151.77,
-        "invested": 146.71,
-        "profit": 5.06,
+        "value": 75.89,
+        "invested": 73.36,
+        "profit": 2.53,
         "instrumentType": "fund",
         "imageId": "logos/FR0010755611/v2"
       },
       {
         "name": "iBonds Dec 2026 USD (Dist)",
         "isin": "IE0007UPSEA3",
-        "quantity": 254.047733,
+        "quantity": 127.0238665,
         "averageBuyIn": 4.3727,
         "currentPrice": 4.402080241968962,
-        "value": 1118.34,
-        "invested": 1110.87,
-        "profit": 7.46,
+        "value": 559.17,
+        "invested": 555.43,
+        "profit": 3.73,
         "instrumentType": "fund",
         "imageId": "logos/IE0007UPSEA3/v2"
       },
       {
         "name": "Energy Transition Metals And Rare Earths Miners USD (Acc)",
         "isin": "IE000KHX9DX6",
-        "quantity": 11.2,
+        "quantity": 5.6,
         "averageBuyIn": 40.2804,
         "currentPrice": 39.28333333333333,
-        "value": 439.97,
-        "invested": 451.14,
-        "profit": -11.17,
+        "value": 219.99,
+        "invested": 225.57,
+        "profit": -5.58,
         "instrumentType": "fund",
         "imageId": "logos/IE000KHX9DX6/v2"
       },
       {
         "name": "Core MSCI World USD (Acc)",
         "isin": "IE00B4L5Y983",
-        "quantity": 265.902659,
+        "quantity": 132.9513295,
         "averageBuyIn": 102.9241,
         "currentPrice": 113.05081181787966,
-        "value": 30060.51,
-        "invested": 27367.79,
-        "profit": 2692.72,
+        "value": 15030.25,
+        "invested": 13683.9,
+        "profit": 1346.36,
         "instrumentType": "fund",
         "imageId": "logos/IE00B4L5Y983/v2"
       },
       {
         "name": "Physical Gold USD (Acc)",
         "isin": "IE00B4ND3602",
-        "quantity": 50.271483,
+        "quantity": 25.1357415,
         "averageBuyIn": 56.5933,
         "currentPrice": 76.90503381898861,
-        "value": 3866.13,
-        "invested": 2845.03,
-        "profit": 1021.1,
+        "value": 1933.07,
+        "invested": 1422.52,
+        "profit": 510.55,
         "instrumentType": "fund",
         "imageId": "logos/IE00B4ND3602/v2"
       },
       {
         "name": "Core S&P 500 USD (Acc)",
         "isin": "IE00B5BMR087",
-        "quantity": 30.063561,
+        "quantity": 15.0317805,
         "averageBuyIn": 608.0165,
         "currentPrice": 641.4203612479475,
-        "value": 19283.38,
-        "invested": 18279.14,
-        "profit": 1004.24,
+        "value": 9641.69,
+        "invested": 9139.57,
+        "profit": 502.12,
         "instrumentType": "fund",
         "imageId": "logos/IE00B5BMR087/v2"
       },
       {
         "name": "MSCI China USD (Acc)",
         "isin": "IE00BJ5JPG56",
-        "quantity": 200.0,
+        "quantity": 100.0,
         "averageBuyIn": 5.3506,
         "currentPrice": 5.312333333333333,
-        "value": 1062.47,
-        "invested": 1070.12,
-        "profit": -7.65,
+        "value": 531.24,
+        "invested": 535.06,
+        "profit": -3.83,
         "instrumentType": "fund",
         "imageId": "logos/IE00BJ5JPG56/v2"
       },
       {
         "name": "FTSE Developed Europe EUR (Acc)",
         "isin": "IE00BK5BQX27",
-        "quantity": 2.5,
+        "quantity": 1.25,
         "averageBuyIn": 45.43,
         "currentPrice": 45.43,
-        "value": 113.58,
-        "invested": 113.58,
+        "value": 56.79,
+        "invested": 56.79,
         "profit": 0.0,
         "instrumentType": "fund",
         "imageId": "logos/IE00BK5BQX27/v2"
@@ -166,11 +166,11 @@
       {
         "name": "Automation & Robotics USD (Acc)",
         "isin": "IE00BYZK4552",
-        "quantity": 25.0,
+        "quantity": 12.5,
         "averageBuyIn": 14.482,
         "currentPrice": 14.482,
-        "value": 362.05,
-        "invested": 362.05,
+        "value": 181.03,
+        "invested": 181.03,
         "profit": 0.0,
         "instrumentType": "fund",
         "imageId": "logos/IE00BYZK4552/v2"
@@ -178,11 +178,11 @@
       {
         "name": "Physical Silver USD ",
         "isin": "JE00B1VS3333",
-        "quantity": 7.0,
+        "quantity": 3.5,
         "averageBuyIn": 19.0424,
         "currentPrice": 19.0424,
-        "value": 133.3,
-        "invested": 133.3,
+        "value": 66.65,
+        "invested": 66.65,
         "profit": 0.0,
         "instrumentType": "fund",
         "imageId": "logos/JE00B1VS3333/v2"
@@ -190,83 +190,83 @@
       {
         "name": "SoftBank Group",
         "isin": "JP3436100006",
-        "quantity": 14.0,
+        "quantity": 7.0,
         "averageBuyIn": 14.1657,
         "currentPrice": 46.03,
-        "value": 644.42,
-        "invested": 198.32,
-        "profit": 446.1,
+        "value": 322.21,
+        "invested": 99.16,
+        "profit": 223.05,
         "instrumentType": "stock",
         "imageId": "logos/JP3436100006/v2"
       },
       {
         "name": "DAX EUR (Acc)",
         "isin": "LU0274211480",
-        "quantity": 23.0,
+        "quantity": 11.5,
         "averageBuyIn": 225.2587,
         "currentPrice": 221.5,
-        "value": 5094.5,
-        "invested": 5180.95,
-        "profit": -86.45,
+        "value": 2547.25,
+        "invested": 2590.47,
+        "profit": -43.23,
         "instrumentType": "fund",
         "imageId": "logos/LU0274211480/v2"
       },
       {
         "name": "Core Stoxx Europe 600 EUR (Acc)",
         "isin": "LU0908500753",
-        "quantity": 19.0,
+        "quantity": 9.5,
         "averageBuyIn": 273.1868,
         "currentPrice": 278.625,
-        "value": 5293.88,
-        "invested": 5190.55,
-        "profit": 103.33,
+        "value": 2646.94,
+        "invested": 2595.28,
+        "profit": 51.66,
         "instrumentType": "fund",
         "imageId": "logos/LU0908500753/v2"
       },
       {
         "name": "ASML",
         "isin": "NL0010273215",
-        "quantity": 1.0,
+        "quantity": 0.5,
         "averageBuyIn": 1025.54,
         "currentPrice": 1037.5666666666666,
-        "value": 1037.57,
-        "invested": 1025.54,
-        "profit": 12.03,
+        "value": 518.78,
+        "invested": 512.77,
+        "profit": 6.01,
         "instrumentType": "stock",
         "imageId": "logos/NL0010273215/v2"
       },
       {
         "name": "Adobe",
         "isin": "US00724F1012",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "averageBuyIn": 298.9375,
         "currentPrice": 279.15,
-        "value": 558.3,
-        "invested": 597.88,
-        "profit": -39.58,
+        "value": 279.15,
+        "invested": 298.94,
+        "profit": -19.79,
         "instrumentType": "stock",
         "imageId": "logos/US00724F1012/v2"
       },
       {
         "name": "Alphabet (A)",
         "isin": "US02079K3059",
-        "quantity": 10.0,
+        "quantity": 5.0,
         "averageBuyIn": 199.3449,
         "currentPrice": 247.25,
-        "value": 2472.5,
-        "invested": 1993.45,
-        "profit": 479.05,
+        "value": 1236.25,
+        "invested": 996.73,
+        "profit": 239.53,
         "instrumentType": "stock",
         "imageId": "logos/US02079K3059/v2"
       },
       {
         "name": "Amazon.com",
         "isin": "US0231351067",
-        "quantity": 3.0,
+        "quantity": 1.5,
         "averageBuyIn": 188.9933,
         "currentPrice": 188.99333333333334,
-        "value": 566.98,
-        "invested": 566.98,
+        "value": 283.49,
+        "invested": 283.49,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/US0231351067/v2"
@@ -274,47 +274,47 @@
       {
         "name": "Apple",
         "isin": "US0378331005",
-        "quantity": 5.200463,
+        "quantity": 2.6002315,
         "averageBuyIn": 183.8625,
         "currentPrice": 182.58666666666667,
-        "value": 949.54,
-        "invested": 956.17,
-        "profit": -6.63,
+        "value": 474.77,
+        "invested": 478.08,
+        "profit": -3.31,
         "instrumentType": "stock",
         "imageId": "logos/US0378331005/v2"
       },
       {
         "name": "Berkshire Hathaway (B)",
         "isin": "US0846707026",
-        "quantity": 12.211779,
+        "quantity": 6.1058895,
         "averageBuyIn": 418.4505,
         "currentPrice": 408.8508021652739,
-        "value": 4992.8,
-        "invested": 5110.03,
-        "profit": -117.23,
+        "value": 2496.4,
+        "invested": 2555.01,
+        "profit": -58.62,
         "instrumentType": "stock",
         "imageId": "logos/US0846707026/v2"
       },
       {
         "name": "Coca-Cola",
         "isin": "US1912161007",
-        "quantity": 12.5,
+        "quantity": 6.25,
         "averageBuyIn": 58.0432,
         "currentPrice": 59.89,
-        "value": 748.62,
-        "invested": 725.54,
-        "profit": 23.09,
+        "value": 374.31,
+        "invested": 362.77,
+        "profit": 11.54,
         "instrumentType": "stock",
         "imageId": "logos/US1912161007/v2"
       },
       {
         "name": "Lockheed Martin",
         "isin": "US5398301094",
-        "quantity": 0.1,
+        "quantity": 0.05,
         "averageBuyIn": 451.95,
         "currentPrice": 451.95,
-        "value": 45.2,
-        "invested": 45.2,
+        "value": 22.6,
+        "invested": 22.6,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/US5398301094/v2"
@@ -322,71 +322,71 @@
       {
         "name": "MP Materials",
         "isin": "US5533681012",
-        "quantity": 10.0,
+        "quantity": 5.0,
         "averageBuyIn": 58.1,
         "currentPrice": 42.45,
-        "value": 424.5,
-        "invested": 581.0,
-        "profit": -156.5,
+        "value": 212.25,
+        "invested": 290.5,
+        "profit": -78.25,
         "instrumentType": "stock",
         "imageId": "logos/US5533681012/v2"
       },
       {
         "name": "Microsoft",
         "isin": "US5949181045",
-        "quantity": 3.417242,
+        "quantity": 1.708621,
         "averageBuyIn": 317.389,
         "currentPrice": 413.4003730938367,
-        "value": 1412.69,
-        "invested": 1084.59,
-        "profit": 328.09,
+        "value": 706.35,
+        "invested": 542.29,
+        "profit": 164.04,
         "instrumentType": "stock",
         "imageId": "logos/US5949181045/v2"
       },
       {
         "name": "MicroStrategy (A)",
         "isin": "US5949724083",
-        "quantity": 0.8,
+        "quantity": 0.4,
         "averageBuyIn": 215.4938,
         "currentPrice": 142.5,
-        "value": 114.0,
-        "invested": 172.4,
-        "profit": -58.4,
+        "value": 57.0,
+        "invested": 86.2,
+        "profit": -29.2,
         "instrumentType": "stock",
         "imageId": "logos/US5949724083/v2"
       },
       {
         "name": "NVIDIA",
         "isin": "US67066G1040",
-        "quantity": 4.0,
+        "quantity": 2.0,
         "averageBuyIn": 104.7863,
         "currentPrice": 164.34,
-        "value": 657.36,
-        "invested": 419.15,
-        "profit": 238.21,
+        "value": 328.68,
+        "invested": 209.57,
+        "profit": 119.11,
         "instrumentType": "stock",
         "imageId": "logos/US67066G1040/v2"
       },
       {
         "name": "Palo Alto Networks",
         "isin": "US6974351057",
-        "quantity": 0.4,
+        "quantity": 0.2,
         "averageBuyIn": 156.825,
         "currentPrice": 313.65,
-        "value": 125.46,
-        "invested": 62.73,
-        "profit": 62.73,
+        "value": 62.73,
+        "invested": 31.36,
+        "profit": 31.36,
         "instrumentType": "stock",
         "imageId": "logos/US6974351057/v2"
       },
       {
         "name": "TSMC (ADR)",
         "isin": "US8740391003",
-        "quantity": 0.6,
+        "quantity": 0.3,
         "averageBuyIn": 168.1667,
         "currentPrice": 168.16666666666666,
-        "value": 100.9,
-        "invested": 100.9,
+        "value": 50.45,
+        "invested": 50.45,
         "profit": -0.0,
         "instrumentType": "stock",
         "imageId": "logos/US8740391003/v2"
@@ -394,11 +394,11 @@
       {
         "name": "Tesla",
         "isin": "US88160R1014",
-        "quantity": 0.1,
+        "quantity": 0.05,
         "averageBuyIn": 394.3,
         "currentPrice": 394.3,
-        "value": 39.43,
-        "invested": 39.43,
+        "value": 19.71,
+        "invested": 19.71,
         "profit": 0.0,
         "instrumentType": "stock",
         "imageId": "logos/US88160R1014/v2"
@@ -406,59 +406,59 @@
       {
         "name": "W&T Offshore",
         "isin": "US92922P1066",
-        "quantity": 200.0,
+        "quantity": 100.0,
         "averageBuyIn": 1.4215,
         "currentPrice": 1.592,
-        "value": 318.4,
-        "invested": 284.3,
-        "profit": 34.1,
+        "value": 159.2,
+        "invested": 142.15,
+        "profit": 17.05,
         "instrumentType": "stock",
         "imageId": "logos/US92922P1066/v2"
       },
       {
         "name": "Bitcoin",
         "isin": "XF000BTC0017",
-        "quantity": 0.017293,
+        "quantity": 0.0086465,
         "averageBuyIn": 56995.6733,
         "currentPrice": 67024.12868632708,
-        "value": 1159.07,
-        "invested": 985.64,
-        "profit": 173.43,
+        "value": 579.53,
+        "invested": 492.82,
+        "profit": 86.72,
         "instrumentType": "crypto",
         "imageId": "logos/XF000BTC0017/v2"
       },
       {
         "name": "Ethereum",
         "isin": "XF000ETH0019",
-        "quantity": 0.1,
+        "quantity": 0.05,
         "averageBuyIn": 1902.949,
         "currentPrice": 2022.2428571428572,
-        "value": 202.22,
-        "invested": 190.29,
-        "profit": 11.93,
+        "value": 101.11,
+        "invested": 95.14,
+        "profit": 5.96,
         "instrumentType": "crypto",
         "imageId": "logos/XF000ETH0019/v2"
       },
       {
         "name": "Solana",
         "isin": "XF000SOL0012",
-        "quantity": 2.8,
+        "quantity": 1.4,
         "averageBuyIn": 173.4351,
         "currentPrice": 153.97333333333333,
-        "value": 431.13,
-        "invested": 485.62,
-        "profit": -54.49,
+        "value": 215.56,
+        "invested": 242.81,
+        "profit": -27.25,
         "instrumentType": "crypto",
         "imageId": "logos/XF000SOL0012/v2"
       },
       {
         "name": "XRP",
         "isin": "XF000XRP0018",
-        "quantity": 40.0,
+        "quantity": 20.0,
         "averageBuyIn": 2.808,
         "currentPrice": 2.8079750000000003,
-        "value": 112.32,
-        "invested": 112.32,
+        "value": 56.16,
+        "invested": 56.16,
         "profit": -0.0,
         "instrumentType": "crypto",
         "imageId": "logos/XF000XRP0018/v2"
@@ -466,11 +466,11 @@
       {
         "name": "Mai 2037",
         "isin": "XS2829810923",
-        "quantity": 1054.318,
+        "quantity": 527.159,
         "averageBuyIn": 0.9004,
         "currentPrice": 0.9004000000000001,
-        "value": 949.31,
-        "invested": 949.31,
+        "value": 474.65,
+        "invested": 474.65,
         "profit": 0.0,
         "instrumentType": "bond",
         "imageId": "logos/bondissuer-315700IASY927EDWBK92/v2"
@@ -480,3318 +480,3318 @@
     "history": [
       {
         "date": "2020-05-06",
-        "invested": 100.0,
-        "value": 100.0
+        "invested": 50.0,
+        "value": 50.0
       },
       {
         "date": "2020-08-03",
-        "invested": 300.0,
-        "value": 300.0
+        "invested": 150.0,
+        "value": 150.0
       },
       {
         "date": "2020-08-04",
-        "invested": 300.0,
-        "value": 300.0
+        "invested": 150.0,
+        "value": 150.0
       },
       {
         "date": "2020-08-11",
-        "invested": 300.0,
-        "value": 300.0
+        "invested": 150.0,
+        "value": 150.0
       },
       {
         "date": "2020-08-18",
-        "invested": 300.0,
-        "value": 300.0
+        "invested": 150.0,
+        "value": 150.0
       },
       {
         "date": "2020-08-25",
-        "invested": 300.0,
-        "value": 300.0
+        "invested": 150.0,
+        "value": 150.0
       },
       {
         "date": "2020-09-01",
-        "invested": 300.0,
-        "value": 44.39
+        "invested": 150.0,
+        "value": 22.2
       },
       {
         "date": "2020-09-02",
-        "invested": 300.0,
-        "value": 148.97
+        "invested": 150.0,
+        "value": 74.48
       },
       {
         "date": "2020-09-08",
-        "invested": 300.0,
-        "value": 163.31
+        "invested": 150.0,
+        "value": 81.66
       },
       {
         "date": "2020-09-09",
-        "invested": 500.0,
-        "value": 193.41
+        "invested": 250.0,
+        "value": 96.7
       },
       {
         "date": "2020-09-15",
-        "invested": 500.0,
-        "value": 193.41
+        "invested": 250.0,
+        "value": 96.7
       },
       {
         "date": "2020-09-16",
-        "invested": 500.0,
-        "value": 213.41
+        "invested": 250.0,
+        "value": 106.7
       },
       {
         "date": "2020-09-21",
-        "invested": 500.0,
-        "value": 224.8
+        "invested": 250.0,
+        "value": 112.4
       },
       {
         "date": "2020-09-22",
-        "invested": 500.0,
-        "value": 224.8
+        "invested": 250.0,
+        "value": 112.4
       },
       {
         "date": "2020-09-28",
-        "invested": 500.0,
-        "value": 316.02
+        "invested": 250.0,
+        "value": 158.01
       },
       {
         "date": "2020-09-29",
-        "invested": 500.0,
-        "value": 400.51
+        "invested": 250.0,
+        "value": 200.25
       },
       {
         "date": "2020-10-06",
-        "invested": 500.0,
-        "value": 400.51
+        "invested": 250.0,
+        "value": 200.25
       },
       {
         "date": "2020-10-09",
-        "invested": 600.0,
-        "value": 400.51
+        "invested": 300.0,
+        "value": 200.25
       },
       {
         "date": "2020-10-13",
-        "invested": 600.0,
-        "value": 400.51
+        "invested": 300.0,
+        "value": 200.25
       },
       {
         "date": "2020-10-14",
-        "invested": 600.0,
-        "value": 454.48
+        "invested": 300.0,
+        "value": 227.24
       },
       {
         "date": "2020-10-16",
-        "invested": 600.0,
-        "value": 477.48
+        "invested": 300.0,
+        "value": 238.74
       },
       {
         "date": "2020-10-20",
-        "invested": 600.0,
-        "value": 477.48
+        "invested": 300.0,
+        "value": 238.74
       },
       {
         "date": "2020-10-22",
-        "invested": 600.0,
-        "value": 498.38
+        "invested": 300.0,
+        "value": 249.19
       },
       {
         "date": "2020-10-26",
-        "invested": 700.0,
-        "value": 498.38
+        "invested": 350.0,
+        "value": 249.19
       },
       {
         "date": "2020-10-27",
-        "invested": 700.0,
-        "value": 498.38
+        "invested": 350.0,
+        "value": 249.19
       },
       {
         "date": "2020-10-28",
-        "invested": 700.0,
-        "value": 515.81
+        "invested": 350.0,
+        "value": 257.9
       },
       {
         "date": "2020-11-02",
-        "invested": 700.0,
-        "value": 545.81
+        "invested": 350.0,
+        "value": 272.9
       },
       {
         "date": "2020-11-03",
-        "invested": 700.0,
-        "value": 567.07
+        "invested": 350.0,
+        "value": 283.54
       },
       {
         "date": "2020-11-04",
-        "invested": 760.0,
-        "value": 567.07
+        "invested": 380.0,
+        "value": 283.54
       },
       {
         "date": "2020-11-10",
-        "invested": 760.0,
-        "value": 608.01
+        "invested": 380.0,
+        "value": 304.0
       },
       {
         "date": "2020-11-13",
-        "invested": 760.0,
-        "value": 618.92
+        "invested": 380.0,
+        "value": 309.46
       },
       {
         "date": "2020-11-16",
-        "invested": 760.0,
-        "value": 638.19
+        "invested": 380.0,
+        "value": 319.1
       },
       {
         "date": "2020-11-17",
-        "invested": 760.0,
-        "value": 638.19
+        "invested": 380.0,
+        "value": 319.1
       },
       {
         "date": "2020-11-18",
-        "invested": 760.0,
-        "value": 638.19
+        "invested": 380.0,
+        "value": 319.1
       },
       {
         "date": "2020-11-24",
-        "invested": 760.0,
-        "value": 638.19
+        "invested": 380.0,
+        "value": 319.1
       },
       {
         "date": "2020-11-25",
-        "invested": 760.0,
-        "value": 656.94
+        "invested": 380.0,
+        "value": 328.47
       },
       {
         "date": "2020-12-01",
-        "invested": 760.0,
-        "value": 656.94
+        "invested": 380.0,
+        "value": 328.47
       },
       {
         "date": "2020-12-03",
-        "invested": 820.0,
-        "value": 656.94
+        "invested": 410.0,
+        "value": 328.47
       },
       {
         "date": "2020-12-04",
-        "invested": 820.0,
-        "value": 698.52
+        "invested": 410.0,
+        "value": 349.26
       },
       {
         "date": "2020-12-08",
-        "invested": 820.0,
-        "value": 698.52
+        "invested": 410.0,
+        "value": 349.26
       },
       {
         "date": "2020-12-15",
-        "invested": 820.0,
-        "value": 698.52
+        "invested": 410.0,
+        "value": 349.26
       },
       {
         "date": "2020-12-16",
-        "invested": 820.0,
-        "value": 708.72
+        "invested": 410.0,
+        "value": 354.36
       },
       {
         "date": "2020-12-18",
-        "invested": 820.0,
-        "value": 708.72
+        "invested": 410.0,
+        "value": 354.36
       },
       {
         "date": "2020-12-21",
-        "invested": 1820.0,
-        "value": 708.72
+        "invested": 910.0,
+        "value": 354.36
       },
       {
         "date": "2020-12-22",
-        "invested": 1820.0,
-        "value": 708.72
+        "invested": 910.0,
+        "value": 354.36
       },
       {
         "date": "2020-12-29",
-        "invested": 1820.0,
-        "value": 921.87
+        "invested": 910.0,
+        "value": 460.94
       },
       {
         "date": "2021-01-04",
-        "invested": 1880.0,
-        "value": 921.87
+        "invested": 940.0,
+        "value": 460.94
       },
       {
         "date": "2021-01-05",
-        "invested": 1880.0,
-        "value": 921.87
+        "invested": 940.0,
+        "value": 460.94
       },
       {
         "date": "2021-01-12",
-        "invested": 1880.0,
-        "value": 944.62
+        "invested": 940.0,
+        "value": 472.31
       },
       {
         "date": "2021-01-15",
-        "invested": 1880.0,
-        "value": 944.62
+        "invested": 940.0,
+        "value": 472.31
       },
       {
         "date": "2021-01-18",
-        "invested": 1880.0,
-        "value": 1024.08
+        "invested": 940.0,
+        "value": 512.04
       },
       {
         "date": "2021-01-19",
-        "invested": 1880.0,
-        "value": 1024.08
+        "invested": 940.0,
+        "value": 512.04
       },
       {
         "date": "2021-01-20",
-        "invested": 1880.0,
-        "value": 1057.48
+        "invested": 940.0,
+        "value": 528.74
       },
       {
         "date": "2021-01-26",
-        "invested": 1880.0,
-        "value": 1504.77
+        "invested": 940.0,
+        "value": 752.38
       },
       {
         "date": "2021-01-27",
-        "invested": 1880.0,
-        "value": 1528.96
+        "invested": 940.0,
+        "value": 764.48
       },
       {
         "date": "2021-01-29",
-        "invested": 1880.0,
-        "value": 1567.4
+        "invested": 940.0,
+        "value": 783.7
       },
       {
         "date": "2021-02-02",
-        "invested": 1880.0,
-        "value": 1570.53
+        "invested": 940.0,
+        "value": 785.26
       },
       {
         "date": "2021-02-03",
-        "invested": 1940.0,
-        "value": 1570.53
+        "invested": 970.0,
+        "value": 785.26
       },
       {
         "date": "2021-02-05",
-        "invested": 1940.0,
-        "value": 1841.45
+        "invested": 970.0,
+        "value": 920.73
       },
       {
         "date": "2021-02-09",
-        "invested": 1940.0,
-        "value": 1822.82
+        "invested": 970.0,
+        "value": 911.41
       },
       {
         "date": "2021-02-10",
-        "invested": 2040.0,
-        "value": 1985.35
+        "invested": 1020.0,
+        "value": 992.67
       },
       {
         "date": "2021-02-12",
-        "invested": 2040.0,
-        "value": 1985.35
+        "invested": 1020.0,
+        "value": 992.67
       },
       {
         "date": "2021-02-15",
-        "invested": 2040.0,
-        "value": 1980.38
+        "invested": 1020.0,
+        "value": 990.19
       },
       {
         "date": "2021-02-16",
-        "invested": 2040.0,
-        "value": 2064.56
+        "invested": 1020.0,
+        "value": 1032.28
       },
       {
         "date": "2021-02-23",
-        "invested": 2040.0,
-        "value": 2064.56
+        "invested": 1020.0,
+        "value": 1032.28
       },
       {
         "date": "2021-03-02",
-        "invested": 2340.0,
-        "value": 2271.01
+        "invested": 1170.0,
+        "value": 1135.51
       },
       {
         "date": "2021-03-03",
-        "invested": 2400.0,
-        "value": 2271.01
+        "invested": 1200.0,
+        "value": 1135.51
       },
       {
         "date": "2021-03-08",
-        "invested": 2400.0,
-        "value": 2340.37
+        "invested": 1200.0,
+        "value": 1170.18
       },
       {
         "date": "2021-03-09",
-        "invested": 2400.0,
-        "value": 2340.37
+        "invested": 1200.0,
+        "value": 1170.18
       },
       {
         "date": "2021-03-10",
-        "invested": 2400.0,
-        "value": 2371.63
+        "invested": 1200.0,
+        "value": 1185.82
       },
       {
         "date": "2021-03-16",
-        "invested": 2400.0,
-        "value": 2477.06
+        "invested": 1200.0,
+        "value": 1238.53
       },
       {
         "date": "2021-03-23",
-        "invested": 2400.0,
-        "value": 2477.06
+        "invested": 1200.0,
+        "value": 1238.53
       },
       {
         "date": "2021-03-30",
-        "invested": 2400.0,
-        "value": 2477.06
+        "invested": 1200.0,
+        "value": 1238.53
       },
       {
         "date": "2021-04-01",
-        "invested": 2400.0,
-        "value": 2508.0
+        "invested": 1200.0,
+        "value": 1254.0
       },
       {
         "date": "2021-04-02",
-        "invested": 2400.0,
-        "value": 2508.0
+        "invested": 1200.0,
+        "value": 1254.0
       },
       {
         "date": "2021-04-06",
-        "invested": 2460.0,
-        "value": 2508.0
+        "invested": 1230.0,
+        "value": 1254.0
       },
       {
         "date": "2021-04-13",
-        "invested": 2460.0,
-        "value": 2508.0
+        "invested": 1230.0,
+        "value": 1254.0
       },
       {
         "date": "2021-04-14",
-        "invested": 2460.0,
-        "value": 2508.0
+        "invested": 1230.0,
+        "value": 1254.0
       },
       {
         "date": "2021-04-16",
-        "invested": 2460.0,
-        "value": 2579.43
+        "invested": 1230.0,
+        "value": 1289.71
       },
       {
         "date": "2021-04-20",
-        "invested": 2460.0,
-        "value": 2579.43
+        "invested": 1230.0,
+        "value": 1289.71
       },
       {
         "date": "2021-04-26",
-        "invested": 2460.0,
-        "value": 2579.43
+        "invested": 1230.0,
+        "value": 1289.71
       },
       {
         "date": "2021-04-27",
-        "invested": 2460.0,
-        "value": 2569.76
+        "invested": 1230.0,
+        "value": 1284.88
       },
       {
         "date": "2021-04-30",
-        "invested": 2345.0,
-        "value": 2569.76
+        "invested": 1172.5,
+        "value": 1284.88
       },
       {
         "date": "2021-05-04",
-        "invested": 2345.0,
-        "value": 2700.15
+        "invested": 1172.5,
+        "value": 1350.08
       },
       {
         "date": "2021-05-06",
-        "invested": 2345.0,
-        "value": 2592.22
+        "invested": 1172.5,
+        "value": 1296.11
       },
       {
         "date": "2021-05-11",
-        "invested": 2345.0,
-        "value": 2592.22
+        "invested": 1172.5,
+        "value": 1296.11
       },
       {
         "date": "2021-05-13",
-        "invested": 2345.0,
-        "value": 2480.36
+        "invested": 1172.5,
+        "value": 1240.18
       },
       {
         "date": "2021-05-17",
-        "invested": 2345.0,
-        "value": 2529.01
+        "invested": 1172.5,
+        "value": 1264.51
       },
       {
         "date": "2021-05-18",
-        "invested": 2015.0,
-        "value": 2537.28
+        "invested": 1007.5,
+        "value": 1268.64
       },
       {
         "date": "2021-05-21",
-        "invested": 2015.0,
-        "value": 2540.66
+        "invested": 1007.5,
+        "value": 1270.33
       },
       {
         "date": "2021-05-25",
-        "invested": 2015.0,
-        "value": 2225.9
+        "invested": 1007.5,
+        "value": 1112.95
       },
       {
         "date": "2021-05-27",
-        "invested": -515.0,
-        "value": 2225.95
+        "invested": -257.5,
+        "value": 1112.97
       },
       {
         "date": "2021-05-31",
-        "invested": -515.0,
-        "value": 2226.45
+        "invested": -257.5,
+        "value": 1113.22
       },
       {
         "date": "2021-06-01",
-        "invested": -515.0,
-        "value": 2226.49
+        "invested": -257.5,
+        "value": 1113.24
       },
       {
         "date": "2021-06-08",
-        "invested": -515.0,
-        "value": 2226.49
+        "invested": -257.5,
+        "value": 1113.24
       },
       {
         "date": "2021-06-11",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-06-15",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-06-22",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-06-29",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-07-06",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-07-13",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-07-20",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-07-27",
-        "invested": -515.0,
-        "value": 2226.83
+        "invested": -257.5,
+        "value": 1113.41
       },
       {
         "date": "2021-08-02",
-        "invested": -455.0,
-        "value": 2226.83
+        "invested": -227.5,
+        "value": 1113.41
       },
       {
         "date": "2021-08-03",
-        "invested": -455.0,
-        "value": 2226.83
+        "invested": -227.5,
+        "value": 1113.41
       },
       {
         "date": "2021-08-10",
-        "invested": -455.0,
-        "value": 2226.83
+        "invested": -227.5,
+        "value": 1113.41
       },
       {
         "date": "2021-08-16",
-        "invested": -455.0,
-        "value": 2109.09
+        "invested": -227.5,
+        "value": 1054.55
       },
       {
         "date": "2021-08-17",
-        "invested": -455.0,
-        "value": 2109.09
+        "invested": -227.5,
+        "value": 1054.55
       },
       {
         "date": "2021-08-24",
-        "invested": -455.0,
-        "value": 2109.09
+        "invested": -227.5,
+        "value": 1054.55
       },
       {
         "date": "2021-08-31",
-        "invested": -455.0,
-        "value": 2109.09
+        "invested": -227.5,
+        "value": 1054.55
       },
       {
         "date": "2021-09-02",
-        "invested": -395.0,
-        "value": 2109.09
+        "invested": -197.5,
+        "value": 1054.55
       },
       {
         "date": "2021-09-07",
-        "invested": -395.0,
-        "value": 2109.09
+        "invested": -197.5,
+        "value": 1054.55
       },
       {
         "date": "2021-09-08",
-        "invested": 405.0,
-        "value": 1726.61
+        "invested": 202.5,
+        "value": 863.3
       },
       {
         "date": "2021-09-09",
-        "invested": 1205.0,
-        "value": 1726.61
+        "invested": 602.5,
+        "value": 863.3
       },
       {
         "date": "2021-09-10",
-        "invested": 1205.0,
-        "value": 1741.68
+        "invested": 602.5,
+        "value": 870.84
       },
       {
         "date": "2021-09-14",
-        "invested": 1205.0,
-        "value": 1741.68
+        "invested": 602.5,
+        "value": 870.84
       },
       {
         "date": "2021-09-16",
-        "invested": 1455.0,
-        "value": 1741.3
+        "invested": 727.5,
+        "value": 870.65
       },
       {
         "date": "2021-09-17",
-        "invested": 1455.0,
-        "value": 1868.38
+        "invested": 727.5,
+        "value": 934.19
       },
       {
         "date": "2021-09-21",
-        "invested": 1455.0,
-        "value": 1868.38
+        "invested": 727.5,
+        "value": 934.19
       },
       {
         "date": "2021-09-28",
-        "invested": 1455.0,
-        "value": 1868.38
+        "invested": 727.5,
+        "value": 934.19
       },
       {
         "date": "2021-09-30",
-        "invested": 1455.0,
-        "value": 1868.38
+        "invested": 727.5,
+        "value": 934.19
       },
       {
         "date": "2021-10-01",
-        "invested": 1455.0,
-        "value": 1868.38
+        "invested": 727.5,
+        "value": 934.19
       },
       {
         "date": "2021-10-04",
-        "invested": 1615.0,
-        "value": 2000.31
+        "invested": 807.5,
+        "value": 1000.15
       },
       {
         "date": "2021-10-05",
-        "invested": 1615.0,
-        "value": 2000.31
+        "invested": 807.5,
+        "value": 1000.15
       },
       {
         "date": "2021-10-11",
-        "invested": 1615.0,
-        "value": 2193.32
+        "invested": 807.5,
+        "value": 1096.66
       },
       {
         "date": "2021-10-12",
-        "invested": 1615.0,
-        "value": 2193.32
+        "invested": 807.5,
+        "value": 1096.66
       },
       {
         "date": "2021-10-14",
-        "invested": 1615.0,
-        "value": 2193.32
+        "invested": 807.5,
+        "value": 1096.66
       },
       {
         "date": "2021-10-18",
-        "invested": 1615.0,
-        "value": 2265.3
+        "invested": 807.5,
+        "value": 1132.65
       },
       {
         "date": "2021-10-19",
-        "invested": 1615.0,
-        "value": 2368.78
+        "invested": 807.5,
+        "value": 1184.39
       },
       {
         "date": "2021-10-26",
-        "invested": 1615.0,
-        "value": 2368.78
+        "invested": 807.5,
+        "value": 1184.39
       },
       {
         "date": "2021-11-02",
-        "invested": 1775.0,
-        "value": 2497.17
+        "invested": 887.5,
+        "value": 1248.59
       },
       {
         "date": "2021-11-09",
-        "invested": 1775.0,
-        "value": 2497.17
+        "invested": 887.5,
+        "value": 1248.59
       },
       {
         "date": "2021-11-11",
-        "invested": 1775.0,
-        "value": 2627.92
+        "invested": 887.5,
+        "value": 1313.96
       },
       {
         "date": "2021-11-12",
-        "invested": 1775.0,
-        "value": 2745.24
+        "invested": 887.5,
+        "value": 1372.62
       },
       {
         "date": "2021-11-16",
-        "invested": 1775.0,
-        "value": 3228.95
+        "invested": 887.5,
+        "value": 1614.47
       },
       {
         "date": "2021-11-23",
-        "invested": 1775.0,
-        "value": 3228.95
+        "invested": 887.5,
+        "value": 1614.47
       },
       {
         "date": "2021-11-30",
-        "invested": 1775.0,
-        "value": 3228.95
+        "invested": 887.5,
+        "value": 1614.47
       },
       {
         "date": "2021-12-02",
-        "invested": 1935.0,
-        "value": 3313.33
+        "invested": 967.5,
+        "value": 1656.66
       },
       {
         "date": "2021-12-07",
-        "invested": 1935.0,
-        "value": 3313.33
+        "invested": 967.5,
+        "value": 1656.66
       },
       {
         "date": "2021-12-14",
-        "invested": 1935.0,
-        "value": 3313.33
+        "invested": 967.5,
+        "value": 1656.66
       },
       {
         "date": "2021-12-15",
-        "invested": 1935.0,
-        "value": 3685.74
+        "invested": 967.5,
+        "value": 1842.87
       },
       {
         "date": "2021-12-16",
-        "invested": 1935.0,
-        "value": 3705.74
+        "invested": 967.5,
+        "value": 1852.87
       },
       {
         "date": "2021-12-18",
-        "invested": 1935.0,
-        "value": 3705.74
+        "invested": 967.5,
+        "value": 1852.87
       },
       {
         "date": "2021-12-20",
-        "invested": 2135.0,
-        "value": 3705.74
+        "invested": 1067.5,
+        "value": 1852.87
       },
       {
         "date": "2021-12-21",
-        "invested": 2135.0,
-        "value": 3854.14
+        "invested": 1067.5,
+        "value": 1927.07
       },
       {
         "date": "2021-12-28",
-        "invested": 2135.0,
-        "value": 3854.14
+        "invested": 1067.5,
+        "value": 1927.07
       },
       {
         "date": "2022-01-03",
-        "invested": 2295.0,
-        "value": 3972.76
+        "invested": 1147.5,
+        "value": 1986.38
       },
       {
         "date": "2022-01-04",
-        "invested": 2295.0,
-        "value": 4035.23
+        "invested": 1147.5,
+        "value": 2017.62
       },
       {
         "date": "2022-01-05",
-        "invested": 2295.0,
-        "value": 4035.23
+        "invested": 1147.5,
+        "value": 2017.62
       },
       {
         "date": "2022-01-11",
-        "invested": 2295.0,
-        "value": 4035.23
+        "invested": 1147.5,
+        "value": 2017.62
       },
       {
         "date": "2022-01-15",
-        "invested": 2295.0,
-        "value": 4035.23
+        "invested": 1147.5,
+        "value": 2017.62
       },
       {
         "date": "2022-01-17",
-        "invested": 2295.0,
-        "value": 4097.55
+        "invested": 1147.5,
+        "value": 2048.78
       },
       {
         "date": "2022-01-18",
-        "invested": 2295.0,
-        "value": 4097.55
+        "invested": 1147.5,
+        "value": 2048.78
       },
       {
         "date": "2022-01-25",
-        "invested": 2295.0,
-        "value": 4097.55
+        "invested": 1147.5,
+        "value": 2048.78
       },
       {
         "date": "2022-02-01",
-        "invested": 2295.0,
-        "value": 4097.55
+        "invested": 1147.5,
+        "value": 2048.78
       },
       {
         "date": "2022-02-02",
-        "invested": 2455.0,
-        "value": 4144.31
+        "invested": 1227.5,
+        "value": 2072.16
       },
       {
         "date": "2022-02-08",
-        "invested": 2455.0,
-        "value": 4144.31
+        "invested": 1227.5,
+        "value": 2072.16
       },
       {
         "date": "2022-02-15",
-        "invested": 2455.0,
-        "value": 4144.31
+        "invested": 1227.5,
+        "value": 2072.16
       },
       {
         "date": "2022-02-16",
-        "invested": 2455.0,
-        "value": 4195.45
+        "invested": 1227.5,
+        "value": 2097.72
       },
       {
         "date": "2022-02-22",
-        "invested": 2455.0,
-        "value": 4195.45
+        "invested": 1227.5,
+        "value": 2097.72
       },
       {
         "date": "2022-03-01",
-        "invested": 2455.0,
-        "value": 4195.45
+        "invested": 1227.5,
+        "value": 2097.72
       },
       {
         "date": "2022-03-02",
-        "invested": 2615.0,
-        "value": 4199.06
+        "invested": 1307.5,
+        "value": 2099.53
       },
       {
         "date": "2022-03-04",
-        "invested": 2615.0,
-        "value": 4199.06
+        "invested": 1307.5,
+        "value": 2099.53
       },
       {
         "date": "2022-03-08",
-        "invested": 2615.0,
-        "value": 4199.06
+        "invested": 1307.5,
+        "value": 2099.53
       },
       {
         "date": "2022-03-15",
-        "invested": 2615.0,
-        "value": 4199.06
+        "invested": 1307.5,
+        "value": 2099.53
       },
       {
         "date": "2022-03-16",
-        "invested": 2615.0,
-        "value": 4277.61
+        "invested": 1307.5,
+        "value": 2138.8
       },
       {
         "date": "2022-03-22",
-        "invested": 2615.0,
-        "value": 4277.61
+        "invested": 1307.5,
+        "value": 2138.8
       },
       {
         "date": "2022-03-29",
-        "invested": 2615.0,
-        "value": 4277.61
+        "invested": 1307.5,
+        "value": 2138.8
       },
       {
         "date": "2022-04-01",
-        "invested": 2615.0,
-        "value": 4277.61
+        "invested": 1307.5,
+        "value": 2138.8
       },
       {
         "date": "2022-04-02",
-        "invested": 2615.0,
-        "value": 4277.61
+        "invested": 1307.5,
+        "value": 2138.8
       },
       {
         "date": "2022-04-04",
-        "invested": 2775.0,
-        "value": 4393.76
+        "invested": 1387.5,
+        "value": 2196.88
       },
       {
         "date": "2022-04-05",
-        "invested": 2775.0,
-        "value": 4393.76
+        "invested": 1387.5,
+        "value": 2196.88
       },
       {
         "date": "2022-04-12",
-        "invested": 2775.0,
-        "value": 4393.76
+        "invested": 1387.5,
+        "value": 2196.88
       },
       {
         "date": "2022-04-14",
-        "invested": 2775.0,
-        "value": 4420.29
+        "invested": 1387.5,
+        "value": 2210.14
       },
       {
         "date": "2022-04-15",
-        "invested": 2775.0,
-        "value": 4420.29
+        "invested": 1387.5,
+        "value": 2210.14
       },
       {
         "date": "2022-04-19",
-        "invested": 2775.0,
-        "value": 4507.65
+        "invested": 1387.5,
+        "value": 2253.82
       },
       {
         "date": "2022-04-20",
-        "invested": 2775.0,
-        "value": 4575.29
+        "invested": 1387.5,
+        "value": 2287.64
       },
       {
         "date": "2022-04-21",
-        "invested": 2775.0,
-        "value": 4578.06
+        "invested": 1387.5,
+        "value": 2289.03
       },
       {
         "date": "2022-04-25",
-        "invested": 2775.0,
-        "value": 4587.67
+        "invested": 1387.5,
+        "value": 2293.84
       },
       {
         "date": "2022-04-26",
-        "invested": 2775.0,
-        "value": 4587.67
+        "invested": 1387.5,
+        "value": 2293.84
       },
       {
         "date": "2022-05-02",
-        "invested": 2935.0,
-        "value": 4587.67
+        "invested": 1467.5,
+        "value": 2293.84
       },
       {
         "date": "2022-05-03",
-        "invested": 2935.0,
-        "value": 4587.67
+        "invested": 1467.5,
+        "value": 2293.84
       },
       {
         "date": "2022-05-10",
-        "invested": 2935.0,
-        "value": 4587.67
+        "invested": 1467.5,
+        "value": 2293.84
       },
       {
         "date": "2022-05-16",
-        "invested": 2935.0,
-        "value": 4609.82
+        "invested": 1467.5,
+        "value": 2304.91
       },
       {
         "date": "2022-05-17",
-        "invested": 2935.0,
-        "value": 4609.82
+        "invested": 1467.5,
+        "value": 2304.91
       },
       {
         "date": "2022-05-23",
-        "invested": 2935.0,
-        "value": 4083.48
+        "invested": 1467.5,
+        "value": 2041.74
       },
       {
         "date": "2022-05-24",
-        "invested": 2935.0,
-        "value": 4083.48
+        "invested": 1467.5,
+        "value": 2041.74
       },
       {
         "date": "2022-05-25",
-        "invested": 2935.0,
-        "value": 4081.8
+        "invested": 1467.5,
+        "value": 2040.9
       },
       {
         "date": "2022-05-27",
-        "invested": 2935.0,
-        "value": 4081.8
+        "invested": 1467.5,
+        "value": 2040.9
       },
       {
         "date": "2022-05-31",
-        "invested": 2935.0,
-        "value": 4081.8
+        "invested": 1467.5,
+        "value": 2040.9
       },
       {
         "date": "2022-06-02",
-        "invested": 3095.0,
-        "value": 4078.82
+        "invested": 1547.5,
+        "value": 2039.41
       },
       {
         "date": "2022-06-07",
-        "invested": 3095.0,
-        "value": 4078.82
+        "invested": 1547.5,
+        "value": 2039.41
       },
       {
         "date": "2022-06-09",
-        "invested": 3095.0,
-        "value": 4078.82
+        "invested": 1547.5,
+        "value": 2039.41
       },
       {
         "date": "2022-06-14",
-        "invested": 3095.0,
-        "value": 4078.82
+        "invested": 1547.5,
+        "value": 2039.41
       },
       {
         "date": "2022-06-16",
-        "invested": 3095.0,
-        "value": 4091.13
+        "invested": 1547.5,
+        "value": 2045.57
       },
       {
         "date": "2022-06-21",
-        "invested": 3095.0,
-        "value": 4091.13
+        "invested": 1547.5,
+        "value": 2045.57
       },
       {
         "date": "2022-06-28",
-        "invested": 3095.0,
-        "value": 4091.13
+        "invested": 1547.5,
+        "value": 2045.57
       },
       {
         "date": "2022-07-04",
-        "invested": 3095.0,
-        "value": 4112.08
+        "invested": 1547.5,
+        "value": 2056.04
       },
       {
         "date": "2022-07-05",
-        "invested": 3255.0,
-        "value": 4112.08
+        "invested": 1627.5,
+        "value": 2056.04
       },
       {
         "date": "2022-07-06",
-        "invested": 3255.0,
-        "value": 4112.08
+        "invested": 1627.5,
+        "value": 2056.04
       },
       {
         "date": "2022-07-12",
-        "invested": 3255.0,
-        "value": 4112.08
+        "invested": 1627.5,
+        "value": 2056.04
       },
       {
         "date": "2022-07-18",
-        "invested": 3255.0,
-        "value": 4117.95
+        "invested": 1627.5,
+        "value": 2058.97
       },
       {
         "date": "2022-07-19",
-        "invested": 3255.0,
-        "value": 4117.95
+        "invested": 1627.5,
+        "value": 2058.97
       },
       {
         "date": "2022-07-26",
-        "invested": 3255.0,
-        "value": 4117.95
+        "invested": 1627.5,
+        "value": 2058.97
       },
       {
         "date": "2022-08-02",
-        "invested": 3415.0,
-        "value": 4304.13
+        "invested": 1707.5,
+        "value": 2152.07
       },
       {
         "date": "2022-08-09",
-        "invested": 3415.0,
-        "value": 4304.13
+        "invested": 1707.5,
+        "value": 2152.07
       },
       {
         "date": "2022-08-10",
-        "invested": 3415.0,
-        "value": 4339.48
+        "invested": 1707.5,
+        "value": 2169.74
       },
       {
         "date": "2022-08-16",
-        "invested": 3415.0,
-        "value": 4353.06
+        "invested": 1707.5,
+        "value": 2176.53
       },
       {
         "date": "2022-08-23",
-        "invested": 3415.0,
-        "value": 4353.06
+        "invested": 1707.5,
+        "value": 2176.53
       },
       {
         "date": "2022-08-30",
-        "invested": 3415.0,
-        "value": 4353.06
+        "invested": 1707.5,
+        "value": 2176.53
       },
       {
         "date": "2022-09-02",
-        "invested": 3575.0,
-        "value": 4412.81
+        "invested": 1787.5,
+        "value": 2206.41
       },
       {
         "date": "2022-09-06",
-        "invested": 3575.0,
-        "value": 4412.81
+        "invested": 1787.5,
+        "value": 2206.41
       },
       {
         "date": "2022-09-13",
-        "invested": 3575.0,
-        "value": 4412.81
+        "invested": 1787.5,
+        "value": 2206.41
       },
       {
         "date": "2022-09-16",
-        "invested": 3575.0,
-        "value": 4416.31
+        "invested": 1787.5,
+        "value": 2208.16
       },
       {
         "date": "2022-09-20",
-        "invested": 3575.0,
-        "value": 4416.31
+        "invested": 1787.5,
+        "value": 2208.16
       },
       {
         "date": "2022-09-27",
-        "invested": 3575.0,
-        "value": 4416.31
+        "invested": 1787.5,
+        "value": 2208.16
       },
       {
         "date": "2022-10-03",
-        "invested": 3735.0,
-        "value": 4403.14
+        "invested": 1867.5,
+        "value": 2201.57
       },
       {
         "date": "2022-10-04",
-        "invested": 3735.0,
-        "value": 4412.01
+        "invested": 1867.5,
+        "value": 2206.01
       },
       {
         "date": "2022-10-05",
-        "invested": 3735.0,
-        "value": 4412.01
+        "invested": 1867.5,
+        "value": 2206.01
       },
       {
         "date": "2022-10-11",
-        "invested": 3735.0,
-        "value": 4412.01
+        "invested": 1867.5,
+        "value": 2206.01
       },
       {
         "date": "2022-10-17",
-        "invested": 3735.0,
-        "value": 4424.91
+        "invested": 1867.5,
+        "value": 2212.45
       },
       {
         "date": "2022-10-18",
-        "invested": 3735.0,
-        "value": 4424.91
+        "invested": 1867.5,
+        "value": 2212.45
       },
       {
         "date": "2022-10-25",
-        "invested": 3735.0,
-        "value": 4424.91
+        "invested": 1867.5,
+        "value": 2212.45
       },
       {
         "date": "2022-11-01",
-        "invested": 3735.0,
-        "value": 4424.91
+        "invested": 1867.5,
+        "value": 2212.45
       },
       {
         "date": "2022-11-02",
-        "invested": 3895.0,
-        "value": 4571.17
+        "invested": 1947.5,
+        "value": 2285.59
       },
       {
         "date": "2022-11-08",
-        "invested": 3895.0,
-        "value": 4571.17
+        "invested": 1947.5,
+        "value": 2285.59
       },
       {
         "date": "2022-11-15",
-        "invested": 3895.0,
-        "value": 4571.17
+        "invested": 1947.5,
+        "value": 2285.59
       },
       {
         "date": "2022-11-16",
-        "invested": 3895.0,
-        "value": 4582.0
+        "invested": 1947.5,
+        "value": 2291.0
       },
       {
         "date": "2022-11-22",
-        "invested": 3895.0,
-        "value": 4582.0
+        "invested": 1947.5,
+        "value": 2291.0
       },
       {
         "date": "2022-11-29",
-        "invested": 3895.0,
-        "value": 4582.0
+        "invested": 1947.5,
+        "value": 2291.0
       },
       {
         "date": "2022-12-02",
-        "invested": 4055.0,
-        "value": 4700.26
+        "invested": 2027.5,
+        "value": 2350.13
       },
       {
         "date": "2022-12-06",
-        "invested": 4055.0,
-        "value": 4700.26
+        "invested": 2027.5,
+        "value": 2350.13
       },
       {
         "date": "2022-12-13",
-        "invested": 4055.0,
-        "value": 4700.26
+        "invested": 2027.5,
+        "value": 2350.13
       },
       {
         "date": "2022-12-15",
-        "invested": 4055.0,
-        "value": 4700.26
+        "invested": 2027.5,
+        "value": 2350.13
       },
       {
         "date": "2022-12-16",
-        "invested": 4055.0,
-        "value": 4706.82
+        "invested": 2027.5,
+        "value": 2353.41
       },
       {
         "date": "2022-12-20",
-        "invested": 4055.0,
-        "value": 4706.82
+        "invested": 2027.5,
+        "value": 2353.41
       },
       {
         "date": "2022-12-27",
-        "invested": 4055.0,
-        "value": 4706.82
+        "invested": 2027.5,
+        "value": 2353.41
       },
       {
         "date": "2023-01-02",
-        "invested": 4215.0,
-        "value": 4731.55
+        "invested": 2107.5,
+        "value": 2365.78
       },
       {
         "date": "2023-01-03",
-        "invested": 4215.0,
-        "value": 4731.55
+        "invested": 2107.5,
+        "value": 2365.78
       },
       {
         "date": "2023-01-10",
-        "invested": 4215.0,
-        "value": 4731.55
+        "invested": 2107.5,
+        "value": 2365.78
       },
       {
         "date": "2023-01-16",
-        "invested": 4215.0,
-        "value": 4752.41
+        "invested": 2107.5,
+        "value": 2376.2
       },
       {
         "date": "2023-01-17",
-        "invested": 4215.0,
-        "value": 4752.41
+        "invested": 2107.5,
+        "value": 2376.2
       },
       {
         "date": "2023-01-21",
-        "invested": 3515.0,
-        "value": 4752.41
+        "invested": 1757.5,
+        "value": 2376.2
       },
       {
         "date": "2023-01-23",
-        "invested": 2815.0,
-        "value": 4752.41
+        "invested": 1407.5,
+        "value": 2376.2
       },
       {
         "date": "2023-01-24",
-        "invested": 2815.0,
-        "value": 4752.41
+        "invested": 1407.5,
+        "value": 2376.2
       },
       {
         "date": "2023-01-31",
-        "invested": 2815.0,
-        "value": 4752.41
+        "invested": 1407.5,
+        "value": 2376.2
       },
       {
         "date": "2023-02-01",
-        "invested": 2815.0,
-        "value": 4752.41
+        "invested": 1407.5,
+        "value": 2376.2
       },
       {
         "date": "2023-02-02",
-        "invested": 2275.0,
-        "value": 4938.45
+        "invested": 1137.5,
+        "value": 2469.22
       },
       {
         "date": "2023-02-06",
-        "invested": 2025.0,
-        "value": 4938.45
+        "invested": 1012.5,
+        "value": 2469.22
       },
       {
         "date": "2023-02-07",
-        "invested": 2025.0,
-        "value": 4938.45
+        "invested": 1012.5,
+        "value": 2469.22
       },
       {
         "date": "2023-02-14",
-        "invested": 2025.0,
-        "value": 4938.45
+        "invested": 1012.5,
+        "value": 2469.22
       },
       {
         "date": "2023-02-16",
-        "invested": 2025.0,
-        "value": 4941.6
+        "invested": 1012.5,
+        "value": 2470.8
       },
       {
         "date": "2023-02-21",
-        "invested": 2025.0,
-        "value": 4941.6
+        "invested": 1012.5,
+        "value": 2470.8
       },
       {
         "date": "2023-02-23",
-        "invested": 1225.0,
-        "value": 5013.8
+        "invested": 612.5,
+        "value": 2506.9
       },
       {
         "date": "2023-02-28",
-        "invested": 1225.0,
-        "value": 5013.8
+        "invested": 612.5,
+        "value": 2506.9
       },
       {
         "date": "2023-03-01",
-        "invested": 1225.0,
-        "value": 5013.8
+        "invested": 612.5,
+        "value": 2506.9
       },
       {
         "date": "2023-03-02",
-        "invested": 1225.0,
-        "value": 5030.38
+        "invested": 612.5,
+        "value": 2515.19
       },
       {
         "date": "2023-03-03",
-        "invested": 1385.0,
-        "value": 5030.38
+        "invested": 692.5,
+        "value": 2515.19
       },
       {
         "date": "2023-03-07",
-        "invested": 1385.0,
-        "value": 5030.38
+        "invested": 692.5,
+        "value": 2515.19
       },
       {
         "date": "2023-03-08",
-        "invested": 1385.0,
-        "value": 5030.38
+        "invested": 692.5,
+        "value": 2515.19
       },
       {
         "date": "2023-03-14",
-        "invested": 1385.0,
-        "value": 5030.38
+        "invested": 692.5,
+        "value": 2515.19
       },
       {
         "date": "2023-03-16",
-        "invested": 1385.0,
-        "value": 5050.06
+        "invested": 692.5,
+        "value": 2525.03
       },
       {
         "date": "2023-03-21",
-        "invested": 1385.0,
-        "value": 5050.06
+        "invested": 692.5,
+        "value": 2525.03
       },
       {
         "date": "2023-03-28",
-        "invested": 1385.0,
-        "value": 5050.06
+        "invested": 692.5,
+        "value": 2525.03
       },
       {
         "date": "2023-04-01",
-        "invested": 1385.0,
-        "value": 5050.06
+        "invested": 692.5,
+        "value": 2525.03
       },
       {
         "date": "2023-04-03",
-        "invested": 1385.0,
-        "value": 5157.97
+        "invested": 692.5,
+        "value": 2578.99
       },
       {
         "date": "2023-04-04",
-        "invested": 1545.0,
-        "value": 5157.97
+        "invested": 772.5,
+        "value": 2578.99
       },
       {
         "date": "2023-04-05",
-        "invested": 1545.0,
-        "value": 5157.97
+        "invested": 772.5,
+        "value": 2578.99
       },
       {
         "date": "2023-04-11",
-        "invested": 1545.0,
-        "value": 5157.97
+        "invested": 772.5,
+        "value": 2578.99
       },
       {
         "date": "2023-04-13",
-        "invested": 1545.0,
-        "value": 5284.83
+        "invested": 772.5,
+        "value": 2642.41
       },
       {
         "date": "2023-04-17",
-        "invested": 1545.0,
-        "value": 5297.82
+        "invested": 772.5,
+        "value": 2648.91
       },
       {
         "date": "2023-04-18",
-        "invested": 1545.0,
-        "value": 5297.82
+        "invested": 772.5,
+        "value": 2648.91
       },
       {
         "date": "2023-04-25",
-        "invested": 1545.0,
-        "value": 5297.82
+        "invested": 772.5,
+        "value": 2648.91
       },
       {
         "date": "2023-05-01",
-        "invested": 1545.0,
-        "value": 5297.82
+        "invested": 772.5,
+        "value": 2648.91
       },
       {
         "date": "2023-05-02",
-        "invested": 1705.0,
-        "value": 5340.18
+        "invested": 852.5,
+        "value": 2670.09
       },
       {
         "date": "2023-05-09",
-        "invested": 1705.0,
-        "value": 5340.18
+        "invested": 852.5,
+        "value": 2670.09
       },
       {
         "date": "2023-05-16",
-        "invested": 1705.0,
-        "value": 5351.19
+        "invested": 852.5,
+        "value": 2675.59
       },
       {
         "date": "2023-05-19",
-        "invested": 1605.0,
-        "value": 5351.19
+        "invested": 802.5,
+        "value": 2675.59
       },
       {
         "date": "2023-05-23",
-        "invested": 1605.0,
-        "value": 5351.19
+        "invested": 802.5,
+        "value": 2675.59
       },
       {
         "date": "2023-05-30",
-        "invested": 1605.0,
-        "value": 5351.19
+        "invested": 802.5,
+        "value": 2675.59
       },
       {
         "date": "2023-06-01",
-        "invested": 1505.0,
-        "value": 5293.41
+        "invested": 752.5,
+        "value": 2646.7
       },
       {
         "date": "2023-06-02",
-        "invested": 1505.0,
-        "value": 5516.28
+        "invested": 752.5,
+        "value": 2758.14
       },
       {
         "date": "2023-06-06",
-        "invested": 1505.0,
-        "value": 5516.28
+        "invested": 752.5,
+        "value": 2758.14
       },
       {
         "date": "2023-06-09",
-        "invested": 1505.0,
-        "value": 5516.28
+        "invested": 752.5,
+        "value": 2758.14
       },
       {
         "date": "2023-06-13",
-        "invested": 1505.0,
-        "value": 5516.28
+        "invested": 752.5,
+        "value": 2758.14
       },
       {
         "date": "2023-06-16",
-        "invested": 1505.0,
-        "value": 5519.75
+        "invested": 752.5,
+        "value": 2759.88
       },
       {
         "date": "2023-06-20",
-        "invested": 1505.0,
-        "value": 5519.75
+        "invested": 752.5,
+        "value": 2759.88
       },
       {
         "date": "2023-06-27",
-        "invested": 1505.0,
-        "value": 5519.75
+        "invested": 752.5,
+        "value": 2759.88
       },
       {
         "date": "2023-07-01",
-        "invested": 1505.0,
-        "value": 5519.75
+        "invested": 752.5,
+        "value": 2759.88
       },
       {
         "date": "2023-07-03",
-        "invested": 1665.0,
-        "value": 5657.17
+        "invested": 832.5,
+        "value": 2828.59
       },
       {
         "date": "2023-07-04",
-        "invested": 1665.0,
-        "value": 5657.17
+        "invested": 832.5,
+        "value": 2828.59
       },
       {
         "date": "2023-07-11",
-        "invested": 1665.0,
-        "value": 5657.17
+        "invested": 832.5,
+        "value": 2828.59
       },
       {
         "date": "2023-07-17",
-        "invested": 1665.0,
-        "value": 5660.53
+        "invested": 832.5,
+        "value": 2830.26
       },
       {
         "date": "2023-07-18",
-        "invested": 1665.0,
-        "value": 5660.53
+        "invested": 832.5,
+        "value": 2830.26
       },
       {
         "date": "2023-07-25",
-        "invested": 1665.0,
-        "value": 5660.53
+        "invested": 832.5,
+        "value": 2830.26
       },
       {
         "date": "2023-08-01",
-        "invested": 1665.0,
-        "value": 5660.53
+        "invested": 832.5,
+        "value": 2830.26
       },
       {
         "date": "2023-08-02",
-        "invested": 1825.0,
-        "value": 5753.77
+        "invested": 912.5,
+        "value": 2876.89
       },
       {
         "date": "2023-08-08",
-        "invested": 1825.0,
-        "value": 5753.77
+        "invested": 912.5,
+        "value": 2876.89
       },
       {
         "date": "2023-08-15",
-        "invested": 1825.0,
-        "value": 5753.77
+        "invested": 912.5,
+        "value": 2876.89
       },
       {
         "date": "2023-08-16",
-        "invested": 1825.0,
-        "value": 5839.1
+        "invested": 912.5,
+        "value": 2919.55
       },
       {
         "date": "2023-08-22",
-        "invested": 1825.0,
-        "value": 5839.1
+        "invested": 912.5,
+        "value": 2919.55
       },
       {
         "date": "2023-08-28",
-        "invested": 1825.0,
-        "value": 5917.23
+        "invested": 912.5,
+        "value": 2958.61
       },
       {
         "date": "2023-08-29",
-        "invested": 1825.0,
-        "value": 5917.23
+        "invested": 912.5,
+        "value": 2958.61
       },
       {
         "date": "2023-09-01",
-        "invested": 1825.0,
-        "value": 5917.23
+        "invested": 912.5,
+        "value": 2958.61
       },
       {
         "date": "2023-09-02",
-        "invested": 1845.0,
-        "value": 5917.23
+        "invested": 922.5,
+        "value": 2958.61
       },
       {
         "date": "2023-09-04",
-        "invested": 2005.0,
-        "value": 6158.79
+        "invested": 1002.5,
+        "value": 3079.39
       },
       {
         "date": "2023-09-05",
-        "invested": 2005.0,
-        "value": 6158.79
+        "invested": 1002.5,
+        "value": 3079.39
       },
       {
         "date": "2023-09-12",
-        "invested": 2005.0,
-        "value": 6158.79
+        "invested": 1002.5,
+        "value": 3079.39
       },
       {
         "date": "2023-09-14",
-        "invested": 2005.0,
-        "value": 6158.79
+        "invested": 1002.5,
+        "value": 3079.39
       },
       {
         "date": "2023-09-18",
-        "invested": 2005.0,
-        "value": 6177.58
+        "invested": 1002.5,
+        "value": 3088.79
       },
       {
         "date": "2023-09-19",
-        "invested": 2005.0,
-        "value": 6177.58
+        "invested": 1002.5,
+        "value": 3088.79
       },
       {
         "date": "2023-09-26",
-        "invested": 2005.0,
-        "value": 6177.58
+        "invested": 1002.5,
+        "value": 3088.79
       },
       {
         "date": "2023-09-30",
-        "invested": 2025.0,
-        "value": 6177.58
+        "invested": 1012.5,
+        "value": 3088.79
       },
       {
         "date": "2023-10-02",
-        "invested": 2185.0,
-        "value": 6247.62
+        "invested": 1092.5,
+        "value": 3123.81
       },
       {
         "date": "2023-10-03",
-        "invested": 2185.0,
-        "value": 6247.62
+        "invested": 1092.5,
+        "value": 3123.81
       },
       {
         "date": "2023-10-10",
-        "invested": 2185.0,
-        "value": 6247.62
+        "invested": 1092.5,
+        "value": 3123.81
       },
       {
         "date": "2023-10-16",
-        "invested": 2685.0,
-        "value": 6258.73
+        "invested": 1342.5,
+        "value": 3129.36
       },
       {
         "date": "2023-10-17",
-        "invested": 2685.0,
-        "value": 6258.73
+        "invested": 1342.5,
+        "value": 3129.36
       },
       {
         "date": "2023-10-24",
-        "invested": 2685.0,
-        "value": 6258.73
+        "invested": 1342.5,
+        "value": 3129.36
       },
       {
         "date": "2023-10-31",
-        "invested": 2705.0,
-        "value": 6258.73
+        "invested": 1352.5,
+        "value": 3129.36
       },
       {
         "date": "2023-11-01",
-        "invested": 2705.0,
-        "value": 6258.73
+        "invested": 1352.5,
+        "value": 3129.36
       },
       {
         "date": "2023-11-02",
-        "invested": 2865.0,
-        "value": 6416.09
+        "invested": 1432.5,
+        "value": 3208.05
       },
       {
         "date": "2023-11-07",
-        "invested": 2865.0,
-        "value": 6416.09
+        "invested": 1432.5,
+        "value": 3208.05
       },
       {
         "date": "2023-11-08",
-        "invested": 2865.0,
-        "value": 6458.96
+        "invested": 1432.5,
+        "value": 3229.48
       },
       {
         "date": "2023-11-13",
-        "invested": 3165.0,
-        "value": 6458.96
+        "invested": 1582.5,
+        "value": 3229.48
       },
       {
         "date": "2023-11-14",
-        "invested": 3165.0,
-        "value": 6458.96
+        "invested": 1582.5,
+        "value": 3229.48
       },
       {
         "date": "2023-11-16",
-        "invested": 3165.0,
-        "value": 6489.22
+        "invested": 1582.5,
+        "value": 3244.61
       },
       {
         "date": "2023-11-18",
-        "invested": 3165.0,
-        "value": 6589.32
+        "invested": 1582.5,
+        "value": 3294.66
       },
       {
         "date": "2023-11-20",
-        "invested": 3165.0,
-        "value": 6718.35
+        "invested": 1582.5,
+        "value": 3359.18
       },
       {
         "date": "2023-11-21",
-        "invested": 3165.0,
-        "value": 6718.35
+        "invested": 1582.5,
+        "value": 3359.18
       },
       {
         "date": "2023-11-28",
-        "invested": 3165.0,
-        "value": 6718.35
+        "invested": 1582.5,
+        "value": 3359.18
       },
       {
         "date": "2023-12-01",
-        "invested": 3165.0,
-        "value": 6718.35
+        "invested": 1582.5,
+        "value": 3359.18
       },
       {
         "date": "2023-12-02",
-        "invested": 3185.0,
-        "value": 6718.35
+        "invested": 1592.5,
+        "value": 3359.18
       },
       {
         "date": "2023-12-04",
-        "invested": 3645.0,
-        "value": 6975.09
+        "invested": 1822.5,
+        "value": 3487.55
       },
       {
         "date": "2023-12-05",
-        "invested": 3645.0,
-        "value": 6975.09
+        "invested": 1822.5,
+        "value": 3487.55
       },
       {
         "date": "2023-12-11",
-        "invested": 3645.0,
-        "value": 6981.98
+        "invested": 1822.5,
+        "value": 3490.99
       },
       {
         "date": "2023-12-12",
-        "invested": 3645.0,
-        "value": 6981.98
+        "invested": 1822.5,
+        "value": 3490.99
       },
       {
         "date": "2023-12-14",
-        "invested": 3645.0,
-        "value": 6981.98
+        "invested": 1822.5,
+        "value": 3490.99
       },
       {
         "date": "2023-12-15",
-        "invested": 3645.0,
-        "value": 6981.98
+        "invested": 1822.5,
+        "value": 3490.99
       },
       {
         "date": "2023-12-18",
-        "invested": 3645.0,
-        "value": 7103.67
+        "invested": 1822.5,
+        "value": 3551.84
       },
       {
         "date": "2023-12-19",
-        "invested": 3645.0,
-        "value": 7103.67
+        "invested": 1822.5,
+        "value": 3551.84
       },
       {
         "date": "2023-12-26",
-        "invested": 3645.0,
-        "value": 7103.67
+        "invested": 1822.5,
+        "value": 3551.84
       },
       {
         "date": "2023-12-27",
-        "invested": 3645.0,
-        "value": 7108.02
+        "invested": 1822.5,
+        "value": 3554.01
       },
       {
         "date": "2023-12-29",
-        "invested": 3945.0,
-        "value": 7108.02
+        "invested": 1972.5,
+        "value": 3554.01
       },
       {
         "date": "2023-12-31",
-        "invested": 3965.0,
-        "value": 7108.02
+        "invested": 1982.5,
+        "value": 3554.01
       },
       {
         "date": "2024-01-02",
-        "invested": 4125.0,
-        "value": 7345.7
+        "invested": 2062.5,
+        "value": 3672.85
       },
       {
         "date": "2024-01-09",
-        "invested": 4125.0,
-        "value": 7357.82
+        "invested": 2062.5,
+        "value": 3678.91
       },
       {
         "date": "2024-01-16",
-        "invested": 4125.0,
-        "value": 7377.68
+        "invested": 2062.5,
+        "value": 3688.84
       },
       {
         "date": "2024-01-23",
-        "invested": 4125.0,
-        "value": 7364.42
+        "invested": 2062.5,
+        "value": 3682.21
       },
       {
         "date": "2024-01-30",
-        "invested": 4125.0,
-        "value": 7364.42
+        "invested": 2062.5,
+        "value": 3682.21
       },
       {
         "date": "2024-01-31",
-        "invested": 4145.0,
-        "value": 7364.42
+        "invested": 2072.5,
+        "value": 3682.21
       },
       {
         "date": "2024-02-01",
-        "invested": 4145.0,
-        "value": 7364.42
+        "invested": 2072.5,
+        "value": 3682.21
       },
       {
         "date": "2024-02-02",
-        "invested": 4305.0,
-        "value": 7789.63
+        "invested": 2152.5,
+        "value": 3894.82
       },
       {
         "date": "2024-02-06",
-        "invested": 4305.0,
-        "value": 7789.63
+        "invested": 2152.5,
+        "value": 3894.82
       },
       {
         "date": "2024-02-09",
-        "invested": 4305.0,
-        "value": 7811.92
+        "invested": 2152.5,
+        "value": 3905.96
       },
       {
         "date": "2024-02-13",
-        "invested": 4305.0,
-        "value": 7811.92
+        "invested": 2152.5,
+        "value": 3905.96
       },
       {
         "date": "2024-02-16",
-        "invested": 4305.0,
-        "value": 7889.72
+        "invested": 2152.5,
+        "value": 3944.86
       },
       {
         "date": "2024-02-20",
-        "invested": 4305.0,
-        "value": 7889.72
+        "invested": 2152.5,
+        "value": 3944.86
       },
       {
         "date": "2024-02-22",
-        "invested": 4305.0,
-        "value": 7959.82
+        "invested": 2152.5,
+        "value": 3979.91
       },
       {
         "date": "2024-02-23",
-        "invested": 4305.0,
-        "value": 7954.69
+        "invested": 2152.5,
+        "value": 3977.34
       },
       {
         "date": "2024-02-27",
-        "invested": 4305.0,
-        "value": 7954.69
+        "invested": 2152.5,
+        "value": 3977.34
       },
       {
         "date": "2024-03-01",
-        "invested": 4305.0,
-        "value": 7954.69
+        "invested": 2152.5,
+        "value": 3977.34
       },
       {
         "date": "2024-03-02",
-        "invested": 4325.0,
-        "value": 7954.69
+        "invested": 2162.5,
+        "value": 3977.34
       },
       {
         "date": "2024-03-04",
-        "invested": 4785.0,
-        "value": 8313.71
+        "invested": 2392.5,
+        "value": 4156.85
       },
       {
         "date": "2024-03-05",
-        "invested": 4785.0,
-        "value": 8313.71
+        "invested": 2392.5,
+        "value": 4156.85
       },
       {
         "date": "2024-03-11",
-        "invested": 4785.0,
-        "value": 8359.94
+        "invested": 2392.5,
+        "value": 4179.97
       },
       {
         "date": "2024-03-12",
-        "invested": 4785.0,
-        "value": 8359.94
+        "invested": 2392.5,
+        "value": 4179.97
       },
       {
         "date": "2024-03-15",
-        "invested": 4785.0,
-        "value": 8359.94
+        "invested": 2392.5,
+        "value": 4179.97
       },
       {
         "date": "2024-03-18",
-        "invested": 4685.0,
-        "value": 8404.94
+        "invested": 2342.5,
+        "value": 4202.47
       },
       {
         "date": "2024-03-19",
-        "invested": 4685.0,
-        "value": 8404.94
+        "invested": 2342.5,
+        "value": 4202.47
       },
       {
         "date": "2024-03-22",
-        "invested": 4685.0,
-        "value": 8425.37
+        "invested": 2342.5,
+        "value": 4212.69
       },
       {
         "date": "2024-03-23",
-        "invested": 4685.0,
-        "value": 8474.06
+        "invested": 2342.5,
+        "value": 4237.03
       },
       {
         "date": "2024-03-25",
-        "invested": 4685.0,
-        "value": 8527.47
+        "invested": 2342.5,
+        "value": 4263.73
       },
       {
         "date": "2024-03-26",
-        "invested": 4685.0,
-        "value": 8527.47
+        "invested": 2342.5,
+        "value": 4263.73
       },
       {
         "date": "2024-03-27",
-        "invested": 4685.0,
-        "value": 8527.47
+        "invested": 2342.5,
+        "value": 4263.73
       },
       {
         "date": "2024-04-01",
-        "invested": 4685.0,
-        "value": 8527.47
+        "invested": 2342.5,
+        "value": 4263.73
       },
       {
         "date": "2024-04-02",
-        "invested": 4865.0,
-        "value": 8786.35
+        "invested": 2432.5,
+        "value": 4393.18
       },
       {
         "date": "2024-04-09",
-        "invested": 4865.0,
-        "value": 8815.53
+        "invested": 2432.5,
+        "value": 4407.77
       },
       {
         "date": "2024-04-16",
-        "invested": 4865.0,
-        "value": 8845.76
+        "invested": 2432.5,
+        "value": 4422.88
       },
       {
         "date": "2024-04-20",
-        "invested": 4140.85,
-        "value": 8845.76
+        "invested": 2070.43,
+        "value": 4422.88
       },
       {
         "date": "2024-04-23",
-        "invested": 4140.85,
-        "value": 8893.76
+        "invested": 2070.43,
+        "value": 4446.88
       },
       {
         "date": "2024-04-30",
-        "invested": 4180.85,
-        "value": 8893.76
+        "invested": 2090.43,
+        "value": 4446.88
       },
       {
         "date": "2024-05-01",
-        "invested": 4180.85,
-        "value": 8893.76
+        "invested": 2090.43,
+        "value": 4446.88
       },
       {
         "date": "2024-05-02",
-        "invested": 4340.85,
-        "value": 8835.41
+        "invested": 2170.43,
+        "value": 4417.7
       },
       {
         "date": "2024-05-07",
-        "invested": 4340.85,
-        "value": 8835.41
+        "invested": 2170.43,
+        "value": 4417.7
       },
       {
         "date": "2024-05-09",
-        "invested": 4340.85,
-        "value": 8872.99
+        "invested": 2170.43,
+        "value": 4436.49
       },
       {
         "date": "2024-05-13",
-        "invested": 4340.85,
-        "value": 9008.0
+        "invested": 2170.43,
+        "value": 4504.0
       },
       {
         "date": "2024-05-14",
-        "invested": 4340.85,
-        "value": 9061.73
+        "invested": 2170.43,
+        "value": 4530.86
       },
       {
         "date": "2024-05-15",
-        "invested": 4340.85,
-        "value": 9084.63
+        "invested": 2170.43,
+        "value": 4542.31
       },
       {
         "date": "2024-05-16",
-        "invested": 4340.85,
-        "value": 9147.06
+        "invested": 2170.43,
+        "value": 4573.53
       },
       {
         "date": "2024-05-21",
-        "invested": 4340.85,
-        "value": 9147.06
+        "invested": 2170.43,
+        "value": 4573.53
       },
       {
         "date": "2024-05-23",
-        "invested": 4340.85,
-        "value": 9180.13
+        "invested": 2170.43,
+        "value": 4590.06
       },
       {
         "date": "2024-05-28",
-        "invested": 4340.85,
-        "value": 9180.13
+        "invested": 2170.43,
+        "value": 4590.06
       },
       {
         "date": "2024-06-01",
-        "invested": 4360.85,
-        "value": 9180.13
+        "invested": 2180.43,
+        "value": 4590.06
       },
       {
         "date": "2024-06-03",
-        "invested": 4520.85,
-        "value": 9449.02
+        "invested": 2260.43,
+        "value": 4724.51
       },
       {
         "date": "2024-06-04",
-        "invested": 4520.85,
-        "value": 9449.02
+        "invested": 2260.43,
+        "value": 4724.51
       },
       {
         "date": "2024-06-10",
-        "invested": 4520.85,
-        "value": 9462.3
+        "invested": 2260.43,
+        "value": 4731.15
       },
       {
         "date": "2024-06-11",
-        "invested": 4520.85,
-        "value": 9462.3
+        "invested": 2260.43,
+        "value": 4731.15
       },
       {
         "date": "2024-06-13",
-        "invested": 5520.85,
-        "value": 9491.46
+        "invested": 2760.43,
+        "value": 4745.73
       },
       {
         "date": "2024-06-17",
-        "invested": 5520.85,
-        "value": 9445.32
+        "invested": 2760.43,
+        "value": 4722.66
       },
       {
         "date": "2024-06-18",
-        "invested": 5520.85,
-        "value": 9445.32
+        "invested": 2760.43,
+        "value": 4722.66
       },
       {
         "date": "2024-06-23",
-        "invested": 5520.85,
-        "value": 9668.25
+        "invested": 2760.43,
+        "value": 4834.12
       },
       {
         "date": "2024-06-24",
-        "invested": 5520.85,
-        "value": 9661.76
+        "invested": 2760.43,
+        "value": 4830.88
       },
       {
         "date": "2024-06-25",
-        "invested": 5520.85,
-        "value": 9661.76
+        "invested": 2760.43,
+        "value": 4830.88
       },
       {
         "date": "2024-06-28",
-        "invested": 5520.85,
-        "value": 9661.76
+        "invested": 2760.43,
+        "value": 4830.88
       },
       {
         "date": "2024-06-30",
-        "invested": 5540.85,
-        "value": 9661.76
+        "invested": 2770.43,
+        "value": 4830.88
       },
       {
         "date": "2024-07-01",
-        "invested": 5540.85,
-        "value": 9661.76
+        "invested": 2770.43,
+        "value": 4830.88
       },
       {
         "date": "2024-07-02",
-        "invested": 5700.85,
-        "value": 10060.99
+        "invested": 2850.43,
+        "value": 5030.49
       },
       {
         "date": "2024-07-08",
-        "invested": 5700.85,
-        "value": 10519.35
+        "invested": 2850.43,
+        "value": 5259.68
       },
       {
         "date": "2024-07-09",
-        "invested": 5700.85,
-        "value": 10548.83
+        "invested": 2850.43,
+        "value": 5274.41
       },
       {
         "date": "2024-07-16",
-        "invested": 5700.85,
-        "value": 10989.24
+        "invested": 2850.43,
+        "value": 5494.62
       },
       {
         "date": "2024-07-17",
-        "invested": 6000.85,
-        "value": 10989.24
+        "invested": 3000.43,
+        "value": 5494.62
       },
       {
         "date": "2024-07-23",
-        "invested": 6000.85,
-        "value": 11026.68
+        "invested": 3000.43,
+        "value": 5513.34
       },
       {
         "date": "2024-07-25",
-        "invested": 6000.85,
-        "value": 11026.68
+        "invested": 3000.43,
+        "value": 5513.34
       },
       {
         "date": "2024-07-30",
-        "invested": 6000.85,
-        "value": 11026.68
+        "invested": 3000.43,
+        "value": 5513.34
       },
       {
         "date": "2024-07-31",
-        "invested": 6020.85,
-        "value": 11026.68
+        "invested": 3010.43,
+        "value": 5513.34
       },
       {
         "date": "2024-08-01",
-        "invested": 6020.85,
-        "value": 11026.68
+        "invested": 3010.43,
+        "value": 5513.34
       },
       {
         "date": "2024-08-02",
-        "invested": 6020.85,
-        "value": 10858.54
+        "invested": 3010.43,
+        "value": 5429.27
       },
       {
         "date": "2024-08-03",
-        "invested": 6180.85,
-        "value": 10858.54
+        "invested": 3090.43,
+        "value": 5429.27
       },
       {
         "date": "2024-08-05",
-        "invested": 6180.85,
-        "value": 10846.46
+        "invested": 3090.43,
+        "value": 5423.23
       },
       {
         "date": "2024-08-06",
-        "invested": 6180.85,
-        "value": 10846.46
+        "invested": 3090.43,
+        "value": 5423.23
       },
       {
         "date": "2024-08-07",
-        "invested": 6180.85,
-        "value": 10946.59
+        "invested": 3090.43,
+        "value": 5473.3
       },
       {
         "date": "2024-08-08",
-        "invested": 6180.85,
-        "value": 10963.88
+        "invested": 3090.43,
+        "value": 5481.94
       },
       {
         "date": "2024-08-09",
-        "invested": 6180.85,
-        "value": 10917.25
+        "invested": 3090.43,
+        "value": 5458.62
       },
       {
         "date": "2024-08-13",
-        "invested": 6180.85,
-        "value": 10917.25
+        "invested": 3090.43,
+        "value": 5458.62
       },
       {
         "date": "2024-08-16",
-        "invested": 6180.85,
-        "value": 10938.2
+        "invested": 3090.43,
+        "value": 5469.1
       },
       {
         "date": "2024-08-20",
-        "invested": 6180.85,
-        "value": 10938.2
+        "invested": 3090.43,
+        "value": 5469.1
       },
       {
         "date": "2024-08-21",
-        "invested": 5880.85,
-        "value": 10938.2
+        "invested": 2940.43,
+        "value": 5469.1
       },
       {
         "date": "2024-08-23",
-        "invested": 5880.85,
-        "value": 10962.71
+        "invested": 2940.43,
+        "value": 5481.35
       },
       {
         "date": "2024-08-27",
-        "invested": 5880.85,
-        "value": 10962.71
+        "invested": 2940.43,
+        "value": 5481.35
       },
       {
         "date": "2024-08-29",
-        "invested": 5880.85,
-        "value": 11023.69
+        "invested": 2940.43,
+        "value": 5511.85
       },
       {
         "date": "2024-08-31",
-        "invested": 5900.85,
-        "value": 11023.69
+        "invested": 2950.43,
+        "value": 5511.85
       },
       {
         "date": "2024-09-01",
-        "invested": 5900.85,
-        "value": 11023.69
+        "invested": 2950.43,
+        "value": 5511.85
       },
       {
         "date": "2024-09-02",
-        "invested": 6060.85,
-        "value": 11426.08
+        "invested": 3030.43,
+        "value": 5713.04
       },
       {
         "date": "2024-09-03",
-        "invested": 6060.85,
-        "value": 11426.08
+        "invested": 3030.43,
+        "value": 5713.04
       },
       {
         "date": "2024-09-09",
-        "invested": 6060.85,
-        "value": 11390.66
+        "invested": 3030.43,
+        "value": 5695.33
       },
       {
         "date": "2024-09-10",
-        "invested": 6060.85,
-        "value": 11390.66
+        "invested": 3030.43,
+        "value": 5695.33
       },
       {
         "date": "2024-09-11",
-        "invested": 6060.85,
-        "value": 11447.72
+        "invested": 3030.43,
+        "value": 5723.86
       },
       {
         "date": "2024-09-12",
-        "invested": 6060.85,
-        "value": 11447.72
+        "invested": 3030.43,
+        "value": 5723.86
       },
       {
         "date": "2024-09-16",
-        "invested": 6060.85,
-        "value": 11552.71
+        "invested": 3030.43,
+        "value": 5776.35
       },
       {
         "date": "2024-09-17",
-        "invested": 6060.85,
-        "value": 11552.71
+        "invested": 3030.43,
+        "value": 5776.35
       },
       {
         "date": "2024-09-23",
-        "invested": 6060.85,
-        "value": 11615.46
+        "invested": 3030.43,
+        "value": 5807.73
       },
       {
         "date": "2024-09-24",
-        "invested": 6060.85,
-        "value": 11615.46
+        "invested": 3030.43,
+        "value": 5807.73
       },
       {
         "date": "2024-09-30",
-        "invested": 6080.85,
-        "value": 11615.46
+        "invested": 3040.43,
+        "value": 5807.73
       },
       {
         "date": "2024-10-01",
-        "invested": 6080.85,
-        "value": 11615.46
+        "invested": 3040.43,
+        "value": 5807.73
       },
       {
         "date": "2024-10-02",
-        "invested": 6140.85,
-        "value": 11787.56
+        "invested": 3070.43,
+        "value": 5893.78
       },
       {
         "date": "2024-10-08",
-        "invested": 6140.85,
-        "value": 11787.56
+        "invested": 3070.43,
+        "value": 5893.78
       },
       {
         "date": "2024-10-09",
-        "invested": 6140.85,
-        "value": 11808.39
+        "invested": 3070.43,
+        "value": 5904.19
       },
       {
         "date": "2024-10-15",
-        "invested": 6140.85,
-        "value": 11808.39
+        "invested": 3070.43,
+        "value": 5904.19
       },
       {
         "date": "2024-10-16",
-        "invested": 6140.85,
-        "value": 11982.83
+        "invested": 3070.43,
+        "value": 5991.41
       },
       {
         "date": "2024-10-22",
-        "invested": 6140.85,
-        "value": 11982.83
+        "invested": 3070.43,
+        "value": 5991.41
       },
       {
         "date": "2024-10-23",
-        "invested": 6140.85,
-        "value": 11992.88
+        "invested": 3070.43,
+        "value": 5996.44
       },
       {
         "date": "2024-10-29",
-        "invested": 6140.85,
-        "value": 11992.88
+        "invested": 3070.43,
+        "value": 5996.44
       },
       {
         "date": "2024-11-01",
-        "invested": 6140.85,
-        "value": 11992.88
+        "invested": 3070.43,
+        "value": 5996.44
       },
       {
         "date": "2024-11-02",
-        "invested": 6160.85,
-        "value": 11992.88
+        "invested": 3080.43,
+        "value": 5996.44
       },
       {
         "date": "2024-11-04",
-        "invested": 6320.85,
-        "value": 12171.29
+        "invested": 3160.43,
+        "value": 6085.65
       },
       {
         "date": "2024-11-05",
-        "invested": 6270.85,
-        "value": 12171.29
+        "invested": 3135.43,
+        "value": 6085.65
       },
       {
         "date": "2024-11-11",
-        "invested": 6270.85,
-        "value": 12358.74
+        "invested": 3135.43,
+        "value": 6179.37
       },
       {
         "date": "2024-11-12",
-        "invested": 6270.85,
-        "value": 12358.74
+        "invested": 3135.43,
+        "value": 6179.37
       },
       {
         "date": "2024-11-18",
-        "invested": 6270.85,
-        "value": 12544.34
+        "invested": 3135.43,
+        "value": 6272.17
       },
       {
         "date": "2024-11-19",
-        "invested": 6270.85,
-        "value": 12544.34
+        "invested": 3135.43,
+        "value": 6272.17
       },
       {
         "date": "2024-11-26",
-        "invested": 6270.85,
-        "value": 12544.34
+        "invested": 3135.43,
+        "value": 6272.17
       },
       {
         "date": "2024-11-30",
-        "invested": 6290.85,
-        "value": 12544.34
+        "invested": 3145.43,
+        "value": 6272.17
       },
       {
         "date": "2024-12-01",
-        "invested": 6290.85,
-        "value": 12544.34
+        "invested": 3145.43,
+        "value": 6272.17
       },
       {
         "date": "2024-12-02",
-        "invested": 6450.85,
-        "value": 13679.64
+        "invested": 3225.43,
+        "value": 6839.82
       },
       {
         "date": "2024-12-03",
-        "invested": 6450.85,
-        "value": 13613.23
+        "invested": 3225.43,
+        "value": 6806.61
       },
       {
         "date": "2024-12-04",
-        "invested": 6450.85,
-        "value": 13629.43
+        "invested": 3225.43,
+        "value": 6814.72
       },
       {
         "date": "2024-12-08",
-        "invested": 6330.85,
-        "value": 13629.43
+        "invested": 3165.43,
+        "value": 6814.72
       },
       {
         "date": "2024-12-10",
-        "invested": 6330.85,
-        "value": 13629.43
+        "invested": 3165.43,
+        "value": 6814.72
       },
       {
         "date": "2024-12-12",
-        "invested": 6330.85,
-        "value": 13629.43
+        "invested": 3165.43,
+        "value": 6814.72
       },
       {
         "date": "2024-12-16",
-        "invested": 6330.85,
-        "value": 13765.69
+        "invested": 3165.43,
+        "value": 6882.85
       },
       {
         "date": "2024-12-17",
-        "invested": 6330.85,
-        "value": 13765.69
+        "invested": 3165.43,
+        "value": 6882.85
       },
       {
         "date": "2024-12-20",
-        "invested": 6330.85,
-        "value": 13767.61
+        "invested": 3165.43,
+        "value": 6883.81
       },
       {
         "date": "2024-12-24",
-        "invested": 6330.85,
-        "value": 13767.61
+        "invested": 3165.43,
+        "value": 6883.81
       },
       {
         "date": "2024-12-27",
-        "invested": 6490.85,
-        "value": 13760.33
+        "invested": 3245.43,
+        "value": 6880.16
       },
       {
         "date": "2024-12-31",
-        "invested": 6510.85,
-        "value": 13760.33
+        "invested": 3255.43,
+        "value": 6880.16
       },
       {
         "date": "2025-01-01",
-        "invested": 6510.85,
-        "value": 13760.33
+        "invested": 3255.43,
+        "value": 6880.16
       },
       {
         "date": "2025-01-02",
-        "invested": 6670.85,
-        "value": 13676.34
+        "invested": 3335.43,
+        "value": 6838.17
       },
       {
         "date": "2025-01-07",
-        "invested": 6670.85,
-        "value": 13676.34
+        "invested": 3335.43,
+        "value": 6838.17
       },
       {
         "date": "2025-01-09",
-        "invested": 6670.85,
-        "value": 13657.25
+        "invested": 3335.43,
+        "value": 6828.62
       },
       {
         "date": "2025-01-10",
-        "invested": 10970.85,
-        "value": 13657.25
+        "invested": 5485.43,
+        "value": 6828.62
       },
       {
         "date": "2025-01-13",
-        "invested": 15170.85,
-        "value": 15814.9
+        "invested": 7585.43,
+        "value": 7907.45
       },
       {
         "date": "2025-01-14",
-        "invested": 15175.85,
-        "value": 15819.9
+        "invested": 7587.93,
+        "value": 7909.95
       },
       {
         "date": "2025-01-16",
-        "invested": 15175.85,
-        "value": 16008.08
+        "invested": 7587.93,
+        "value": 8004.04
       },
       {
         "date": "2025-01-18",
-        "invested": 15175.85,
-        "value": 16027.1
+        "invested": 7587.93,
+        "value": 8013.55
       },
       {
         "date": "2025-01-21",
-        "invested": 15175.85,
-        "value": 16022.93
+        "invested": 7587.93,
+        "value": 8011.47
       },
       {
         "date": "2025-01-22",
-        "invested": 15175.85,
-        "value": 16908.88
+        "invested": 7587.93,
+        "value": 8454.44
       },
       {
         "date": "2025-01-23",
-        "invested": 15175.85,
-        "value": 18814.42
+        "invested": 7587.93,
+        "value": 9407.21
       },
       {
         "date": "2025-01-28",
-        "invested": 15175.85,
-        "value": 18908.07
+        "invested": 7587.93,
+        "value": 9454.03
       },
       {
         "date": "2025-01-29",
-        "invested": 15175.85,
-        "value": 18908.07
+        "invested": 7587.93,
+        "value": 9454.03
       },
       {
         "date": "2025-01-31",
-        "invested": 15175.85,
-        "value": 19007.02
+        "invested": 7587.93,
+        "value": 9503.51
       },
       {
         "date": "2025-02-01",
-        "invested": 15200.85,
-        "value": 19007.02
+        "invested": 7600.43,
+        "value": 9503.51
       },
       {
         "date": "2025-02-03",
-        "invested": 15360.85,
-        "value": 19111.08
+        "invested": 7680.43,
+        "value": 9555.54
       },
       {
         "date": "2025-02-04",
-        "invested": 15360.85,
-        "value": 19111.08
+        "invested": 7680.43,
+        "value": 9555.54
       },
       {
         "date": "2025-02-06",
-        "invested": 15360.85,
-        "value": 19142.95
+        "invested": 7680.43,
+        "value": 9571.48
       },
       {
         "date": "2025-02-08",
-        "invested": 15365.85,
-        "value": 19142.95
+        "invested": 7682.93,
+        "value": 9571.48
       },
       {
         "date": "2025-02-10",
-        "invested": 15365.85,
-        "value": 19177.25
+        "invested": 7682.93,
+        "value": 9588.62
       },
       {
         "date": "2025-02-11",
-        "invested": 15365.85,
-        "value": 19177.25
+        "invested": 7682.93,
+        "value": 9588.62
       },
       {
         "date": "2025-02-13",
-        "invested": 15365.85,
-        "value": 19177.25
+        "invested": 7682.93,
+        "value": 9588.62
       },
       {
         "date": "2025-02-15",
-        "invested": 15370.85,
-        "value": 19177.25
+        "invested": 7685.43,
+        "value": 9588.62
       },
       {
         "date": "2025-02-17",
-        "invested": 15370.85,
-        "value": 19195.55
+        "invested": 7685.43,
+        "value": 9597.77
       },
       {
         "date": "2025-02-18",
-        "invested": 15370.85,
-        "value": 19195.55
+        "invested": 7685.43,
+        "value": 9597.77
       },
       {
         "date": "2025-02-20",
-        "invested": 15370.85,
-        "value": 19208.11
+        "invested": 7685.43,
+        "value": 9604.06
       },
       {
         "date": "2025-02-22",
-        "invested": 15375.85,
-        "value": 19208.11
+        "invested": 7687.93,
+        "value": 9604.06
       },
       {
         "date": "2025-02-24",
-        "invested": 15375.85,
-        "value": 19299.25
+        "invested": 7687.93,
+        "value": 9649.62
       },
       {
         "date": "2025-02-25",
-        "invested": 15375.85,
-        "value": 19299.25
+        "invested": 7687.93,
+        "value": 9649.62
       },
       {
         "date": "2025-02-26",
-        "invested": 23759.55,
-        "value": 24830.81
+        "invested": 11879.77,
+        "value": 12415.41
       },
       {
         "date": "2025-03-01",
-        "invested": 23784.55,
-        "value": 24863.58
+        "invested": 11892.27,
+        "value": 12431.79
       },
       {
         "date": "2025-03-03",
-        "invested": 23784.55,
-        "value": 24914.58
+        "invested": 11892.27,
+        "value": 12457.29
       },
       {
         "date": "2025-03-04",
-        "invested": 29784.45,
-        "value": 30914.74
+        "invested": 14892.23,
+        "value": 15457.37
       },
       {
         "date": "2025-03-06",
-        "invested": 29784.45,
-        "value": 30588.68
+        "invested": 14892.23,
+        "value": 15294.34
       },
       {
         "date": "2025-03-07",
-        "invested": 29784.45,
-        "value": 30562.49
+        "invested": 14892.23,
+        "value": 15281.25
       },
       {
         "date": "2025-03-10",
-        "invested": 29784.45,
-        "value": 30360.77
+        "invested": 14892.23,
+        "value": 15180.39
       },
       {
         "date": "2025-03-11",
-        "invested": 29784.45,
-        "value": 30360.77
+        "invested": 14892.23,
+        "value": 15180.39
       },
       {
         "date": "2025-03-13",
-        "invested": 29784.45,
-        "value": 30312.31
+        "invested": 14892.23,
+        "value": 15156.16
       },
       {
         "date": "2025-03-17",
-        "invested": 29784.45,
-        "value": 30129.18
+        "invested": 14892.23,
+        "value": 15064.59
       },
       {
         "date": "2025-03-18",
-        "invested": 29784.45,
-        "value": 30129.18
+        "invested": 14892.23,
+        "value": 15064.59
       },
       {
         "date": "2025-03-21",
-        "invested": 29784.45,
-        "value": 30167.35
+        "invested": 14892.23,
+        "value": 15083.67
       },
       {
         "date": "2025-03-24",
-        "invested": 29784.45,
-        "value": 30212.4
+        "invested": 14892.23,
+        "value": 15106.2
       },
       {
         "date": "2025-03-25",
-        "invested": 29784.45,
-        "value": 30212.4
+        "invested": 14892.23,
+        "value": 15106.2
       },
       {
         "date": "2025-03-28",
-        "invested": 29784.45,
-        "value": 29712.3
+        "invested": 14892.23,
+        "value": 14856.15
       },
       {
         "date": "2025-04-01",
-        "invested": 29784.45,
-        "value": 29708.3
+        "invested": 14892.23,
+        "value": 14854.15
       },
       {
         "date": "2025-04-02",
-        "invested": 29784.45,
-        "value": 29351.91
+        "invested": 14892.23,
+        "value": 14675.95
       },
       {
         "date": "2025-04-03",
-        "invested": 29784.45,
-        "value": 29174.77
+        "invested": 14892.23,
+        "value": 14587.39
       },
       {
         "date": "2025-04-04",
-        "invested": 29784.45,
-        "value": 29113.22
+        "invested": 14892.23,
+        "value": 14556.61
       },
       {
         "date": "2025-04-07",
-        "invested": 29784.45,
-        "value": 27952.96
+        "invested": 14892.23,
+        "value": 13976.48
       },
       {
         "date": "2025-04-08",
-        "invested": 29784.45,
-        "value": 28265.36
+        "invested": 14892.23,
+        "value": 14132.68
       },
       {
         "date": "2025-04-09",
-        "invested": 29784.45,
-        "value": 28115.22
+        "invested": 14892.23,
+        "value": 14057.61
       },
       {
         "date": "2025-04-11",
-        "invested": 29784.45,
-        "value": 27639.49
+        "invested": 14892.23,
+        "value": 13819.75
       },
       {
         "date": "2025-04-15",
-        "invested": 29784.45,
-        "value": 27639.49
+        "invested": 14892.23,
+        "value": 13819.75
       },
       {
         "date": "2025-04-16",
-        "invested": 29784.45,
-        "value": 27719.81
+        "invested": 14892.23,
+        "value": 13859.91
       },
       {
         "date": "2025-04-22",
-        "invested": 29784.45,
-        "value": 27719.81
+        "invested": 14892.23,
+        "value": 13859.91
       },
       {
         "date": "2025-04-23",
-        "invested": 29784.45,
-        "value": 27540.69
+        "invested": 14892.23,
+        "value": 13770.34
       },
       {
         "date": "2025-04-25",
-        "invested": 29784.45,
-        "value": 28086.86
+        "invested": 14892.23,
+        "value": 14043.43
       },
       {
         "date": "2025-04-28",
-        "invested": 29784.45,
-        "value": 28244.3
+        "invested": 14892.23,
+        "value": 14122.15
       },
       {
         "date": "2025-04-29",
-        "invested": 29784.45,
-        "value": 28244.3
+        "invested": 14892.23,
+        "value": 14122.15
       },
       {
         "date": "2025-05-01",
-        "invested": 29784.45,
-        "value": 28271.93
+        "invested": 14892.23,
+        "value": 14135.97
       },
       {
         "date": "2025-05-02",
-        "invested": 29784.45,
-        "value": 28541.95
+        "invested": 14892.23,
+        "value": 14270.98
       },
       {
         "date": "2025-05-05",
-        "invested": 29784.45,
-        "value": 28682.83
+        "invested": 14892.23,
+        "value": 14341.42
       },
       {
         "date": "2025-05-06",
-        "invested": 29784.45,
-        "value": 28682.83
+        "invested": 14892.23,
+        "value": 14341.42
       },
       {
         "date": "2025-05-08",
-        "invested": 29784.45,
-        "value": 28772.5
+        "invested": 14892.23,
+        "value": 14386.25
       },
       {
         "date": "2025-05-09",
-        "invested": 29784.45,
-        "value": 28882.07
+        "invested": 14892.23,
+        "value": 14441.03
       },
       {
         "date": "2025-05-11",
-        "invested": 29784.45,
-        "value": 28970.71
+        "invested": 14892.23,
+        "value": 14485.35
       },
       {
         "date": "2025-05-12",
-        "invested": 29784.45,
-        "value": 29488.66
+        "invested": 14892.23,
+        "value": 14744.33
       },
       {
         "date": "2025-05-13",
-        "invested": 34584.45,
-        "value": 34288.66
+        "invested": 17292.22,
+        "value": 17144.33
       },
       {
         "date": "2025-05-15",
-        "invested": 34584.45,
-        "value": 34289.19
+        "invested": 17292.22,
+        "value": 17144.6
       },
       {
         "date": "2025-05-16",
-        "invested": 36484.45,
-        "value": 36174.51
+        "invested": 18242.22,
+        "value": 18087.26
       },
       {
         "date": "2025-05-20",
-        "invested": 36484.45,
-        "value": 36174.51
+        "invested": 18242.22,
+        "value": 18087.26
       },
       {
         "date": "2025-05-22",
-        "invested": 36484.45,
-        "value": 36322.31
+        "invested": 18242.22,
+        "value": 18161.15
       },
       {
         "date": "2025-05-23",
-        "invested": 36484.45,
-        "value": 36399.9
+        "invested": 18242.22,
+        "value": 18199.95
       },
       {
         "date": "2025-05-27",
-        "invested": 36484.45,
-        "value": 36401.02
+        "invested": 18242.22,
+        "value": 18200.51
       },
       {
         "date": "2025-06-01",
-        "invested": 36484.45,
-        "value": 36422.67
+        "invested": 18242.22,
+        "value": 18211.33
       },
       {
         "date": "2025-06-02",
-        "invested": 36484.45,
-        "value": 36178.14
+        "invested": 18242.22,
+        "value": 18089.07
       },
       {
         "date": "2025-06-03",
-        "invested": 36484.45,
-        "value": 36178.14
+        "invested": 18242.22,
+        "value": 18089.07
       },
       {
         "date": "2025-06-09",
-        "invested": 36484.45,
-        "value": 36176.15
+        "invested": 18242.22,
+        "value": 18088.08
       },
       {
         "date": "2025-06-10",
-        "invested": 36484.45,
-        "value": 36176.41
+        "invested": 18242.22,
+        "value": 18088.21
       },
       {
         "date": "2025-06-11",
-        "invested": 36484.45,
-        "value": 36176.41
+        "invested": 18242.22,
+        "value": 18088.21
       },
       {
         "date": "2025-06-12",
-        "invested": 36484.45,
-        "value": 36178.26
+        "invested": 18242.22,
+        "value": 18089.13
       },
       {
         "date": "2025-06-16",
-        "invested": 36484.45,
-        "value": 36081.75
+        "invested": 18242.22,
+        "value": 18040.88
       },
       {
         "date": "2025-06-17",
-        "invested": 36484.45,
-        "value": 36081.75
+        "invested": 18242.22,
+        "value": 18040.88
       },
       {
         "date": "2025-06-23",
-        "invested": 36484.45,
-        "value": 36017.34
+        "invested": 18242.22,
+        "value": 18008.67
       },
       {
         "date": "2025-06-24",
-        "invested": 36484.45,
-        "value": 36019.95
+        "invested": 18242.22,
+        "value": 18009.97
       },
       {
         "date": "2025-06-30",
-        "invested": 36484.45,
-        "value": 35982.43
+        "invested": 18242.22,
+        "value": 17991.22
       },
       {
         "date": "2025-07-01",
-        "invested": 36484.45,
-        "value": 35999.86
+        "invested": 18242.22,
+        "value": 17999.93
       },
       {
         "date": "2025-07-02",
-        "invested": 36484.45,
-        "value": 35969.45
+        "invested": 18242.22,
+        "value": 17984.72
       },
       {
         "date": "2025-07-03",
-        "invested": 36484.45,
-        "value": 35969.47
+        "invested": 18242.22,
+        "value": 17984.74
       },
       {
         "date": "2025-07-08",
-        "invested": 36484.45,
-        "value": 35969.47
+        "invested": 18242.22,
+        "value": 17984.74
       },
       {
         "date": "2025-07-09",
-        "invested": 36484.45,
-        "value": 36004.17
+        "invested": 18242.22,
+        "value": 18002.08
       },
       {
         "date": "2025-07-10",
-        "invested": 36484.45,
-        "value": 36004.42
+        "invested": 18242.22,
+        "value": 18002.21
       },
       {
         "date": "2025-07-11",
-        "invested": 36484.45,
-        "value": 36016.51
+        "invested": 18242.22,
+        "value": 18008.26
       },
       {
         "date": "2025-07-15",
-        "invested": 36484.45,
-        "value": 36016.51
+        "invested": 18242.22,
+        "value": 18008.26
       },
       {
         "date": "2025-07-16",
-        "invested": 36484.45,
-        "value": 36264.71
+        "invested": 18242.22,
+        "value": 18132.35
       },
       {
         "date": "2025-07-17",
-        "invested": 36484.45,
-        "value": 36223.48
+        "invested": 18242.22,
+        "value": 18111.74
       },
       {
         "date": "2025-07-18",
-        "invested": 36484.45,
-        "value": 36230.2
+        "invested": 18242.22,
+        "value": 18115.1
       },
       {
         "date": "2025-07-22",
-        "invested": 36484.45,
-        "value": 36230.2
+        "invested": 18242.22,
+        "value": 18115.1
       },
       {
         "date": "2025-07-23",
-        "invested": 36484.45,
-        "value": 36216.0
+        "invested": 18242.22,
+        "value": 18108.0
       },
       {
         "date": "2025-07-25",
-        "invested": 36484.45,
-        "value": 36698.44
+        "invested": 18242.22,
+        "value": 18349.22
       },
       {
         "date": "2025-07-29",
-        "invested": 36484.45,
-        "value": 36698.44
+        "invested": 18242.22,
+        "value": 18349.22
       },
       {
         "date": "2025-07-30",
-        "invested": 36484.45,
-        "value": 36777.82
+        "invested": 18242.22,
+        "value": 18388.91
       },
       {
         "date": "2025-07-31",
-        "invested": 36484.45,
-        "value": 36518.62
+        "invested": 18242.22,
+        "value": 18259.31
       },
       {
         "date": "2025-08-01",
-        "invested": 36484.45,
-        "value": 36518.62
+        "invested": 18242.22,
+        "value": 18259.31
       },
       {
         "date": "2025-08-04",
-        "invested": 36484.45,
-        "value": 36643.84
+        "invested": 18242.22,
+        "value": 18321.92
       },
       {
         "date": "2025-08-05",
-        "invested": 36484.45,
-        "value": 36643.84
+        "invested": 18242.22,
+        "value": 18321.92
       },
       {
         "date": "2025-08-11",
-        "invested": 36484.45,
-        "value": 36745.53
+        "invested": 18242.22,
+        "value": 18372.76
       },
       {
         "date": "2025-08-12",
-        "invested": 36484.45,
-        "value": 36745.53
+        "invested": 18242.22,
+        "value": 18372.76
       },
       {
         "date": "2025-08-14",
-        "invested": 36484.45,
-        "value": 36745.53
+        "invested": 18242.22,
+        "value": 18372.76
       },
       {
         "date": "2025-08-15",
-        "invested": 36484.45,
-        "value": 36745.53
+        "invested": 18242.22,
+        "value": 18372.76
       },
       {
         "date": "2025-08-18",
-        "invested": 36484.45,
-        "value": 36825.15
+        "invested": 18242.22,
+        "value": 18412.58
       },
       {
         "date": "2025-08-19",
-        "invested": 36484.45,
-        "value": 36825.15
+        "invested": 18242.22,
+        "value": 18412.58
       },
       {
         "date": "2025-08-25",
-        "invested": 36484.45,
-        "value": 37255.56
+        "invested": 18242.22,
+        "value": 18627.78
       },
       {
         "date": "2025-08-26",
-        "invested": 36484.45,
-        "value": 37255.56
+        "invested": 18242.22,
+        "value": 18627.78
       },
       {
         "date": "2025-08-29",
-        "invested": 36484.45,
-        "value": 38501.77
+        "invested": 18242.22,
+        "value": 19250.88
       },
       {
         "date": "2025-09-01",
-        "invested": 36484.45,
-        "value": 38501.77
+        "invested": 18242.22,
+        "value": 19250.88
       },
       {
         "date": "2025-09-02",
-        "invested": 36484.45,
-        "value": 38897.15
+        "invested": 18242.22,
+        "value": 19448.58
       },
       {
         "date": "2025-09-09",
-        "invested": 36684.45,
-        "value": 38924.42
+        "invested": 18342.22,
+        "value": 19462.21
       },
       {
         "date": "2025-09-11",
-        "invested": 36684.45,
-        "value": 38924.42
+        "invested": 18342.22,
+        "value": 19462.21
       },
       {
         "date": "2025-09-15",
-        "invested": 36684.45,
-        "value": 38924.42
+        "invested": 18342.22,
+        "value": 19462.21
       },
       {
         "date": "2025-09-16",
-        "invested": 36684.45,
-        "value": 39254.44
+        "invested": 18342.22,
+        "value": 19627.22
       },
       {
         "date": "2025-09-19",
-        "invested": 36684.45,
-        "value": 39750.54
+        "invested": 18342.22,
+        "value": 19875.27
       },
       {
         "date": "2025-09-23",
-        "invested": 36684.45,
-        "value": 39718.9
+        "invested": 18342.22,
+        "value": 19859.45
       },
       {
         "date": "2025-09-30",
-        "invested": 36684.45,
-        "value": 39718.9
+        "invested": 18342.22,
+        "value": 19859.45
       },
       {
         "date": "2025-10-01",
-        "invested": 36684.45,
-        "value": 39718.9
+        "invested": 18342.22,
+        "value": 19859.45
       },
       {
         "date": "2025-10-02",
-        "invested": 36684.45,
-        "value": 40298.96
+        "invested": 18342.22,
+        "value": 20149.48
       },
       {
         "date": "2025-10-07",
-        "invested": 36684.45,
-        "value": 40298.96
+        "invested": 18342.22,
+        "value": 20149.48
       },
       {
         "date": "2025-10-08",
-        "invested": 36684.45,
-        "value": 44226.83
+        "invested": 18342.22,
+        "value": 22113.42
       },
       {
         "date": "2025-10-09",
-        "invested": 38384.45,
-        "value": 44296.03
+        "invested": 19192.22,
+        "value": 22148.01
       },
       {
         "date": "2025-10-13",
-        "invested": 38384.45,
-        "value": 44642.27
+        "invested": 19192.22,
+        "value": 22321.13
       },
       {
         "date": "2025-10-14",
-        "invested": 38384.45,
-        "value": 44642.27
+        "invested": 19192.22,
+        "value": 22321.13
       },
       {
         "date": "2025-10-16",
-        "invested": 38384.45,
-        "value": 45320.58
+        "invested": 19192.22,
+        "value": 22660.29
       },
       {
         "date": "2025-10-21",
-        "invested": 38384.45,
-        "value": 45320.58
+        "invested": 19192.22,
+        "value": 22660.29
       },
       {
         "date": "2025-10-23",
-        "invested": 38384.45,
-        "value": 45312.6
+        "invested": 19192.22,
+        "value": 22656.3
       },
       {
         "date": "2025-10-24",
-        "invested": 56384.45,
-        "value": 58327.98
+        "invested": 28192.22,
+        "value": 29163.99
       },
       {
         "date": "2025-10-28",
-        "invested": 56384.45,
-        "value": 58451.39
+        "invested": 28192.22,
+        "value": 29225.69
       },
       {
         "date": "2025-10-31",
-        "invested": 56384.45,
-        "value": 58461.04
+        "invested": 28192.22,
+        "value": 29230.52
       },
       {
         "date": "2025-11-01",
-        "invested": 56384.45,
-        "value": 58467.67
+        "invested": 28192.22,
+        "value": 29233.83
       },
       {
         "date": "2025-11-03",
-        "invested": 56384.45,
-        "value": 61041.51
+        "invested": 28192.22,
+        "value": 30520.76
       },
       {
         "date": "2025-11-04",
-        "invested": 56384.45,
-        "value": 61041.51
+        "invested": 28192.22,
+        "value": 30520.76
       },
       {
         "date": "2025-11-07",
-        "invested": 56384.45,
-        "value": 61794.84
+        "invested": 28192.22,
+        "value": 30897.42
       },
       {
         "date": "2025-11-10",
-        "invested": 56584.45,
-        "value": 62525.96
+        "invested": 28292.22,
+        "value": 31262.98
       },
       {
         "date": "2025-11-11",
-        "invested": 56584.45,
-        "value": 62525.96
+        "invested": 28292.22,
+        "value": 31262.98
       },
       {
         "date": "2025-11-13",
-        "invested": 56584.45,
-        "value": 62525.96
+        "invested": 28292.22,
+        "value": 31262.98
       },
       {
         "date": "2025-11-17",
-        "invested": 65584.45,
-        "value": 67206.09
+        "invested": 32792.22,
+        "value": 33603.04
       },
       {
         "date": "2025-11-18",
-        "invested": 65584.45,
-        "value": 67206.09
+        "invested": 32792.22,
+        "value": 33603.04
       },
       {
         "date": "2025-11-24",
-        "invested": 65584.45,
-        "value": 67084.31
+        "invested": 32792.22,
+        "value": 33542.15
       },
       {
         "date": "2025-11-25",
-        "invested": 65584.45,
-        "value": 67084.31
+        "invested": 32792.22,
+        "value": 33542.15
       },
       {
         "date": "2025-11-26",
-        "invested": 65584.45,
-        "value": 66972.44
+        "invested": 32792.22,
+        "value": 33486.22
       },
       {
         "date": "2025-11-27",
-        "invested": 65584.45,
-        "value": 66973.4
+        "invested": 32792.22,
+        "value": 33486.7
       },
       {
         "date": "2025-12-01",
-        "invested": 66584.45,
-        "value": 67981.45
+        "invested": 33292.22,
+        "value": 33990.72
       },
       {
         "date": "2025-12-02",
-        "invested": 66584.45,
-        "value": 68957.26
+        "invested": 33292.22,
+        "value": 34478.63
       },
       {
         "date": "2025-12-03",
-        "invested": 68984.45,
-        "value": 70846.79
+        "invested": 34492.22,
+        "value": 35423.39
       },
       {
         "date": "2025-12-04",
-        "invested": 71384.45,
-        "value": 73345.84
+        "invested": 35692.22,
+        "value": 36672.92
       },
       {
         "date": "2025-12-05",
-        "invested": 73784.45,
-        "value": 75745.84
+        "invested": 36892.22,
+        "value": 37872.92
       },
       {
         "date": "2025-12-08",
-        "invested": 74784.45,
-        "value": 76973.14
+        "invested": 37392.22,
+        "value": 38486.57
       },
       {
         "date": "2025-12-09",
-        "invested": 74984.45,
-        "value": 77893.11
+        "invested": 37492.22,
+        "value": 38946.56
       },
       {
         "date": "2025-12-10",
-        "invested": 74984.45,
-        "value": 79759.34
+        "invested": 37492.22,
+        "value": 39879.67
       },
       {
         "date": "2025-12-11",
-        "invested": 74984.45,
-        "value": 79759.34
+        "invested": 37492.22,
+        "value": 39879.67
       },
       {
         "date": "2025-12-15",
-        "invested": 74984.45,
-        "value": 83539.87
+        "invested": 37492.22,
+        "value": 41769.93
       },
       {
         "date": "2025-12-16",
-        "invested": 74984.45,
-        "value": 83398.21
+        "invested": 37492.22,
+        "value": 41699.11
       },
       {
         "date": "2025-12-22",
-        "invested": 75984.45,
-        "value": 83398.21
+        "invested": 37992.22,
+        "value": 41699.11
       },
       {
         "date": "2025-12-23",
-        "invested": 75984.45,
-        "value": 83398.21
+        "invested": 37992.22,
+        "value": 41699.11
       },
       {
         "date": "2025-12-24",
-        "invested": 75984.45,
-        "value": 83398.21
+        "invested": 37992.22,
+        "value": 41699.11
       },
       {
         "date": "2025-12-29",
-        "invested": 77984.45,
-        "value": 83398.21
+        "invested": 38992.22,
+        "value": 41699.11
       },
       {
         "date": "2025-12-30",
-        "invested": 79984.45,
-        "value": 83398.21
+        "invested": 39992.22,
+        "value": 41699.11
       },
       {
         "date": "2026-01-01",
-        "invested": 79984.45,
-        "value": 83398.21
+        "invested": 39992.22,
+        "value": 41699.11
       },
       {
         "date": "2026-01-02",
-        "invested": 79984.45,
-        "value": 83767.51
+        "invested": 39992.22,
+        "value": 41883.75
       },
       {
         "date": "2026-01-05",
-        "invested": 79984.45,
-        "value": 84607.6
+        "invested": 39992.22,
+        "value": 42303.8
       },
       {
         "date": "2026-01-06",
-        "invested": 79984.45,
-        "value": 84607.6
+        "invested": 39992.22,
+        "value": 42303.8
       },
       {
         "date": "2026-01-08",
-        "invested": 79984.45,
-        "value": 84607.6
+        "invested": 39992.22,
+        "value": 42303.8
       },
       {
         "date": "2026-01-09",
-        "invested": 80184.45,
-        "value": 86243.18
+        "invested": 40092.22,
+        "value": 43121.59
       },
       {
         "date": "2026-01-12",
-        "invested": 80184.45,
-        "value": 86304.58
+        "invested": 40092.22,
+        "value": 43152.29
       },
       {
         "date": "2026-01-13",
-        "invested": 80184.45,
-        "value": 86465.18
+        "invested": 40092.22,
+        "value": 43232.59
       },
       {
         "date": "2026-01-16",
-        "invested": 80184.45,
-        "value": 87645.01
+        "invested": 40092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-01-20",
-        "invested": 80184.45,
-        "value": 87645.01
+        "invested": 40092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-01-21",
-        "invested": 84184.45,
-        "value": 87645.01
+        "invested": 42092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-01-26",
-        "invested": 84184.45,
-        "value": 87645.01
+        "invested": 42092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-01-27",
-        "invested": 84184.45,
-        "value": 87645.01
+        "invested": 42092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-01-28",
-        "invested": 84184.45,
-        "value": 87645.01
+        "invested": 42092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-02-01",
-        "invested": 84184.45,
-        "value": 87645.01
+        "invested": 42092.22,
+        "value": 43822.5
       },
       {
         "date": "2026-02-02",
-        "invested": 84184.45,
-        "value": 87234.8
+        "invested": 42092.22,
+        "value": 43617.4
       },
       {
         "date": "2026-02-03",
-        "invested": 84184.45,
-        "value": 87234.8
+        "invested": 42092.22,
+        "value": 43617.4
       },
       {
         "date": "2026-02-04",
-        "invested": 84184.45,
-        "value": 87234.8
+        "invested": 42092.22,
+        "value": 43617.4
       },
       {
         "date": "2026-02-05",
-        "invested": 84184.45,
-        "value": 87234.8
+        "invested": 42092.22,
+        "value": 43617.4
       },
       {
         "date": "2026-02-08",
-        "invested": 84184.45,
-        "value": 86256.85
+        "invested": 42092.22,
+        "value": 43128.43
       }
     ],
     "positionHistories": {}
