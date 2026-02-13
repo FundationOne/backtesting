@@ -32,19 +32,38 @@ Follow these instructions to get the Bitcoin Backtesting App running on your loc
 1. **Clone the repository**:
 
 ```bash
-git clone https://github.com/FundationOne/backtesting.git
+git clone https://github.com/Fundation-UG/backtesting.git
 ```
 
 2. **Navigate to the project directory**:
 
 ```bash
-cd bitcoin_backtesting_app
+cd backtesting
 ```
 
 3. **Install the required dependencies**:
 
 ```bash
 pip install -r requirements.txt
+```
+
+4. **Set up environment variables**:
+
+Create a `.env` file in the root directory and add the following configuration:
+
+```dotenv
+# GoCardless Bank Account Data (PSD2 Bank Sync)
+GC_SECRET_ID=your_secret_id
+GC_SECRET_KEY=your_secret_key
+
+# Redirect URL (Localhost)
+BANK_REDIRECT_URL=http://localhost:8888/banksync
+
+# TR API encryption key
+TR_ENCRYPTION_KEY=your_encryption_key
+
+# Debug mode
+DASH_DEBUG=1
 ```
 
 ### Running the Application
@@ -55,7 +74,7 @@ To start the app, run:
 python main.py
 ```
 
-Navigate to `http://127.0.0.1:8050/` in your web browser to use the app.
+Navigate to `http://127.0.0.1:8888/` in your web browser to use the app.
 
 ## Usage
 
