@@ -84,4 +84,4 @@ stages:
               azureSubscription: $(azureServiceConnectionId)
               appName: $(webAppName)
               package: $(Pipeline.Workspace)/drop/$(Build.BuildId).zip
-              startUpCommand: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 --workers 2 main:server'
+              startUpCommand: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 --preload --workers 2 main:server'

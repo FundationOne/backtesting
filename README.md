@@ -95,7 +95,7 @@ Open `http://127.0.0.1:8888/` in your browser.
 The app is configured for Azure App Service with gunicorn:
 
 ```bash
-gunicorn --bind=0.0.0.0:8000 --timeout 600 --workers 2 main:server
+gunicorn --bind=0.0.0.0:8000 --timeout 600 --preload --workers 2 main:server
 ```
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full deployment instructions.

@@ -620,7 +620,7 @@ def register_callbacks(app):
         [State("tr-connect-modal", "is_open"),
          State("tr-encrypted-creds", "data"),
          State("current-user-store", "data")],
-        prevent_initial_call=False
+        prevent_initial_call='initial_duplicate'
     )
     def toggle_tr_modal(portfolio_data, n_intervals, demo_login_click,
                         is_open, encrypted_creds, current_user):
@@ -713,10 +713,6 @@ def register_callbacks(app):
          State("tr-connect-modal", "is_open"),
          State("current-user-store", "data")],
         prevent_initial_call=True,
-        running=[
-            (Output("sync-tr-data-btn", "disabled"), True, False),
-            (Output("sync-tr-data-btn", "children"), html.I(className="bi bi-arrow-repeat spin"), html.I(className="bi bi-arrow-repeat")),
-        ]
     )
     def sync_data(n_clicks, encrypted_creds, modal_open, current_user):
         if not n_clicks:
