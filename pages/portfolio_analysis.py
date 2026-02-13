@@ -504,7 +504,7 @@ layout = dbc.Container([
                     html.Span(id="winners-losers-badge", className="ms-auto"),
                 ], className="card-header-modern d-flex align-items-center"),
                 dbc.CardBody([
-                    html.Div(id="securities-table-container")
+                    html.Div(id="securities-table-container", style={"overflowX": "auto"})
                 ], className="py-2"),
             ], className="card-modern"),
         ], md=12, className="mb-3"),
@@ -518,7 +518,7 @@ layout = dbc.Container([
     dcc.Store(id="securities-sort", data={"col": "value", "asc": False}),
     dcc.Store(id="securities-data", data=[]),
     dcc.Store(id="privacy-mode", data=False),
-    dcc.Store(id="demo-mode", data=False),
+    dcc.Store(id="demo-mode", data=False, storage_type="local"),
     dcc.Store(id="tr-session-data", storage_type="session"),
     dcc.Store(id="tr-auth-step", data="initial"),
     dcc.Store(id="tr-check-creds-trigger", data=0),
@@ -620,16 +620,14 @@ def register_callbacks(app):
         # Close modal when data loads successfully
         if triggered == "portfolio-data-store" and portfolio_data:
             try:
-                data = json.loads(portfolio_data)
+                data = json.loads(portfolio_data) if isinstance(portfolio_data, str) else portfolio_data
                 if data.get("success"):
                     return False
             except:
                 pass
         
-        # On initial load: only prompt if user IS logged in but has no data/creds
-        if triggered == "load-cached-data-interval":
-            if current_user and not portfolio_data and not encrypted_creds:
-                return True
+        # Never auto-open the modal on page load.
+        # The user can click "Log in" or the sync button to open it.
         
         return is_open
     
