@@ -34,7 +34,7 @@ def register_auth_callbacks(app):
     # Main auth callback - handles login/register/logout with user-namespaced data
     app.clientside_callback(
         """
-        function(login_clicks, register_clicks, logout_clicks, username, password, current_user, active_portfolio) {
+        function(login_clicks, register_clicks, logout_clicks, open_login_clicks, username, password, current_user, active_portfolio) {
             try {
                 const ctx = dash_clientside.callback_context;
                 const triggered = (ctx && ctx.triggered && ctx.triggered.length)
@@ -89,6 +89,12 @@ def register_auth_callbacks(app):
                 if (!triggered) {
                     return [dash_clientside.no_update, false, "", dash_clientside.no_update];
                 }
+
+                // Open login modal from sidebar button
+                if (triggered === "open-login-btn") {
+                    try { document.body.classList.remove("sidebar-open"); } catch(e) {}
+                    return [dash_clientside.no_update, true, "", dash_clientside.no_update];
+                }
                 
                 // Need credentials for login/register
                 if (!username || !password) {
@@ -131,7 +137,8 @@ def register_auth_callbacks(app):
          Output("portfolio-data-store", "data", allow_duplicate=True)],
         [Input("login-btn", "n_clicks"),
          Input("register-btn", "n_clicks"),
-         Input("logout-btn", "n_clicks")],
+         Input("logout-btn", "n_clicks"),
+         Input("open-login-btn", "n_clicks")],
         [State("login-username", "value"),
          State("login-password", "value"),
          State("current-user-store", "data"),
@@ -157,15 +164,4 @@ def register_auth_callbacks(app):
         [Input("current-user-store", "data")]
     )
 
-    # Open login modal from sidebar button
-    app.clientside_callback(
-        """
-        function(n) {
-            if (n) return true;
-            return dash_clientside.no_update;
-        }
-        """,
-        Output("login-modal", "is_open", allow_duplicate=True),
-        Input("open-login-btn", "n_clicks"),
-        prevent_initial_call=True,
-    )
+    # Login modal opening is handled in the main auth callback above.
