@@ -27,7 +27,8 @@ import requests
 # ── Config ──────────────────────────────────────────────────────────────
 GC_BASE = "https://bankaccountdata.gocardless.com/api/v2"
 
-# Credentials from environment or stored config
+# Credentials are read dynamically from environment in get_credentials().
+# Keep import-time values as fallback only.
 GC_SECRET_ID = os.environ.get("GC_SECRET_ID", "")
 GC_SECRET_KEY = os.environ.get("GC_SECRET_KEY", "")
 
@@ -51,14 +52,6 @@ _token_cache: Dict[str, Any] = {
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 
-def _user_cache_dir(user_id: str) -> Path:
-    """Per-user cache directory."""
-    hashed = hashlib.sha256(user_id.encode()).hexdigest()[:16]
-    d = _CACHE_DIR / hashed
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
 def _save_json(path: Path, data: Any):
     path.write_text(json.dumps(data, default=str, indent=2), encoding="utf-8")
 
@@ -73,7 +66,9 @@ def _load_json(path: Path) -> Any:
 
 def get_credentials() -> Tuple[str, str]:
     """Return (secret_id, secret_key) from environment variables."""
-    return GC_SECRET_ID, GC_SECRET_KEY
+    sid = os.environ.get("GC_SECRET_ID") or GC_SECRET_ID
+    skey = os.environ.get("GC_SECRET_KEY") or GC_SECRET_KEY
+    return sid, skey
 
 
 def has_credentials() -> bool:
@@ -152,7 +147,8 @@ def list_institutions(country: str = "DE") -> List[Dict]:
     GET /institutions/?country=XX
     Returns [{id, name, bic, transaction_total_days, logo, countries, ...}]
     """
-    cache_path = _CACHE_DIR / f"institutions_{country.lower()}.json"
+    normalized_country = (country or "DE").upper()
+    cache_path = _CACHE_DIR / f"institutions_{normalized_country.lower()}.json"
     cached = _load_json(cache_path)
     if cached and cached.get("_ts", 0) > time.time() - 86400:
         return cached.get("data", [])
@@ -161,29 +157,80 @@ def list_institutions(country: str = "DE") -> List[Dict]:
     if not h:
         return cached.get("data", []) if cached else []
 
-    try:
-        resp = requests.get(
-            f"{GC_BASE}/institutions/",
-            headers=h,
-            params={"country": country},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        raw = resp.json()
-        institutions = raw if isinstance(raw, list) else raw.get("results", raw.get("data", []))
+    def _extract_institutions(raw_data: Any) -> List[Dict[str, Any]]:
+        if isinstance(raw_data, list):
+            return raw_data
+        if not isinstance(raw_data, dict):
+            return []
+        if isinstance(raw_data.get("results"), list):
+            return raw_data.get("results", [])
+        if isinstance(raw_data.get("data"), list):
+            return raw_data.get("data", [])
+        if isinstance(raw_data.get("institutions"), list):
+            return raw_data.get("institutions", [])
+        return []
 
-        normalised: List[Dict] = []
-        for inst in institutions:
-            normalised.append({
-                "id": inst.get("id", ""),
-                "name": inst.get("name", ""),
+    def _normalize(items: List[Dict[str, Any]], fallback_country: str) -> List[Dict[str, Any]]:
+        normalised_items: List[Dict[str, Any]] = []
+        for inst in items:
+            inst_id = inst.get("id", "")
+            inst_name = inst.get("name", "")
+            if not inst_id or not inst_name:
+                continue
+            countries = inst.get("countries") or [fallback_country]
+            normalised_items.append({
+                "id": inst_id,
+                "name": inst_name,
                 "logo": inst.get("logo", ""),
-                "countries": inst.get("countries", [country]),
+                "countries": countries,
                 "transaction_total_days": inst.get("transaction_total_days", "90"),
                 "bic": inst.get("bic", ""),
             })
-        _save_json(cache_path, {"_ts": time.time(), "data": normalised})
-        return normalised
+        return normalised_items
+
+    try:
+        query_candidates = [normalized_country]
+        if normalized_country == "DE":
+            query_candidates.extend(["de", "DEU"])
+
+        for query_country in query_candidates:
+            resp = requests.get(
+                f"{GC_BASE}/institutions/",
+                headers=h,
+                params={"country": query_country},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+            institutions = _extract_institutions(raw)
+            normalised = _normalize(institutions, normalized_country)
+            if normalised:
+                _save_json(cache_path, {"_ts": time.time(), "data": normalised})
+                return normalised
+
+        # Final fallback for Germany: request unfiltered list and filter by countries metadata
+        if normalized_country == "DE":
+            resp = requests.get(
+                f"{GC_BASE}/institutions/",
+                headers=h,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+            institutions = _extract_institutions(raw)
+            filtered = []
+            for inst in institutions:
+                countries = inst.get("countries") or []
+                countries_upper = [str(c).upper() for c in countries]
+                if "DE" in countries_upper:
+                    filtered.append(inst)
+            normalised = _normalize(filtered, normalized_country)
+            if normalised:
+                _save_json(cache_path, {"_ts": time.time(), "data": normalised})
+                return normalised
+
+        # Keep behavior deterministic: return cached data if present, otherwise empty list
+        return cached.get("data", []) if cached else []
     except Exception as e:
         print(f"[GoCardless] Institutions error: {e}")
         return cached.get("data", []) if cached else []
@@ -279,24 +326,21 @@ def create_requisition(
 
 
 def create_connection(
-    user_id: str = "_default",
     market: str = "DE",
     institution_id: Optional[str] = None,
 ) -> Optional[Dict]:
-    """High-level: create agreement + requisition and save locally.
+    """Create agreement + requisition via GoCardless API.
 
-    If institution_id is omitted, returns None (user must pick a bank).
-    Returns {id, link, requisition_id} or None on failure.
+    Returns a connection dict (caller must persist client-side).
+    Does NOT store any data on the server.
     """
     if not institution_id:
         return None
 
-    # 1) Create end-user agreement
     agreement = create_agreement(institution_id)
     agreement_id = agreement["id"] if agreement else None
 
-    # 2) Create requisition
-    reference = f"apex_{user_id}_{int(time.time())}"
+    reference = f"apex_{int(time.time())}"
     requisition = create_requisition(
         institution_id=institution_id,
         agreement_id=agreement_id,
@@ -305,26 +349,17 @@ def create_connection(
     if not requisition:
         return None
 
-    req_id = requisition.get("id", "")
-    link = requisition.get("link", "")
-
-    # 3) Persist connection reference locally
-    udir = _user_cache_dir(user_id)
-    connections = _load_json(udir / "connections.json") or []
-    connections.append({
+    return {
         "id": reference,
-        "requisition_id": req_id,
+        "requisition_id": requisition.get("id", ""),
         "agreement_id": agreement_id,
         "institution_id": institution_id,
         "status": "CR",
-        "link": link,
+        "link": requisition.get("link", ""),
         "created": datetime.utcnow().isoformat(),
         "market": market,
         "accounts": [],
-    })
-    _save_json(udir / "connections.json", connections)
-
-    return {"id": reference, "link": link, "requisition_id": req_id}
+    }
 
 
 def get_requisition_status(requisition_id: str) -> Optional[Dict]:
@@ -354,41 +389,19 @@ def get_requisition_status(requisition_id: str) -> Optional[Dict]:
         return None
 
 
-def complete_connection(
-    requisition_id: str,
-    user_id: str = "_default",
-) -> bool:
-    """Check requisition status.  If LN (Linked), save the account UUIDs.
+def complete_connection(requisition_id: str) -> Optional[Dict]:
+    """Check requisition status via GoCardless API.
 
-    Returns True if the connection is now linked with accounts.
+    Returns {status, accounts} or None on failure.
+    Does NOT store any data on the server.
     """
     data = get_requisition_status(requisition_id)
     if not data:
-        return False
-
-    status = data.get("status", "")
-    accounts = data.get("accounts", [])
-
-    udir = _user_cache_dir(user_id)
-    connections = _load_json(udir / "connections.json") or []
-
-    for conn in connections:
-        if conn.get("requisition_id") == requisition_id:
-            conn["status"] = status
-            if accounts:
-                conn["accounts"] = accounts
-            break
-
-    _save_json(udir / "connections.json", connections)
-    return status == "LN" and bool(accounts)
-
-
-# ── Connections ──────────────────────────────────────────────────────
-
-def get_user_connections(user_id: str) -> List[Dict]:
-    """Get all cached connections for a user."""
-    udir = _user_cache_dir(user_id)
-    return _load_json(udir / "connections.json") or []
+        return None
+    return {
+        "status": data.get("status", ""),
+        "accounts": data.get("accounts", []),
+    }
 
 
 # ── Accounts ─────────────────────────────────────────────────────────
@@ -426,29 +439,16 @@ def _fetch_account_balances(account_id: str, h: Dict[str, str]) -> List[Dict]:
         return []
 
 
-def fetch_accounts(user_id: str = "_default") -> List[Dict]:
-    """Fetch all accounts from all linked connections.
+def fetch_accounts(account_ids: List[str]) -> List[Dict]:
+    """Fetch account details from GoCardless API for given account UUIDs.
 
-    For each account UUID in each connection, calls:
-      /accounts/{id}/           → metadata (status, institution)
-      /accounts/{id}/details/   → iban, currency, ownerName
-      /accounts/{id}/balances/  → balance amounts
-    Returns normalised list of account dicts.
+    Calls /accounts/{id}/, /details/, /balances/ for each.
+    Returns normalised list.  Does NOT store data on the server.
     """
+    if not account_ids:
+        return []
     h = _auth_headers()
     if not h:
-        udir = _user_cache_dir(user_id)
-        cached = _load_json(udir / "accounts.json")
-        return cached or []
-
-    # Gather all account UUIDs from linked connections
-    connections = get_user_connections(user_id)
-    account_ids: List[str] = []
-    for conn in connections:
-        if conn.get("status") == "LN":
-            account_ids.extend(conn.get("accounts", []))
-
-    if not account_ids:
         return []
 
     normalised: List[Dict] = []
@@ -457,7 +457,6 @@ def fetch_accounts(user_id: str = "_default") -> List[Dict]:
         details = _fetch_account_details(aid, h)
         balances_raw = _fetch_account_balances(aid, h)
 
-        # Best balance: prefer closingBooked or interimAvailable
         balance = None
         currency = details.get("currency", "EUR")
         for bal in balances_raw:
@@ -487,9 +486,6 @@ def fetch_accounts(user_id: str = "_default") -> List[Dict]:
             "institution_id": meta.get("institution_id", ""),
         })
 
-    # Cache
-    udir = _user_cache_dir(user_id)
-    _save_json(udir / "accounts.json", normalised)
     return normalised
 
 
@@ -545,24 +541,24 @@ def fetch_transactions(
 
 def sync_transactions(
     account_id: str,
-    user_id: str = "_default",
-    force_full: bool = False,
+    existing_txs: Optional[List[Dict]] = None,
 ) -> List[Dict]:
-    """Sync transactions with delta support. Returns all merged transactions."""
-    udir = _user_cache_dir(user_id)
-    cache_file = udir / f"transactions_{account_id}.json"
-    cached = _load_json(cache_file)
+    """Fetch transactions from GoCardless and merge with existing ones.
 
-    existing_txs: List[Dict] = []
+    Uses delta sync (3-day overlap) when existing_txs is provided.
+    Does NOT store any data on the server — caller must persist client-side.
+    """
+    existing_txs = existing_txs or []
+
+    # Find last date from existing transactions for delta sync
     last_date: Optional[str] = None
+    for tx in existing_txs:
+        d = tx.get("bookingDate", tx.get("valueDate"))
+        if d and (last_date is None or d > last_date):
+            last_date = d
 
-    if cached and not force_full:
-        existing_txs = cached.get("transactions", [])
-        last_date = cached.get("last_sync_date")
-
-    # Delta: overlap by 3 days to catch any late-settled transactions
     date_from = None
-    if last_date and not force_full:
+    if last_date:
         dt = datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=3)
         date_from = dt.strftime("%Y-%m-%d")
 
@@ -587,32 +583,11 @@ def sync_transactions(
             seen_ids.add(tx_id)
             merged.append(tx)
 
-    # Sort by date descending
     merged.sort(
         key=lambda t: t.get("bookingDate", t.get("valueDate", "1970-01-01")),
         reverse=True,
     )
-
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    _save_json(cache_file, {
-        "account_id": account_id,
-        "last_sync_date": today,
-        "last_sync_ts": time.time(),
-        "transaction_count": len(merged),
-        "transactions": merged,
-    })
-
     return merged
-
-
-def get_cached_transactions(account_id: str, user_id: str = "_default") -> List[Dict]:
-    """Return locally cached transactions without API call."""
-    udir = _user_cache_dir(user_id)
-    cache_file = udir / f"transactions_{account_id}.json"
-    cached = _load_json(cache_file)
-    if cached:
-        return cached.get("transactions", [])
-    return []
 
 
 # ── Transaction normalisation ────────────────────────────────────────
@@ -760,20 +735,9 @@ def categorise_transactions_batch(
     return transactions
 
 
-# ── Rules engine ─────────────────────────────────────────────────────
+# ── Rules engine (pure functions — data lives in browser) ────────────
 
-def load_rules(user_id: str) -> List[Dict]:
-    udir = _user_cache_dir(user_id)
-    return _load_json(udir / "rules.json") or []
-
-
-def save_rules(user_id: str, rules: List[Dict]):
-    udir = _user_cache_dir(user_id)
-    _save_json(udir / "rules.json", rules)
-
-
-def add_rule(
-    user_id: str,
+def make_rule(
     name: str,
     counterparty_pattern: str,
     category: str,
@@ -782,8 +746,8 @@ def add_rule(
     frequency_days: int = 30,
     rule_type: str = "recurring",
 ) -> Dict:
-    rules = load_rules(user_id)
-    rule = {
+    """Create a rule dict.  Caller stores it client-side."""
+    return {
         "id": hashlib.md5(f"{name}_{counterparty_pattern}_{time.time()}".encode()).hexdigest()[:12],
         "name": name,
         "counterparty_pattern": counterparty_pattern.lower(),
@@ -795,15 +759,6 @@ def add_rule(
         "created": datetime.utcnow().isoformat(),
         "active": True,
     }
-    rules.append(rule)
-    save_rules(user_id, rules)
-    return rule
-
-
-def delete_rule(user_id: str, rule_id: str):
-    rules = load_rules(user_id)
-    rules = [r for r in rules if r["id"] != rule_id]
-    save_rules(user_id, rules)
 
 
 def apply_rules(transactions: List[Dict], rules: List[Dict]) -> List[Dict]:
@@ -906,30 +861,22 @@ def compute_monitoring_summary(
     return summaries
 
 
-# ── Delete connection ────────────────────────────────────────────────
+# ── Delete connection (remote cleanup only) ──────────────────────────
 
-def delete_connection(connection_id: str, user_id: str):
-    """Remove a connection from local cache.
+def delete_connection_remote(requisition_id: str):
+    """Delete a requisition on the GoCardless side (best-effort).
 
-    Also deletes the requisition on the GoCardless side (best-effort).
+    Caller removes the connection from client-side storage.
     """
-    udir = _user_cache_dir(user_id)
-    conns = _load_json(udir / "connections.json") or []
-
-    # Try to delete the requisition remotely
-    for c in conns:
-        if c["id"] == connection_id and c.get("requisition_id"):
-            h = _auth_headers()
-            if h:
-                try:
-                    requests.delete(
-                        f"{GC_BASE}/requisitions/{c['requisition_id']}/",
-                        headers=h,
-                        timeout=10,
-                    )
-                except Exception:
-                    pass  # best-effort
-            break
-
-    conns = [c for c in conns if c["id"] != connection_id]
-    _save_json(udir / "connections.json", conns)
+    if not requisition_id:
+        return
+    h = _auth_headers()
+    if h:
+        try:
+            requests.delete(
+                f"{GC_BASE}/requisitions/{requisition_id}/",
+                headers=h,
+                timeout=10,
+            )
+        except Exception:
+            pass

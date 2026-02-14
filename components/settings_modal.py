@@ -40,22 +40,22 @@ settings_modal = dbc.Modal(
             html.Hr(className="settings-divider"),
             
             # Chart Scale Section
-            html.Div([
-                html.Label("Chart Scale", className="settings-label"),
-                html.P("Select how values are displayed on charts", className="settings-help"),
-                dbc.RadioItems(
-                    options=[
-                        {"label": "Logarithmic", "value": "log"},
-                        {"label": "Linear", "value": "linear"},
-                    ],
-                    value="linear",
-                    id="scale-toggle",
-                    className="settings-radio",
-                    inline=True
-                ),
-            ], className="settings-section"),
+            # html.Div([
+            #     html.Label("Chart Scale", className="settings-label"),
+            #     html.P("Select how values are displayed on charts", className="settings-help"),
+            #     dbc.RadioItems(
+            #         options=[
+            #             {"label": "Logarithmic", "value": "log"},
+            #             {"label": "Linear", "value": "linear"},
+            #         ],
+            #         value="linear",
+            #         id="scale-toggle",
+            #         className="settings-radio",
+            #         inline=True
+            #     ),
+            # ], className="settings-section"),
             
-            html.Hr(className="settings-divider"),
+            # html.Hr(className="settings-divider"),
             
             # Theme Section (future)
             html.Div([
