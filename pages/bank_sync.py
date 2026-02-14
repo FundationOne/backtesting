@@ -36,6 +36,7 @@ from components.bank_api import (
     delete_connection_remote,
 )
 from components.i18n import t, get_lang
+from components.multi_select import multi_filter, register_multi_select_callbacks
 
 # ── Layout ──────────────────────────────────────────────────────────────
 
@@ -289,35 +290,20 @@ def _transactions_card(lang="en"):
             # ── Filter row ──
             dbc.Row([
                 dbc.Col([
-                    dbc.Select(
-                        id="tx-category-filter",
-                        options=[{"label": t("bs.all_categories", lang), "value": "all"}],
-                        value="all",
-                        size="sm",
-                        className="bs-filter-control",
-                    ),
+                    multi_filter("tx-category-filter",
+                                 t("bs.all_categories", lang)),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
-                    dbc.Select(
-                        id="tx-account-filter",
-                        options=[{"label": t("bs.all_accounts", lang), "value": "all"}],
-                        value="all",
-                        size="sm",
-                        className="bs-filter-control",
-                    ),
+                    multi_filter("tx-account-filter",
+                                 t("bs.all_accounts", lang)),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
-                    dbc.Select(
-                        id="tx-direction-filter",
-                        options=[
-                            {"label": t("bs.in_out", lang), "value": "all"},
-                            {"label": t("bs.income", lang), "value": "in"},
-                            {"label": t("bs.expense", lang), "value": "out"},
-                        ],
-                        value="all",
-                        size="sm",
-                        className="bs-filter-control",
-                    ),
+                    multi_filter("tx-direction-filter",
+                                  t("bs.in_out", lang),
+                                  options=[
+                                      {"label": t("bs.income", lang), "value": "in"},
+                                      {"label": t("bs.expense", lang), "value": "out"},
+                                  ]),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
                     dcc.DatePickerRange(
@@ -347,22 +333,29 @@ def _transactions_card(lang="en"):
 
             html.Div(id="tx-sync-feedback", className="mb-2"),
 
-            # ── Content: table + donut side by side ──
-            dbc.Row([
-                dbc.Col([
-                    html.Div(id="transactions-container", children=[
-                        html.P(t("bs.connect_first", lang),
-                               className="text-muted small text-center py-4"),
+            dcc.Loading(
+                id="tx-loading",
+                type="default",
+                color="#6366f1",
+                children=[
+                    # ── Content: table + donut side by side ──
+                    dbc.Row([
+                        dbc.Col([
+                            html.Div(id="transactions-container", children=[
+                                html.P(t("bs.connect_first", lang),
+                                       className="text-muted small text-center py-4"),
+                            ]),
+                        ], lg=8),
+                        dbc.Col([
+                            dcc.Graph(
+                                id="tx-category-donut",
+                                config={"displayModeBar": False},
+                                style={"height": "320px"},
+                            ),
+                        ], lg=4, className="d-none d-lg-block"),
                     ]),
-                ], lg=8),
-                dbc.Col([
-                    dcc.Graph(
-                        id="tx-category-donut",
-                        config={"displayModeBar": False},
-                        style={"height": "320px"},
-                    ),
-                ], lg=4, className="d-none d-lg-block"),
-            ]),
+                ],
+            ),
         ]),
     ], className="card-modern mb-4")
 
@@ -387,10 +380,10 @@ def _add_rule_modal(lang="en"):
                 ], md=6),
                 dbc.Col([
                     dbc.Label(t("bs.category", lang), className="small fw-semibold"),
-                    dbc.Select(
-                        id="rule-category-select",
+                    multi_filter(
+                        "rule-category-select",
+                        t("bs.all_categories", lang),
                         options=[{"label": c, "value": c} for c in categories],
-                        size="sm",
                     ),
                 ], md=6),
             ], className="mb-3"),
@@ -459,6 +452,7 @@ def layout(lang="en"):
     dcc.Store(id="bs-active-requisition", storage_type="session"),
     html.Div(id="bs-save-trigger", style={"display": "none"}),
     html.Div(id="bs-save-result", style={"display": "none"}),
+    html.Div(id="bs-ai-log-trigger", style={"display": "none"}),
     # Trigger: fires callback 0b every time this page renders
     html.Div(id="bs-page-ready", children="1", style={"display": "none"}),
 
@@ -605,6 +599,10 @@ def _rule_item(rule, lang="en"):
         f"€{abs(rule.get('expected_amount', 0)):,.2f}"
         if rule.get("expected_amount") else t("bs.any_amount", lang)
     )
+    match_categories = [c for c in (rule.get("match_categories") or []) if c]
+    category_badge = rule.get("category", "")
+    if len(match_categories) > 1:
+        category_badge = f"{match_categories[0]} +{len(match_categories) - 1}"
 
     return html.Div([
         html.Div([
@@ -612,7 +610,7 @@ def _rule_item(rule, lang="en"):
             html.Div([
                 html.Div(rule["name"], className="fw-semibold small"),
                 html.Div([
-                    dbc.Badge(rule.get("category", ""), color="light",
+                    dbc.Badge(category_badge, color="light",
                               text_color="dark", className="me-1"),
                     html.Span(f"{freq_label} · {amt_str}",
                               className="text-muted",
@@ -704,8 +702,25 @@ def _build_donut(normalised, lang="en"):
         )
         return fig
 
-    labels = list(cat_totals.keys())
-    values = list(cat_totals.values())
+    sorted_items = sorted(cat_totals.items(), key=lambda kv: kv[1], reverse=True)
+    total_value = sum(v for _, v in sorted_items) or 1
+
+    max_visible = 7
+    min_share = 0.02  # 2%
+    compact_items = []
+    other_total = 0.0
+    for idx, (label, value) in enumerate(sorted_items):
+        share = value / total_value
+        if idx < max_visible and share >= min_share:
+            compact_items.append((label, value))
+        else:
+            other_total += value
+
+    if other_total > 0:
+        compact_items.append(("Other", other_total))
+
+    labels = [k for k, _ in compact_items]
+    values = [v for _, v in compact_items]
 
     colors = [
         "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -718,15 +733,25 @@ def _build_donut(normalised, lang="en"):
         labels=labels,
         values=values,
         hole=0.55,
-        textinfo="label+percent",
-        textposition="outside",
+        textinfo="percent",
+        textposition="inside",
         textfont=dict(size=10),
+        insidetextorientation="horizontal",
         marker=dict(colors=colors[:len(labels)]),
         hovertemplate="%{label}<br>€%{value:,.2f}<br>%{percent}<extra></extra>",
     )])
     fig.update_layout(
-        margin=dict(l=5, r=5, t=25, b=5),
-        showlegend=False,
+        margin=dict(l=5, r=120, t=25, b=5),
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            x=1.02,
+            y=0.5,
+            yanchor="middle",
+            font=dict(size=10),
+        ),
+        uniformtext_minsize=9,
+        uniformtext_mode="hide",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         title=dict(text=t("bs.by_category", lang), font=dict(size=12),
@@ -767,9 +792,64 @@ def _collect_account_ids(connections):
     return ids
 
 
+def _tx_date(tx):
+    return tx.get("bookingDate") or tx.get("valueDate") or ""
+
+
+def _tx_identity(tx):
+    tx_id = (
+        tx.get("transactionId")
+        or tx.get("internalTransactionId")
+        or tx.get("entryReference")
+        or tx.get("_generated_id")
+        or ""
+    )
+    if tx_id:
+        return str(tx_id)
+
+    tx_copy = dict(tx)
+    tx_copy.pop("_generated_id", None)
+    return hashlib.md5(
+        json.dumps(tx_copy, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+def _append_only_newer_transactions(existing, merged):
+    """Return only truly new (newer) txs from merged without touching existing."""
+    existing = list(existing or [])
+    merged = list(merged or [])
+
+    existing_ids = {_tx_identity(tx) for tx in existing}
+    last_date = max((_tx_date(tx) for tx in existing), default="")
+
+    added = []
+    added_ids = set()
+    for tx in merged:
+        tx_id = _tx_identity(tx)
+        tx_date = _tx_date(tx)
+
+        if tx_id in existing_ids or tx_id in added_ids:
+            continue
+        if last_date and tx_date and tx_date <= last_date:
+            continue
+
+        added.append(tx)
+        added_ids.add(tx_id)
+
+    return added
+
+
 # ── Callbacks ───────────────────────────────────────────────────────────
 
 def register_callbacks(app):
+
+    # ─── Multi-select filter callbacks ──────────────────────────────────
+    register_multi_select_callbacks(app, [
+        ("tx-category-filter", "All categories"),
+        ("tx-account-filter", "All accounts"),
+        ("tx-direction-filter", "In & Out"),
+        ("rule-category-select", "All categories"),
+    ])
 
     # ─── 0. Auth gate ───────────────────────────────────────────────────
     @app.callback(
@@ -977,10 +1057,15 @@ def register_callbacks(app):
                 var s3 = safeSave("txns", transactions, allowTxWrite);
                 var connsCount = Array.isArray(connections) ? connections.length : 0;
                 var txCount = Array.isArray(transactions) ? transactions.length : 0;
+                var parts = String(saveSignal).split(":");
+                var deltaAppended = (parts.length >= 3) ? parseInt(parts[2], 10) : null;
                 console.log("prefix:", pfx);
                 console.log("action:", action, "allowConnsWrite:", allowConnsWrite, "allowTxWrite:", allowTxWrite);
                 console.log("connections:", s1, "count:", connsCount);
                 console.log("transactions:", s3, "count:", txCount);
+                if (action === "sync") {
+                    console.log("[bank-sync] delta appended:", Number.isFinite(deltaAppended) ? deltaAppended : "n/a");
+                }
                 console.log("[bank-save] explicit:", saveSignal,
                             "conns:", s1,
                             "txs:", s3);
@@ -1039,6 +1124,29 @@ def register_callbacks(app):
         """,
         Output("open-settings-link-warning", "n_clicks"),
         Input("open-settings-link-warning", "n_clicks"),
+        prevent_initial_call=True,
+    )
+
+    # ─── 0h. AI categorisation start log (browser console) ────────────
+    app.clientside_callback(
+        """
+        function(n, txs) {
+            if (!n) return "";
+            var all = Array.isArray(txs) ? txs : [];
+            var uncategorised = all.filter(function(t) {
+                return !(t && t._category);
+            }).length;
+            var batchSize = 80;
+            var batches = Math.ceil(uncategorised / batchSize);
+            console.log("[ai-categorise] started; uncategorised:", uncategorised,
+                        "batch_size:", batchSize,
+                        "estimated_batches:", batches);
+            return "";
+        }
+        """,
+        Output("bs-ai-log-trigger", "children"),
+        Input("ai-categorise-btn", "n_clicks"),
+        State("bs-transactions-cache", "data"),
         prevent_initial_call=True,
     )
 
@@ -1201,20 +1309,20 @@ def register_callbacks(app):
                 connections, no_update, no_update, f"auth-complete:{time.time()}",
             )
 
-        # Auto-sync transactions for new accounts
+        # Auto-sync transactions for new accounts (append-only delta)
         sync_feedback = no_update
         if new_accounts:
             for aid in new_accounts:
-                # Get existing txs for this account from cache
+                # Existing txs for this account stay untouched.
                 existing = [t for t in cached_txs
                             if t.get("_account_id") == aid]
-                new_txs = sync_transactions(aid, existing)
-                for tx in new_txs:
+
+                merged = sync_transactions(aid, existing)
+                delta_new = _append_only_newer_transactions(existing, merged)
+                for tx in delta_new:
                     tx["_account_id"] = aid
-                # Remove old txs for this account and add new
-                cached_txs = [t for t in cached_txs
-                              if t.get("_account_id") != aid]
-                cached_txs.extend(new_txs)
+
+                cached_txs.extend(delta_new)
 
             sync_feedback = dbc.Alert(
                 t("bs.auto_synced", lang).format(n_acct=len(new_accounts), n_tx=len(cached_txs)),
@@ -1266,6 +1374,9 @@ def register_callbacks(app):
          Output("bs-transactions-cache", "data", allow_duplicate=True),
          Output("tx-category-filter", "options"),
          Output("tx-account-filter", "options"),
+         Output("tx-category-filter", "value", allow_duplicate=True),
+         Output("tx-account-filter", "value", allow_duplicate=True),
+         Output("tx-direction-filter", "value", allow_duplicate=True),
          Output("tx-category-donut", "figure"),
          Output("bs-save-trigger", "children", allow_duplicate=True)],
         [Input("sync-transactions-btn", "n_clicks"),
@@ -1303,21 +1414,28 @@ def register_callbacks(app):
                     color="warning", className="small py-1 mb-0",
                 )
             else:
-                new_all = []
+                updated_all = list(all_txs)
+                total_new = 0
+                rules_list = rules or []
+
                 for aid in account_ids:
                     existing = [tx_ for tx_ in all_txs
                                 if tx_.get("_account_id") == aid]
                     merged = sync_transactions(aid, existing)
-                    for tx in merged:
-                        tx["_account_id"] = aid
-                    new_all.extend(merged)
 
-                # Apply rules
-                rules_list = rules or []
-                new_all = apply_rules(new_all, rules_list)
-                all_txs = new_all
+                    delta_new = _append_only_newer_transactions(existing, merged)
+                    for tx in delta_new:
+                        tx["_account_id"] = aid
+
+                    if delta_new and rules_list:
+                        delta_new = apply_rules(delta_new, rules_list)
+
+                    updated_all.extend(delta_new)
+                    total_new += len(delta_new)
+
+                all_txs = updated_all
                 store_update = all_txs
-                save_trigger = f"sync:{time.time()}"
+                save_trigger = f"sync:{time.time()}:{total_new}"
 
                 feedback = dbc.Alert(
                     t("bs.synced_n", lang).format(n_tx=len(all_txs), n_acct=len(account_ids)),
@@ -1339,8 +1457,9 @@ def register_callbacks(app):
                 html.P(t("bs.no_tx_yet", lang),
                        className="text-muted small text-center py-4"),
                 feedback, store_update,
-                [{"label": t("bs.all_categories", lang), "value": "all"}],
-                [{"label": t("bs.all_accounts", lang), "value": "all"}],
+                [],
+                [],
+                no_update, no_update, no_update,
                 empty_fig,
                 save_trigger,
             )
@@ -1350,13 +1469,17 @@ def register_callbacks(app):
 
         # ── Build filter dropdowns ──
         cats = sorted(set(n["category"] for n in normalised if n["category"]))
-        cat_options = ([{"label": t("bs.all_categories", lang), "value": "all"}]
-                       + [{"label": c, "value": c} for c in cats])
-        acct_ids = sorted(set(
-            tx.get("_account_id", "") for tx in all_txs if tx.get("_account_id")
-        ))
-        acct_options = ([{"label": t("bs.all_accounts", lang), "value": "all"}]
-                        + [{"label": a[:12], "value": a} for a in acct_ids])
+        cat_options = [{"label": c, "value": c} for c in cats]
+
+        # Account labels: use _account_name if available, else masked ID
+        acct_map = {}
+        for tx in all_txs:
+            aid = tx.get("_account_id", "")
+            if aid and aid not in acct_map:
+                name = tx.get("_account_name", "")
+                acct_map[aid] = name or f"****{aid[-4:]}"
+        acct_options = [{"label": acct_map[a], "value": a}
+                        for a in sorted(acct_map.keys())]
 
         # ── Apply filters ──
         filtered = normalised
@@ -1371,21 +1494,28 @@ def register_callbacks(app):
                         if q in n["counterparty"].lower()
                         or q in n["description"].lower()
                         or q in n.get("category", "").lower()]
-        if cat_filter and cat_filter != "all":
+        selected_categories = set(cat_filter or [])
+        if selected_categories:
             filtered = [n for n in filtered
-                        if n.get("category") == cat_filter]
-        if acct_filter and acct_filter != "all":
+                        if n.get("category") in selected_categories]
+
+        selected_accounts = set(acct_filter or [])
+        if selected_accounts:
             # Need to match back to raw txs
             matching_ids = set()
             for tx in all_txs:
-                if tx.get("_account_id") == acct_filter:
+                if tx.get("_account_id") in selected_accounts:
                     norm = normalize_transaction(tx)
                     matching_ids.add(norm["id"])
             filtered = [n for n in filtered if n["id"] in matching_ids]
-        if dir_filter == "in":
-            filtered = [n for n in filtered if n["amount"] > 0]
-        elif dir_filter == "out":
-            filtered = [n for n in filtered if n["amount"] < 0]
+
+        selected_dirs = set(dir_filter or [])
+        if selected_dirs:
+            filtered = [
+                n for n in filtered
+                if (("in" in selected_dirs and n["amount"] > 0)
+                    or ("out" in selected_dirs and n["amount"] < 0))
+            ]
 
         # ── Donut chart ──
         donut_fig = _build_donut(filtered, lang)
@@ -1406,17 +1536,47 @@ def register_callbacks(app):
                            className="text-muted small text-center mt-2"),
                 ])
 
+        # ── Auto-select all when triggered by non-filter action ──
+        _filter_ids = {"tx-category-filter", "tx-account-filter",
+                       "tx-direction-filter", "tx-filter-input",
+                       "tx-date-range"}
+        if triggered not in _filter_ids:
+            cat_val = [o["value"] for o in cat_options]
+            acct_val = [o["value"] for o in acct_options]
+            dir_val = ["in", "out"]
+        else:
+            cat_val = no_update
+            acct_val = no_update
+            dir_val = no_update
+
         return (
             rows,
             feedback,
             store_update,
             cat_options,
             acct_options,
+            cat_val,
+            acct_val,
+            dir_val,
             donut_fig,
             save_trigger,
         )
 
     # ─── 7. AI categorise ──────────────────────────────────────────────
+    @app.callback(
+        Output("tx-sync-feedback", "children", allow_duplicate=True),
+        Input("ai-categorise-btn", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def ai_categorise_loading_feedback(n):
+        if not n:
+            raise PreventUpdate
+        return dbc.Alert(
+            "Categorising your transactions, please wait...",
+            color="info",
+            className="small py-1 mb-0",
+        )
+
     @app.callback(
         [Output("transactions-container", "children", allow_duplicate=True),
          Output("tx-sync-feedback", "children", allow_duplicate=True),
@@ -1542,8 +1702,12 @@ def register_callbacks(app):
         tol = float(tolerance) / 100 if tolerance else 0.1
         freq_days = int(freq) if freq else 30
 
-        rule = make_rule(name, pattern, category or "Other",
+        selected_categories = [c for c in (category or []) if c]
+        primary_category = selected_categories[0] if selected_categories else "Other"
+
+        rule = make_rule(name, pattern, primary_category,
                          expected_amount, tol, freq_days)
+        rule["match_categories"] = selected_categories
 
         rules = list(rules or [])
         rules.append(rule)

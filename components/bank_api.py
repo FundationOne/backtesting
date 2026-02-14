@@ -672,7 +672,7 @@ def categorise_transactions_batch(
     transactions: List[Dict],
     api_key: str,
     categories: Optional[List[str]] = None,
-    batch_size: int = 30,
+    batch_size: int = 80,
 ) -> List[Dict]:
     """Use OpenAI to categorise a batch of transactions."""
     if not api_key:
@@ -712,13 +712,14 @@ def categorise_transactions_batch(
 
         try:
             resp = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[
                     {"role": "system", "content": "You categorise bank transactions. Be concise."},
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=2000,
                 temperature=0.1,
+                timeout=30,
             )
             raw = resp.choices[0].message.content.strip()
             raw = raw.strip("`").strip()
@@ -771,6 +772,10 @@ def apply_rules(transactions: List[Dict], rules: List[Dict]) -> List[Dict]:
         cp = norm["counterparty"].lower()
         desc = norm["description"].lower()
         for rule in active_rules:
+            match_categories = [c for c in (rule.get("match_categories") or []) if c]
+            if match_categories and norm.get("category") not in match_categories:
+                continue
+
             pattern = rule["counterparty_pattern"]
             if pattern and (pattern in cp or pattern in desc):
                 if rule.get("expected_amount") is not None:
@@ -799,6 +804,11 @@ def get_rule_matches(
         norm = normalize_transaction(tx)
         if norm["date"] < cutoff:
             continue
+
+        match_categories = [c for c in (rule.get("match_categories") or []) if c]
+        if match_categories and norm.get("category") not in match_categories:
+            continue
+
         cp = norm["counterparty"].lower()
         desc = norm["description"].lower()
         if pattern and (pattern in cp or pattern in desc):
