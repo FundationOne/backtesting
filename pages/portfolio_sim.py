@@ -6,6 +6,7 @@ import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
 import yfinance as yf
 import traceback
+from components.i18n import t, get_lang
 
 
 # ──────────────────────────────  SIMULATION  ──────────────────────────────
@@ -107,7 +108,7 @@ _init_table_cols = [{"name": c, "id": c} for c in _df_init.columns]
 
 # ──────────────────────────────  LAYOUT  ──────────────────────────────
 
-def layout():
+def layout(lang="en"):
     """Return a **fresh** layout tree on every call.
 
     Dash multi-page apps with suppress_callback_exceptions=True reuse
@@ -116,9 +117,9 @@ def layout():
     return html.Div([
         # Page Header
         html.Div([
-            html.H4([html.I(className="bi bi-wallet2 me-2"), "Investment Simulator"],
+            html.H4([html.I(className="bi bi-wallet2 me-2"), t("ps.title", lang)],
                     className="page-title"),
-            html.P("Simulate long-term portfolio growth with withdrawals and taxes",
+            html.P(t("ps.subtitle", lang),
                    className="page-subtitle"),
         ], className="page-header"),
 
@@ -128,11 +129,11 @@ def layout():
                 dbc.Card([
                     dbc.CardHeader([
                         html.I(className="bi bi-sliders me-2"),
-                        "Simulation Parameters"
+                        t("ps.params", lang),
                     ], className="card-header-modern"),
                     dbc.CardBody([
                         # Starting Investment
-                        html.Label("Starting Investment", className="input-label"),
+                        html.Label(t("ps.starting_investment", lang), className="input-label"),
                         dbc.InputGroup([
                             dbc.InputGroupText("€"),
                             dbc.Input(id="input-current-value", type="number",
@@ -140,7 +141,7 @@ def layout():
                         ], size="sm", className="mb-3"),
 
                         # Growth Rate
-                        html.Label("Annual Growth Rate", className="input-label"),
+                        html.Label(t("ps.annual_growth", lang), className="input-label"),
                         dbc.InputGroup([
                             dbc.Input(id="input-annual-growth-rate", type="number",
                                       value=_DEFAULTS['growth'], min=0, max=100, step=0.5),
@@ -150,17 +151,17 @@ def layout():
                         html.Hr(className="my-3", style={"borderColor": "#e5e7eb"}),
 
                         # Withdrawal Type
-                        html.Label("Withdrawal Type", className="input-label"),
+                        html.Label(t("ps.withdrawal_type", lang), className="input-label"),
                         dbc.RadioItems(
                             id='withdrawal-type',
                             options=[
-                                {'label': ' Fixed Sum (€)', 'value': 'fixed'},
-                                {'label': ' Percentage (%)', 'value': 'percentage'},
+                                {'label': t("ps.fixed_sum", lang), 'value': 'fixed'},
+                                {'label': t("ps.percentage", lang), 'value': 'percentage'},
                             ],
                             value='fixed', inline=True, className="mb-2",
                         ),
 
-                        html.Label("Annual Withdrawal", className="input-label"),
+                        html.Label(t("ps.annual_withdrawal", lang), className="input-label"),
                         dbc.InputGroup([
                             dbc.Input(id="input-annual-withdrawal", type="number",
                                       value=_DEFAULTS['withdrawal'], min=0),
@@ -170,24 +171,24 @@ def layout():
                         html.Hr(className="my-3", style={"borderColor": "#e5e7eb"}),
 
                         # Time Frame
-                        html.Label("Simulation Time Frame", className="input-label"),
+                        html.Label(t("ps.time_frame", lang), className="input-label"),
                         dcc.Dropdown(
                             id="simulation-time-frame",
                             options=[
-                                {'label': 'Custom Years', 'value': 'custom'},
-                                {'label': 'S&P 500 Historical', 'value': 'sp500'},
+                                {'label': t("ps.custom_years", lang), 'value': 'custom'},
+                                {'label': t("ps.sp500_historical", lang), 'value': 'sp500'},
                             ],
                             value='custom', clearable=False, className="mb-2",
                         ),
 
                         html.Div(id="custom-years-input", children=[
-                            html.Label("Years to Simulate", className="input-label"),
+                            html.Label(t("ps.years_to_simulate", lang), className="input-label"),
                             dbc.Input(id="input-years-to-simulate", type="number",
                                       value=_DEFAULTS['years'], min=1, max=100, size="sm",
                                       className="mb-2"),
                         ]),
                         html.Div(id="sp500-year-input", style={'display': 'none'}, children=[
-                            html.Label("Starting Year (S&P 500)", className="input-label"),
+                            html.Label(t("ps.sp500_start_year", lang), className="input-label"),
                             dcc.Dropdown(
                                 id="input-sp500-start-year",
                                 options=[{'label': str(y), 'value': y} for y in range(1928, 2026)],
@@ -198,17 +199,17 @@ def layout():
                         html.Hr(className="my-3", style={"borderColor": "#e5e7eb"}),
 
                         # Tax
-                        html.Label("Capital Gains Tax Rate", className="input-label"),
+                        html.Label(t("ps.tax_rate", lang), className="input-label"),
                         dbc.InputGroup([
                             dbc.Input(id="input-tax-rate", type="number",
                                       value=_DEFAULTS['tax'], min=0, max=100, step=0.5),
                             dbc.InputGroupText("%"),
                         ], size="sm", className="mb-3"),
 
-                        html.Label("Taxation Method", className="input-label"),
+                        html.Label(t("ps.tax_method", lang), className="input-label"),
                         dcc.Dropdown(
                             id="input-tax-method",
-                            options=[{'label': 'FIFO (First In, First Out)', 'value': 'FIFO'}],
+                            options=[{'label': t("ps.fifo", lang), 'value': 'FIFO'}],
                             value='FIFO', clearable=False, className="mb-3",
                         ),
 
@@ -217,7 +218,7 @@ def layout():
                         # Run button
                         dbc.Button([
                             html.I(className="bi bi-play-fill me-2"),
-                            "Run Simulation",
+                            t("ps.run_sim", lang),
                         ], id="run-simulation-btn", color="primary", className="w-100",
                            size="lg", style={"fontWeight": "600"}),
 
@@ -232,10 +233,10 @@ def layout():
                 dbc.Card([
                     dbc.CardHeader([
                         html.I(className="bi bi-graph-up me-2"),
-                        "Portfolio Projection",
+                        t("ps.projection", lang),
                         dbc.Button([
                             html.I(className="bi bi-play-fill me-1"),
-                            "Run Simulation",
+                            t("ps.run_sim", lang),
                         ], id="run-simulation-btn-top", color="primary", size="sm",
                            className="ms-auto", style={"fontWeight": "600"}),
                     ], className="card-header-modern d-flex align-items-center"),
@@ -252,7 +253,7 @@ def layout():
                 dbc.Card([
                     dbc.CardHeader([
                         html.I(className="bi bi-table me-2"),
-                        "Year-by-Year Breakdown"
+                        t("ps.breakdown", lang),
                     ], className="card-header-modern"),
                     dbc.CardBody([
                         dash_table.DataTable(

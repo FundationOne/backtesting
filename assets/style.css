@@ -3170,10 +3170,138 @@ hr {
     height: 16px;
 }
 
+/* Bank sync filter bar */
+.bs-filter-row .col-md-2,
+.bs-filter-row .col-md-3 {
+    display: flex;
+    align-items: center;
+}
+
+.bs-filter-control,
+.bs-filter-search .input-group-text,
+.bs-filter-search .form-control,
+.bs-filter-row .DateRangePickerInput {
+    height: 36px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    background: #fff !important;
+    box-shadow: none !important;
+}
+
+.bs-filter-search .input-group-text {
+    border-right: 0 !important;
+    color: #64748b !important;
+    padding: 0 0.65rem !important;
+}
+
+.bs-filter-search .form-control {
+    border-left: 0 !important;
+    padding-left: 0.35rem !important;
+}
+
+.bs-filter-search .form-control::placeholder {
+    color: #94a3b8;
+}
+
+.bs-filter-control:focus,
+.bs-filter-search .form-control:focus,
+.bs-filter-row .DateRangePickerInput:focus-within {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12) !important;
+}
+
+.bs-filter-row .DateRangePickerInput {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.25rem;
+}
+
+.bs-filter-row .DateInput {
+    width: 88px;
+}
+
+.bs-filter-row .DateInput_input {
+    height: 34px !important;
+    border: none !important;
+    padding: 4px 6px !important;
+    font-size: 0.8rem !important;
+}
+
+.bs-filter-row .DateRangePickerInput_arrow {
+    padding: 0 0.15rem;
+}
+
 @media (max-width: 768px) {
     .portfolio-analysis-page .sticky-header {
         position: sticky !important;
         top: 48px !important;
         z-index: 100 !important;
     }
+}
+
+/* ── Shadcn-like Select dropdowns ─────────────────────────────────── */
+.form-select {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color: #1e293b;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0.375rem 2rem 0.375rem 0.75rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 12px 12px;
+}
+.form-select:hover {
+    border-color: #cbd5e1;
+}
+.form-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    outline: none;
+}
+.form-select-sm {
+    font-size: 0.78rem;
+    padding: 0.3rem 1.8rem 0.3rem 0.6rem;
+    border-radius: 0.375rem;
+}
+/* Default/placeholder option styling */
+.form-select option[value=""] {
+    color: #94a3b8;
+}
+.form-select option {
+    font-weight: 500;
+}
+
+/* ── Language dropdown ─────────────────────────────────────────────── */
+.lang-dropdown-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    padding: 0.3rem 0;
+    min-width: 130px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    z-index: 1050;
+}
+.lang-dropdown-item {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    color: #cbd5e1;
+    transition: background 0.12s ease;
+    white-space: nowrap;
+}
+.lang-dropdown-item:hover {
+    background: rgba(99, 102, 241, 0.2);
+    color: #fff;
 }

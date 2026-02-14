@@ -1,6 +1,6 @@
 """Settings modal component with cog icon trigger."""
 import dash_bootstrap_components as dbc
-from dash import dcc, html, Input, Output, State, no_update
+from dash import dcc, html, Input, Output, State, no_update, ClientsideFunction
 
 # Settings button (cog icon) for the sidebar
 settings_button = html.Div(
@@ -86,8 +86,11 @@ settings_modal = dbc.Modal(
     size="md",
 )
 
-# Hidden store for API key persistence
-api_key_store = dcc.Store(id='api_key_store', storage_type='session')
+# Hidden store for API key persistence (memory — persisted per-user via clientside JS)
+api_key_store = html.Div([
+    dcc.Store(id='api_key_store', storage_type='memory'),
+    html.Div(id="apikey-save-trigger", style={"display": "none"}),
+])
 
 
 def register_settings_callbacks(app):
@@ -96,17 +99,18 @@ def register_settings_callbacks(app):
     @app.callback(
         Output("settings-modal", "is_open"),
         [Input("open-settings-modal", "n_clicks"),
-         Input("close-settings-modal", "n_clicks")],
+         Input("close-settings-modal", "n_clicks"),
+         Input("open-settings-link", "n_clicks")],
         [State("settings-modal", "is_open")],
         prevent_initial_call=True
     )
-    def toggle_settings_modal(open_clicks, close_clicks, is_open):
-        if open_clicks or close_clicks:
+    def toggle_settings_modal(open_clicks, close_clicks, link_clicks, is_open):
+        if open_clicks or close_clicks or link_clicks:
             return not is_open
         return is_open
     
     @app.callback(
-        Output('api_key_store', 'data'),
+        Output('api_key_store', 'data', allow_duplicate=True),
         [Input("input-openai-api-key", "value")],
         prevent_initial_call=True
     )
@@ -117,12 +121,46 @@ def register_settings_callbacks(app):
     
     @app.callback(
         Output('input-openai-api-key', 'value'),
-        Input('url', 'pathname'),
-        State('api_key_store', 'data')
+        Input('api_key_store', 'data'),
     )
-    def initialize_api_key_input(_trigger, data):
+    def initialize_api_key_input(data):
         if data and 'api_key' in data:
             return data['api_key']
         return ''
+
+    # ── Per-user persistence: save API key to localStorage on change ──
+    app.clientside_callback(
+        """
+        function(api_data, user) {
+            if (!user || !api_data || !api_data.api_key) return "";
+            try {
+                localStorage.setItem("apex_apikey_" + user, api_data.api_key);
+            } catch(e) { console.error("API key save error:", e); }
+            return "";
+        }
+        """,
+        Output("apikey-save-trigger", "children"),
+        [Input("api_key_store", "data")],
+        [State("current-user-store", "data")],
+        prevent_initial_call=True,
+    )
+
+    # ── Per-user persistence: load API key from localStorage on login / page load ──
+    # This is the PRIMARY output (no allow_duplicate) so it fires on initial load.
+    app.clientside_callback(
+        """
+        function(user, pathname) {
+            if (!user) return null;
+            try {
+                var key = localStorage.getItem("apex_apikey_" + user);
+                if (key) return {"api_key": key};
+            } catch(e) { console.error("API key load error:", e); }
+            return null;
+        }
+        """,
+        Output("api_key_store", "data"),
+        [Input("current-user-store", "data"),
+         Input("url", "pathname")],
+    )
 
 

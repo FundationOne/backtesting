@@ -4,6 +4,7 @@ from dash import dcc, html, dash_table, Input, Output, State
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
+from components.i18n import t, get_lang
 
 
 def _interpolate_rgb(c1, c2, t):
@@ -133,60 +134,61 @@ df_dash = df_dash.sort_values(by='Total Value', ascending=False)
 df_dash['Total Value'] = df_dash['Total Value'].apply(lambda x: f"${x:,.2f}")
 df_dash['Total Value Times Probability'] = df_dash['Total Value Times Probability'].apply(lambda x: f"${x:,.2f}")
 
-# Create input fields for each risk band
-risk_band_inputs = []
-for i in range(num_bands):
+def layout(lang="en"):
     # Create input fields for each risk band
-    risk_band_inputs = [
-        dbc.Row([
-            dbc.Col(html.Label("Risk Band", style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
-            dbc.Col(html.Label("Stop Loss", style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
-            dbc.Col(html.Label("Prob (%)", style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
-            dbc.Col(html.Label("Push (%)", style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
-        ], className="mb-2"),
-    ]
-    
+    risk_band_inputs = []
     for i in range(num_bands):
-        risk_band_inputs.append(
+        # Create input fields for each risk band
+        risk_band_inputs = [
             dbc.Row([
-                dbc.Col(
-                    html.Label(f"Band {i+1}", style={
-                        "fontSize": "12px",
-                        "marginTop": "0px",
-                        "display": "inline-block"
-                    }),
-                    width=3,
-                    className="d-flex align-items-center"
-                ),
-                dbc.Col(
-                    dbc.Input(
-                        id=f"stop-loss-price-{i+1}",
-                        type="number",
-                        value=stop_loss_prices_list[i],
-                        style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
-                    ), width=3, className="px-1"
-                ),
-                dbc.Col(
-                    dbc.Input(
-                        id=f"probability-{i+1}",
-                        type="number",
-                        value=probabilities_list[i],
-                        style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
-                    ), width=3, className="px-1"
-                ),
-                dbc.Col(
-                    dbc.Input(
-                        id=f"percentage-pushed-{i+1}",
-                        type="number",
-                        value=percentage_pushed_list[i],
-                        style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
-                    ), width=3, className="px-1"
-                ),
-            ], className="mb-1", style={"marginBottom": "2px"})
-        )
+                dbc.Col(html.Label(t("rb.risk_band", lang), style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
+                dbc.Col(html.Label(t("rb.stop_loss", lang), style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
+                dbc.Col(html.Label(t("rb.prob", lang), style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
+                dbc.Col(html.Label(t("rb.push", lang), style={"fontSize": "12px", "fontWeight": "bold"}), width=3),
+            ], className="mb-2"),
+        ]
 
-# Define the layout for the riskbands page
-layout = html.Div([
+        for i in range(num_bands):
+            risk_band_inputs.append(
+                dbc.Row([
+                    dbc.Col(
+                        html.Label(t("rb.band_n", lang).format(n=i+1), style={
+                            "fontSize": "12px",
+                            "marginTop": "0px",
+                            "display": "inline-block"
+                        }),
+                        width=3,
+                        className="d-flex align-items-center"
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id=f"stop-loss-price-{i+1}",
+                            type="number",
+                            value=stop_loss_prices_list[i],
+                            style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
+                        ), width=3, className="px-1"
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id=f"probability-{i+1}",
+                            type="number",
+                            value=probabilities_list[i],
+                            style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
+                        ), width=3, className="px-1"
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id=f"percentage-pushed-{i+1}",
+                            type="number",
+                            value=percentage_pushed_list[i],
+                            style={"width": "100%", "fontSize": "12px", "padding": "2px 5px"}
+                        ), width=3, className="px-1"
+                    ),
+                ], className="mb-1", style={"marginBottom": "2px"})
+            )
+
+    # Define the layout for the riskbands page
+    return html.Div([
     # Page Header  
     html.Div([
         html.Div([
@@ -199,13 +201,10 @@ layout = html.Div([
                 "display": "flex", "alignItems": "center", "justifyContent": "center",
                 "margin": "0 auto 16px"
             }),
-            html.H3("Bitcoin Exit Strategy — Risk Bands", 
+            html.H3(t("rb.title", lang), 
                      style={"fontWeight": "700", "color": "#1e293b", "marginBottom": "8px"}),
             html.P(
-                "Plan your Bitcoin exit strategy by defining price bands where you "
-                "progressively take profits. This tool simulates every possible path "
-                "Bitcoin's price could take through your bands and shows you the "
-                "expected outcome of each scenario.",
+                t("rb.description", lang),
                 style={"color": "#64748b", "maxWidth": "640px", "margin": "0 auto", "lineHeight": "1.6"}
             ),
         ], className="text-center"),
@@ -214,7 +213,7 @@ layout = html.Div([
     # How-it-works collapsible
     html.Div([
         dbc.Button(
-            [html.I(className="bi bi-question-circle me-2"), "How does this work?"],
+            [html.I(className="bi bi-question-circle me-2"), t("rb.how_it_works", lang)],
             id="riskband-help-toggle",
             color="link",
             size="sm",
@@ -232,9 +231,8 @@ layout = html.Div([
                                 "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
                             }),
                             html.Span([
-                                html.Strong("Define your bands. "),
-                                "Set price levels (Stop Loss) at which you'd sell. "
-                                "For example, Band 1 at $79k, Band 5 at $167k."
+                                html.Strong(t("rb.step1_title", lang)),
+                                t("rb.step1_text", lang)
                             ]),
                         ], className="d-flex align-items-start mb-3"),
                         html.Div([
@@ -245,9 +243,8 @@ layout = html.Div([
                                 "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
                             }),
                             html.Span([
-                                html.Strong("Set probabilities. "),
-                                "How likely is Bitcoin to reach each band? "
-                                "Lower bands are more likely (e.g. 100%) while higher bands are less likely (e.g. 20%)."
+                                html.Strong(t("rb.step2_title", lang)),
+                                t("rb.step2_text", lang)
                             ]),
                         ], className="d-flex align-items-start mb-3"),
                         html.Div([
@@ -258,16 +255,11 @@ layout = html.Div([
                                 "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
                             }),
                             html.Span([
-                                html.Strong("Push % controls how much BTC moves up. "),
-                                "When Bitcoin’s price rises from one band to the next, this percentage of your BTC "
-                                "in the current band gets moved (\"pushed\") up to that higher band — it is NOT sold yet, "
-                                "it just sits there waiting. If the price later drops back down, that BTC gets sold "
-                                "at the higher band’s stop-loss price. ",
+                                html.Strong(t("rb.step3_title", lang)),
+                                t("rb.step3_text", lang),
                                 html.Br(),
                                 html.Em(
-                                    "Example: You have 1 BTC in Band 1 ($79k) and Push is 80%. "
-                                    "Price rises to Band 2 ($88k) → 0.8 BTC moves up to Band 2, 0.2 BTC stays in Band 1. "
-                                    "If the price then drops, that 0.8 BTC is sold at Band 2’s $88k stop-loss.",
+                                    t("rb.step3_example", lang),
                                     style={"color": "#6366f1", "fontSize": "0.82rem"}
                                 ),
                             ]),
@@ -280,9 +272,8 @@ layout = html.Div([
                                 "fontWeight": "700", "marginRight": "10px", "flexShrink": "0"
                             }),
                             html.Span([
-                                html.Strong("Read the results. "),
-                                "The chart shows all possible price paths color-coded by total exit value "
-                                "(green = best, red = worst). The table lists every scenario ranked by outcome."
+                                html.Strong(t("rb.step4_title", lang)),
+                                t("rb.step4_text", lang)
                             ]),
                         ], className="d-flex align-items-start"),
                     ], style={"fontSize": "0.85rem", "color": "#475569", "lineHeight": "1.6"}),
@@ -300,25 +291,23 @@ layout = html.Div([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-sliders me-2"),
-                    "Band Configuration"
+                    t("rb.band_config", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     html.P(
-                        "Configure your price bands from lowest to highest. "
-                        "Adjust stop-loss prices, probability of reaching each band, "
-                        "and the % of holdings pushed to the next band.",
+                        t("rb.band_config_desc", lang),
                         style={"fontSize": "0.8rem", "color": "#94a3b8", "marginBottom": "12px", "lineHeight": "1.5"}
                     ),
                     *risk_band_inputs,
                     # Heatmap below the inputs
                     html.Div([
-                        html.H6("Sensitivity Heatmap", style={
+                        html.H6(t("rb.heatmap", lang), style={
                             "fontSize": "0.8rem", "fontWeight": "600", "color": "#64748b",
                             "textTransform": "uppercase", "letterSpacing": "0.04em",
                             "marginTop": "16px", "marginBottom": "4px"
                         }),
                         html.P(
-                            "Click any cell to apply that combination of push % and probability spread.",
+                            t("rb.heatmap_hint", lang),
                             style={"fontSize": "0.75rem", "color": "#94a3b8", "marginBottom": "8px"}
                         ),
                         dcc.Graph(id='heatmap-graph',
@@ -332,19 +321,18 @@ layout = html.Div([
                 dbc.Card([
                     dbc.CardHeader([
                         html.I(className="bi bi-graph-up me-2"),
-                        "Scenario Analysis"
+                        t("rb.scenario_analysis", lang)
                     ], className="card-header-modern"),
                     dbc.CardBody([
                         html.P(
-                            "Each line represents a possible price path through your bands. "
-                            "Green lines are the most profitable outcomes, red lines the least.",
+                            t("rb.scenario_desc", lang),
                             style={"fontSize": "0.8rem", "color": "#94a3b8", "marginBottom": "8px", "lineHeight": "1.5"}
                         ),
                         dcc.Graph(id='scenario-graph', className="chart-container",
                                   config={"displayModeBar": False, "displaylogo": False}),
                         # Totals Div
                         html.Div(id='totals-div', style={"marginTop": "20px"}),
-                        html.H6("All Scenarios", style={
+                        html.H6(t("rb.all_scenarios", lang), style={
                             "fontSize": "0.8rem", "fontWeight": "600", "color": "#64748b",
                             "textTransform": "uppercase", "letterSpacing": "0.04em",
                             "marginTop": "16px", "marginBottom": "8px"
@@ -389,9 +377,11 @@ def register_callbacks(app):
          Output('heatmap-graph', 'figure')],
         [Input(f'stop-loss-price-{i+1}', 'value') for i in range(num_bands)] +
         [Input(f'probability-{i+1}', 'value') for i in range(num_bands)] +
-        [Input(f'percentage-pushed-{i+1}', 'value') for i in range(num_bands)]
+        [Input(f'percentage-pushed-{i+1}', 'value') for i in range(num_bands)],
+        [State("lang-store", "data")],
     )
     def update_scenarios(*args):
+        lang = get_lang(args[-1])
         stop_loss_prices = args[:num_bands]
         probabilities = args[num_bands:2*num_bands]
         percentage_pushed_list = args[2*num_bands:3*num_bands]
@@ -528,8 +518,8 @@ def register_callbacks(app):
 
         # Create content for totals-div
         totals_div_content = [
-            html.Div(f"TOTAL SUM: ${total_sum:,.2f}", style={'fontWeight': 'bold', 'fontSize': '16px'}),
-            html.Div(f"TOTAL SUM X PROBABILITY: ${total_sub_probability:,.2f}", style={'fontWeight': 'bold', 'fontSize': '16px'})
+            html.Div(t("rb.total_sum", lang).format(val=f"{total_sum:,.2f}"), style={'fontWeight': 'bold', 'fontSize': '16px'}),
+            html.Div(t("rb.total_sum_prob", lang).format(val=f"{total_sub_probability:,.2f}"), style={'fontWeight': 'bold', 'fontSize': '16px'})
         ]
 
         # Compute heatmap data

@@ -4,8 +4,9 @@ Connect bank accounts via GoCardless Bank Account Data (PSD2 Open Banking),
 sync transactions, categorise with AI, create recurring-transaction rules,
 and monitor expected vs actual cash flows.
 
-SECURITY: All user data (connections, transactions, rules) is stored
+SECURITY: Persisted data (connections + transactions) is stored
 exclusively in the user's browser (localStorage) and NEVER on the server.
+Rules are kept in memory for the active session unless you extend persistence.
 Data is namespaced per user so different users on the same browser
 cannot access each other's data.
 """
@@ -34,10 +35,11 @@ from components.bank_api import (
     compute_monitoring_summary,
     delete_connection_remote,
 )
+from components.i18n import t, get_lang
 
 # ── Layout ──────────────────────────────────────────────────────────────
 
-def _setup_card():
+def _setup_card(lang="en"):
     """Shown when GoCardless credentials are not configured server-side."""
     return dbc.Card([
         dbc.CardBody([
@@ -45,28 +47,26 @@ def _setup_card():
                 html.I(className="bi bi-exclamation-triangle",
                        style={"fontSize": "2.5rem", "color": "#f59e0b"}),
             ], className="text-center mb-3"),
-            html.H5("Bank Sync Not Available", className="text-center mb-2"),
+            html.H5(t("bs.not_available", lang), className="text-center mb-2"),
             html.P(
-                "Bank account sync is not configured on this server. "
-                "The administrator needs to set GC_SECRET_ID and GC_SECRET_KEY "
-                "environment variables to enable PSD2 Open Banking connections.",
+                t("bs.not_configured", lang),
                 className="text-center text-muted small mb-0",
             ),
         ])
     ], className="card-modern mb-4", style={"maxWidth": "520px", "margin": "0 auto"})
 
 
-def _bank_connect_card():
+def _bank_connect_card(lang="en"):
     """Bank connection via GoCardless requisition flow."""
     return dbc.Card([
         dbc.CardHeader([
             html.I(className="bi bi-link-45deg me-2"),
-            "Connect Bank Account",
+            t("bs.connect_bank", lang),
         ], className="card-header-modern"),
         dbc.CardBody([
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("Country", className="small fw-semibold"),
+                    dbc.Label(t("bs.country", lang), className="small fw-semibold"),
                     dbc.Select(
                         id="bank-country-select",
                         options=[
@@ -92,10 +92,10 @@ def _bank_connect_card():
                     ),
                 ], md=4),
                 dbc.Col([
-                    dbc.Label("Bank", className="small fw-semibold"),
+                    dbc.Label(t("bs.bank", lang), className="small fw-semibold"),
                     dbc.Select(
                         id="bank-institution-select",
-                        options=[{"label": "Select country first…", "value": ""}],
+                        options=[{"label": t("bs.select_country_first", lang), "value": ""}],
                         value="",
                         size="sm",
                     ),
@@ -103,7 +103,7 @@ def _bank_connect_card():
                 dbc.Col([
                     dbc.Label(" ", className="small"),
                     dbc.Button(
-                        [html.I(className="bi bi-bank me-2"), "Connect"],
+                        [html.I(className="bi bi-bank me-2"), t("bs.connect_btn", lang)],
                         id="connect-bank-btn",
                         color="primary",
                         className="w-100",
@@ -115,23 +115,21 @@ def _bank_connect_card():
             html.Div(id="bank-connect-feedback", children=[
                 html.P([
                     html.I(className="bi bi-info-circle me-2"),
-                    "Select your country and bank, then click 'Connect' to open "
-                    "your bank's secure login via GoCardless. "
-                    "After authenticating, you'll be redirected back here.",
+                    t("bs.connect_info", lang),
                 ], className="text-muted small mb-0"),
             ]),
         ]),
     ], className="card-modern mb-4")
 
 
-def _connected_accounts_card():
+def _connected_accounts_card(lang="en"):
     """Shows connected bank accounts with balances."""
     return dbc.Card([
         dbc.CardHeader([
             html.I(className="bi bi-wallet2 me-2"),
-            "Connected Accounts",
+            t("bs.connected_accounts", lang),
             dbc.Button(
-                [html.I(className="bi bi-arrow-clockwise me-1"), "Refresh"],
+                [html.I(className="bi bi-arrow-clockwise me-1"), t("bs.refresh", lang)],
                 id="refresh-accounts-btn",
                 color="link",
                 size="sm",
@@ -140,28 +138,28 @@ def _connected_accounts_card():
             ),
         ], className="card-header-modern"),
         dbc.CardBody(id="connected-accounts-body", children=[
-            html.P("No accounts connected yet.", className="text-muted small text-center py-3"),
+            html.P(t("bs.no_accounts", lang), className="text-muted small text-center py-3"),
         ]),
     ], className="card-modern mb-4")
 
 
-def _bank_connections_modal():
+def _bank_connections_modal(lang="en"):
     """Modal with connect-bank and connected-accounts sections."""
     return dbc.Modal([
         dbc.ModalHeader(
             dbc.ModalTitle([
                 html.I(className="bi bi-bank me-2"),
-                "Manage Bank Connections",
+                t("bs.manage_connections", lang),
             ]),
             close_button=True,
         ),
         dbc.ModalBody([
-            _bank_connect_card(),
-            _connected_accounts_card(),
+            _bank_connect_card(lang),
+            _connected_accounts_card(lang),
         ]),
         dbc.ModalFooter([
             dbc.Button(
-                "Close",
+                t("bs.close", lang),
                 id="close-bank-connections-modal-btn",
                 color="secondary",
                 size="sm",
@@ -171,28 +169,35 @@ def _bank_connections_modal():
     ], id="bank-connections-modal", is_open=False, centered=True, size="xl")
 
 
-def _openai_warning():
+def _openai_warning(lang="en"):
     """Inline warning about missing OpenAI API key — shown near the top."""
     return html.Div(id="openai-key-warning", children=[
         dbc.Alert([
             html.I(className="bi bi-exclamation-triangle me-2"),
-            html.Strong("AI categorisation requires an OpenAI API key. "),
-            "Go to Settings (bottom-left ⚙) to add your key.",
+            html.Strong(t("bs.openai_warning", lang)),
+            html.A(
+                t("bs.open_settings", lang),
+                id="open-settings-link-warning",
+                href="#",
+                className="alert-link",
+                style={"cursor": "pointer", "textDecoration": "underline"},
+            ),
+            t("bs.to_add_key", lang),
         ], color="warning", className="py-2 px-3 small mb-3",
            dismissable=True, is_open=True),
     ], style={"display": "none"})  # toggled by callback
 
 
-def _rules_card():
+def _rules_card(lang="en"):
     """Recurring transaction rules management — redesigned."""
     return dbc.Card([
         dbc.CardHeader([
             html.Div([
                 html.I(className="bi bi-arrow-repeat me-2 text-primary"),
-                html.Span("Recurring Rules", className="fw-semibold"),
+                html.Span(t("bs.recurring_rules", lang), className="fw-semibold"),
             ], className="d-flex align-items-center"),
             dbc.Button(
-                [html.I(className="bi bi-plus-lg me-1"), "New Rule"],
+                [html.I(className="bi bi-plus-lg me-1"), t("bs.new_rule", lang)],
                 id="open-add-rule-modal-btn",
                 color="primary",
                 size="sm",
@@ -203,33 +208,31 @@ def _rules_card():
         dbc.CardBody([
             html.P([
                 html.I(className="bi bi-info-circle me-1 text-info"),
-                "Rules automatically tag transactions matching a counterparty "
-                "pattern (e.g. 'netflix') with a category and track whether they "
-                "arrive on schedule.",
+                t("bs.rules_help", lang),
             ], className="text-muted small mb-2",
                style={"lineHeight": "1.4"}),
             html.Div(id="rules-container", children=[
-                html.P("No rules yet — click '+New Rule' to create one.",
+                html.P(t("bs.no_rules", lang),
                        className="text-muted small text-center py-2 mb-0"),
             ]),
         ], className="p-3"),
     ], className="card-modern mb-3")
 
 
-def _monitoring_card():
+def _monitoring_card(lang="en"):
     """Monitoring panel: expected vs actual transactions — redesigned."""
     return dbc.Card([
         dbc.CardHeader([
             html.Div([
                 html.I(className="bi bi-activity me-2 text-success"),
-                html.Span("Payment Monitor", className="fw-semibold"),
+                html.Span(t("bs.payment_monitor", lang), className="fw-semibold"),
             ], className="d-flex align-items-center"),
             dbc.Select(
                 id="monitoring-months-select",
                 options=[
-                    {"label": "3 months", "value": "3"},
-                    {"label": "6 months", "value": "6"},
-                    {"label": "12 months", "value": "12"},
+                    {"label": t("bs.3_months", lang), "value": "3"},
+                    {"label": t("bs.6_months", lang), "value": "6"},
+                    {"label": t("bs.12_months", lang), "value": "12"},
                 ],
                 value="6",
                 size="sm",
@@ -240,19 +243,18 @@ def _monitoring_card():
         dbc.CardBody([
             html.P([
                 html.I(className="bi bi-info-circle me-1 text-info"),
-                "Compares your rules against actual transactions to spot "
-                "missed or overdue recurring payments.",
+                t("bs.monitoring_help", lang),
             ], className="text-muted small mb-2",
                style={"lineHeight": "1.4"}),
             html.Div(id="monitoring-container", children=[
-                html.P("Add rules and sync transactions to see monitoring.",
+                html.P(t("bs.add_rules_first", lang),
                        className="text-muted small text-center py-2 mb-0"),
             ]),
         ], className="p-3"),
     ], className="card-modern mb-3")
 
 
-def _transactions_card():
+def _transactions_card(lang="en"):
     """Transaction list with filters, date-range, and category donut."""
     three_months_ago = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -261,11 +263,11 @@ def _transactions_card():
         dbc.CardHeader([
             html.Div([
                 html.I(className="bi bi-receipt me-2"),
-                html.Span("Transactions", className="fw-semibold"),
+                html.Span(t("bs.transactions", lang), className="fw-semibold"),
             ], className="d-flex align-items-center"),
             html.Div([
                 dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise me-1"), "Sync"],
+                    [html.I(className="bi bi-arrow-clockwise me-1"), t("bs.sync", lang)],
                     id="sync-transactions-btn",
                     color="primary",
                     size="sm",
@@ -274,7 +276,7 @@ def _transactions_card():
                     n_clicks=0,
                 ),
                 dbc.Button(
-                    [html.I(className="bi bi-robot me-1"), "AI Categorise"],
+                    [html.I(className="bi bi-robot me-1"), t("bs.ai_categorise", lang)],
                     id="ai-categorise-btn",
                     color="info",
                     size="sm",
@@ -287,44 +289,34 @@ def _transactions_card():
             # ── Filter row ──
             dbc.Row([
                 dbc.Col([
-                    dbc.InputGroup([
-                        dbc.InputGroupText(
-                            html.I(className="bi bi-search"),
-                            className="bg-transparent",
-                        ),
-                        dbc.Input(
-                            id="tx-filter-input",
-                            placeholder="Search…",
-                            size="sm",
-                        ),
-                    ], size="sm"),
-                ], md=3, className="mb-2 mb-md-0"),
-                dbc.Col([
                     dbc.Select(
                         id="tx-category-filter",
-                        options=[{"label": "All Categories", "value": ""}],
-                        value="",
+                        options=[{"label": t("bs.all_categories", lang), "value": "all"}],
+                        value="all",
                         size="sm",
+                        className="bs-filter-control",
                     ),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
                     dbc.Select(
                         id="tx-account-filter",
-                        options=[{"label": "All Accounts", "value": ""}],
-                        value="",
+                        options=[{"label": t("bs.all_accounts", lang), "value": "all"}],
+                        value="all",
                         size="sm",
+                        className="bs-filter-control",
                     ),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
                     dbc.Select(
                         id="tx-direction-filter",
                         options=[
-                            {"label": "In & Out", "value": ""},
-                            {"label": "Income ↑", "value": "in"},
-                            {"label": "Expense ↓", "value": "out"},
+                            {"label": t("bs.in_out", lang), "value": "all"},
+                            {"label": t("bs.income", lang), "value": "in"},
+                            {"label": t("bs.expense", lang), "value": "out"},
                         ],
-                        value="",
+                        value="all",
                         size="sm",
+                        className="bs-filter-control",
                     ),
                 ], md=2, className="mb-2 mb-md-0"),
                 dbc.Col([
@@ -337,7 +329,21 @@ def _transactions_card():
                         className="dash-date-range-sm",
                     ),
                 ], md=3, className="mb-2 mb-md-0"),
-            ], className="mb-3 gx-2"),
+                dbc.Col([
+                    dbc.InputGroup([
+                        dbc.InputGroupText(
+                            html.I(className="bi bi-search"),
+                            className="bg-transparent",
+                        ),
+                        dbc.Input(
+                            id="tx-filter-input",
+                            placeholder=t("bs.search", lang),
+                            size="sm",
+                            className="bs-filter-control",
+                        ),
+                    ], size="sm", className="bs-filter-search"),
+                ], md=3, className="mb-2 mb-md-0"),
+            ], className="mb-3 gx-2 bs-filter-row"),
 
             html.Div(id="tx-sync-feedback", className="mb-2"),
 
@@ -345,7 +351,7 @@ def _transactions_card():
             dbc.Row([
                 dbc.Col([
                     html.Div(id="transactions-container", children=[
-                        html.P("Connect a bank account and sync to see transactions.",
+                        html.P(t("bs.connect_first", lang),
                                className="text-muted small text-center py-4"),
                     ]),
                 ], lg=8),
@@ -361,28 +367,26 @@ def _transactions_card():
     ], className="card-modern mb-4")
 
 
-def _add_rule_modal():
+def _add_rule_modal(lang="en"):
     """Modal for adding a transaction rule."""
     categories = load_default_categories()
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle([
             html.I(className="bi bi-plus-circle me-2"),
-            "Create Transaction Rule",
+            t("bs.create_rule", lang),
         ]), close_button=True),
         dbc.ModalBody([
             html.P([
-                "A rule automatically matches transactions by counterparty name "
-                "and assigns a category. It also tracks their frequency so the "
-                "Payment Monitor can alert you when a payment is missing.",
+                t("bs.rule_help", lang),
             ], className="text-muted small mb-3"),
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("Rule Name", className="small fw-semibold"),
+                    dbc.Label(t("bs.rule_name", lang), className="small fw-semibold"),
                     dbc.Input(id="rule-name-input",
-                              placeholder="e.g. Netflix Subscription", size="sm"),
+                              placeholder=t("bs.rule_name_ph", lang), size="sm"),
                 ], md=6),
                 dbc.Col([
-                    dbc.Label("Category", className="small fw-semibold"),
+                    dbc.Label(t("bs.category", lang), className="small fw-semibold"),
                     dbc.Select(
                         id="rule-category-select",
                         options=[{"label": c, "value": c} for c in categories],
@@ -392,37 +396,36 @@ def _add_rule_modal():
             ], className="mb-3"),
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("Counterparty Pattern", className="small fw-semibold"),
+                    dbc.Label(t("bs.counterparty_pattern", lang), className="small fw-semibold"),
                     dbc.Input(id="rule-pattern-input",
-                              placeholder="e.g. netflix, spotify...", size="sm"),
+                              placeholder=t("bs.pattern_ph", lang), size="sm"),
                     html.Small(
-                        "Matched case-insensitively against counterparty name "
-                        "and transaction description.",
+                        t("bs.pattern_help", lang),
                         className="text-muted",
                     ),
                 ], md=12),
             ], className="mb-3"),
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("Expected Amount (€)", className="small fw-semibold"),
+                    dbc.Label(t("bs.expected_amount", lang), className="small fw-semibold"),
                     dbc.Input(id="rule-amount-input", type="number",
                               placeholder="e.g. 12.99", size="sm", step="0.01"),
                 ], md=4),
                 dbc.Col([
-                    dbc.Label("Tolerance (%)", className="small fw-semibold"),
+                    dbc.Label(t("bs.tolerance", lang), className="small fw-semibold"),
                     dbc.Input(id="rule-tolerance-input", type="number", value=10,
                               size="sm", min=0, max=100, step=1),
                 ], md=4),
                 dbc.Col([
-                    dbc.Label("Frequency", className="small fw-semibold"),
+                    dbc.Label(t("bs.frequency", lang), className="small fw-semibold"),
                     dbc.Select(
                         id="rule-frequency-select",
                         options=[
-                            {"label": "Weekly", "value": "7"},
-                            {"label": "Bi-weekly", "value": "14"},
-                            {"label": "Monthly", "value": "30"},
-                            {"label": "Quarterly", "value": "90"},
-                            {"label": "Yearly", "value": "365"},
+                            {"label": t("bs.weekly", lang), "value": "7"},
+                            {"label": t("bs.biweekly", lang), "value": "14"},
+                            {"label": t("bs.monthly", lang), "value": "30"},
+                            {"label": t("bs.quarterly", lang), "value": "90"},
+                            {"label": t("bs.yearly", lang), "value": "365"},
                         ],
                         value="30",
                         size="sm",
@@ -432,10 +435,10 @@ def _add_rule_modal():
         ]),
         dbc.ModalFooter([
             html.Div(id="add-rule-feedback", className="me-auto"),
-            dbc.Button("Cancel", id="cancel-rule-btn", color="secondary",
+            dbc.Button(t("bs.cancel", lang), id="cancel-rule-btn", color="secondary",
                        size="sm", n_clicks=0),
             dbc.Button(
-                [html.I(className="bi bi-check-lg me-1"), "Create Rule"],
+                [html.I(className="bi bi-check-lg me-1"), t("bs.create_rule_btn", lang)],
                 id="confirm-add-rule-btn",
                 color="primary",
                 size="sm",
@@ -447,21 +450,24 @@ def _add_rule_modal():
 
 # ── Main layout ────────────────────────────────────────────────────────
 
-layout = html.Div([
-    # ── Client-side data stores (memory only — persisted via JS) ──
+def layout(lang="en"):
+  return html.Div([
+    # ── Stores (memory) — persisted to localStorage via JS callbacks ──
     dcc.Store(id="bs-connections-store", storage_type="memory"),
     dcc.Store(id="bs-rules-store", storage_type="memory"),
     dcc.Store(id="bs-transactions-cache", storage_type="memory"),
     dcc.Store(id="bs-active-requisition", storage_type="session"),
-    # hidden helper elements
     html.Div(id="bs-save-trigger", style={"display": "none"}),
+    html.Div(id="bs-save-result", style={"display": "none"}),
+    # Trigger: fires callback 0b every time this page renders
+    html.Div(id="bs-page-ready", children="1", style={"display": "none"}),
 
     # Auth gate — shown when the user is not logged in
     html.Div([
         html.Div([
             html.I(className="bi bi-lock-fill",
                    style={"fontSize": "4rem", "color": "#6c757d"}),
-            html.H4("Please log in to access Bank Sync",
+            html.H4(t("bs.auth_gate", lang),
                      className="mt-3 text-muted"),
         ], className="text-center", style={"marginTop": "20vh"})
     ], id="bs-auth-gate", style={"display": "none"}),
@@ -473,16 +479,15 @@ layout = html.Div([
             html.Div([
                 html.H4([
                     html.I(className="bi bi-bank me-2"),
-                    "Bank Account Sync",
+                    t("bs.title", lang),
                 ], className="page-title mb-0"),
-                html.P("Connect your bank, categorise transactions, "
-                       "track recurring payments.",
+                html.P(t("bs.subtitle", lang),
                        className="page-subtitle mb-0"),
             ]),
             html.Div([
                 dbc.Button([
                     html.I(className="bi bi-plug me-1"),
-                    "Connections ",
+                    t("bs.connections", lang),
                     dbc.Badge("0", id="connections-badge",
                               color="light", text_color="primary",
                               className="ms-1"),
@@ -493,26 +498,30 @@ layout = html.Div([
         ], className="d-flex align-items-start justify-content-between "
                      "flex-wrap gap-2 page-header"),
 
-        html.Div(id="gc-setup-section", children=[_setup_card()]),
+        html.Div(id="gc-setup-section",
+                 style={"display": "none"} if has_credentials() else {},
+                 children=[_setup_card(lang)]),
 
-        html.Div(id="gc-main-section", style={"display": "none"}, children=[
+        html.Div(id="gc-main-section",
+                 style={} if has_credentials() else {"display": "none"},
+                 children=[
             # ── OpenAI warning (near top) ──
-            _openai_warning(),
+            _openai_warning(lang),
 
             # ── Rules & Monitoring row (above transactions) ──
             dbc.Row([
-                dbc.Col([_rules_card()], lg=5),
-                dbc.Col([_monitoring_card()], lg=7),
+                dbc.Col([_rules_card(lang)], lg=5),
+                dbc.Col([_monitoring_card(lang)], lg=7),
             ], className="mb-1"),
 
             # ── Transactions (full width, donut inside) ──
-            _transactions_card(),
+            _transactions_card(lang),
         ]),
 
-        _add_rule_modal(),
-        _bank_connections_modal(),
+        _add_rule_modal(lang),
+        _bank_connections_modal(lang),
     ]),
-], className="p-4")
+  ], className="p-4")
 
 
 # ── Render helpers ──────────────────────────────────────────────────────
@@ -582,18 +591,19 @@ def _transaction_row(tx_norm, idx):
     ], className="py-2 px-3 border-bottom tx-row")
 
 
-def _rule_item(rule):
+def _rule_item(rule, lang="en"):
     freq_map = {
-        "7": "Weekly", "14": "Bi-weekly", "30": "Monthly",
-        "90": "Quarterly", "365": "Yearly",
+        "7": t("bs.weekly", lang), "14": t("bs.biweekly", lang),
+        "30": t("bs.monthly", lang),
+        "90": t("bs.quarterly", lang), "365": t("bs.yearly", lang),
     }
     freq_label = freq_map.get(
         str(rule.get("frequency_days", 30)),
-        f"Every {rule.get('frequency_days', 30)}d",
+        t("bs.every_n_days", lang).format(n=rule.get('frequency_days', 30)),
     )
     amt_str = (
         f"€{abs(rule.get('expected_amount', 0)):,.2f}"
-        if rule.get("expected_amount") else "Any amount"
+        if rule.get("expected_amount") else t("bs.any_amount", lang)
     )
 
     return html.Div([
@@ -619,7 +629,7 @@ def _rule_item(rule):
                  "py-2 px-3 border-bottom")
 
 
-def _monitoring_row(summary):
+def _monitoring_row(summary, lang="en"):
     status = summary["status"]
     status_colors = {"OK": "success", "OVERDUE": "warning", "MISSING": "danger"}
     status_icon = {
@@ -646,7 +656,7 @@ def _monitoring_row(summary):
                     dbc.Badge(summary["category"], color="light",
                               text_color="dark", className="me-1"),
                     html.Span(
-                        f"Last: {summary['last_date'] or 'Never'}",
+                        t("bs.last_date", lang).format(date=summary['last_date'] or t("bs.never", lang)),
                         className="text-muted",
                         style={"fontSize": "0.7rem"},
                     ),
@@ -663,7 +673,7 @@ def _monitoring_row(summary):
                 html.Div(f"€{abs(summary['cumulative']):,.2f}",
                          className="small fw-semibold"),
                 html.Div(
-                    f"exp. €{expected_total:,.2f}" if expected_total else "",
+                    t("bs.exp_amount", lang).format(amount=f"{expected_total:,.2f}") if expected_total else "",
                     className="text-muted",
                     style={"fontSize": "0.7rem"},
                 ),
@@ -674,7 +684,7 @@ def _monitoring_row(summary):
                  "py-2 px-3 border-bottom")
 
 
-def _build_donut(normalised):
+def _build_donut(normalised, lang="en"):
     """Build a Plotly donut figure from normalised transactions."""
     import plotly.graph_objects as go
 
@@ -686,7 +696,7 @@ def _build_donut(normalised):
     if not cat_totals:
         fig = go.Figure()
         fig.update_layout(
-            annotations=[dict(text="No data", x=0.5, y=0.5,
+            annotations=[dict(text=t("bs.no_data", lang), x=0.5, y=0.5,
                               font_size=14, showarrow=False)],
             margin=dict(l=0, r=0, t=0, b=0),
             paper_bgcolor="rgba(0,0,0,0)",
@@ -719,7 +729,7 @@ def _build_donut(normalised):
         showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        title=dict(text="By Category", font=dict(size=12),
+        title=dict(text=t("bs.by_category", lang), font=dict(size=12),
                    x=0.5, y=0.98),
     )
     return fig
@@ -775,67 +785,221 @@ def register_callbacks(app):
             return {"display": "none"}, {"display": "block"}
         return {"display": "block"}, {"display": "none"}
 
-    # ─── 0b. Load bank data from localStorage on login / page visit ────
+    # ─── 0b. Load persisted bank data on login / page visit ────────────
+    # Persisted scope: connections + transactions only.
     app.clientside_callback(
         """
-        function(user, pathname) {
-            if (!user || pathname !== "/banksync") {
-                return [[], [], []];
+        function(ready, pageStyle, user) {
+            if (!user) {
+                console.log("[bank-load] skipped: no current user");
+                return [window.dash_clientside.no_update,
+                        window.dash_clientside.no_update,
+                        window.dash_clientside.no_update];
             }
             try {
                 var pfx = "apex_bank_" + user + "_";
-                var conns = JSON.parse(localStorage.getItem(pfx + "conns") || "[]");
-                var rules = JSON.parse(localStorage.getItem(pfx + "rules") || "[]");
-                var txs   = JSON.parse(localStorage.getItem(pfx + "txns")  || "[]");
-                return [conns, rules, txs];
+                console.groupCollapsed("[bank-load] user=" + user);
+
+                function loadFromKeys(keys) {
+                    for (var i = 0; i < keys.length; i++) {
+                        var raw = localStorage.getItem(pfx + keys[i]);
+                        if (!raw) continue;
+                        try {
+                            var parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                return {data: parsed, key: keys[i], rawLen: raw.length};
+                            }
+                            if (Array.isArray(parsed)) {
+                                return {data: parsed, key: keys[i], rawLen: raw.length};
+                            }
+                        } catch (e) {
+                            console.warn("[bank-load] Could not parse key", pfx + keys[i], e);
+                        }
+                    }
+                    return {data: [], key: null, rawLen: 0};
+                }
+
+                function isTransactionLike(item) {
+                    if (!item || typeof item !== "object") return false;
+                    return (
+                        item.hasOwnProperty("_account_id") ||
+                        item.hasOwnProperty("transactionAmount") ||
+                        item.hasOwnProperty("bookingDate") ||
+                        item.hasOwnProperty("valueDate") ||
+                        item.hasOwnProperty("amount") ||
+                        item.hasOwnProperty("_txid")
+                    );
+                }
+
+                function scanUserPrefixedKeysForTransactions() {
+                    var best = {data: [], key: null, rawLen: 0};
+                    var keyDump = [];
+                    for (var i = 0; i < localStorage.length; i++) {
+                        var k = localStorage.key(i);
+                        if (!k || k.indexOf(pfx) !== 0) continue;
+
+                        var raw = localStorage.getItem(k);
+                        var info = {key: k, bytes: raw ? raw.length : 0, kind: "non-array", count: 0, txLike: false};
+
+                        if (!raw) {
+                            keyDump.push(info);
+                            continue;
+                        }
+
+                        try {
+                            var parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                info.kind = "array";
+                                info.count = parsed.length;
+                                info.txLike = parsed.length > 0 && isTransactionLike(parsed[0]);
+                                if (info.txLike && parsed.length > best.data.length) {
+                                    best = {data: parsed, key: k.replace(pfx, ""), rawLen: raw.length};
+                                }
+                            }
+                        } catch (e) {
+                            info.kind = "invalid-json";
+                        }
+
+                        keyDump.push(info);
+                    }
+
+                    console.table(keyDump);
+                    return best;
+                }
+
+                var connsRes = loadFromKeys(["conns", "connections"]);
+                var txsRes   = loadFromKeys(["txns", "txs", "transactions"]);
+                var conns = connsRes.data || [];
+                var txs   = txsRes.data || [];
+
+                console.log("prefix:", pfx);
+                console.log("connections source key:", connsRes.key || "none", "count:", conns.length, "bytes:", connsRes.rawLen || 0);
+                console.log("transactions source key:", txsRes.key || "none", "count:", txs.length, "bytes:", txsRes.rawLen || 0);
+
+                // Recovery fallback: if canonical/known tx keys are empty, scan all
+                // user-prefixed keys for transaction-like arrays.
+                if (!txs || txs.length === 0) {
+                    var fallback = scanUserPrefixedKeysForTransactions();
+                    if (fallback.key && fallback.data && fallback.data.length > 0) {
+                        txs = fallback.data;
+                        txsRes = fallback;
+                        console.log("recovered txs from fallback key:", pfx + fallback.key,
+                                    "count:", txs.length, "bytes:", fallback.rawLen || 0);
+                    } else {
+                        console.log("no tx fallback candidate found under prefix", pfx);
+                    }
+                }
+
+                // Canonicalize key names so next explicit save uses one format.
+                if (connsRes.key && connsRes.key !== "conns") {
+                    localStorage.setItem(pfx + "conns", JSON.stringify(conns));
+                    console.log("migrated key:", pfx + connsRes.key, "->", pfx + "conns");
+                }
+                if (txsRes.key && txsRes.key !== "txns") {
+                    localStorage.setItem(pfx + "txns", JSON.stringify(txs));
+                    console.log("migrated key:", pfx + txsRes.key, "->", pfx + "txns");
+                }
+
+                console.log("[bank-load] Loaded", conns.length, "conns,", txs.length, "txs for user", user);
+                console.groupEnd();
+                return [conns, [], txs];
             } catch(e) {
                 console.error("Bank data load error:", e);
-                return [[], [], []];
+                try { console.groupEnd(); } catch(_) {}
+                // On error, do NOT overwrite stores — keep whatever is there
+                return [window.dash_clientside.no_update,
+                        window.dash_clientside.no_update,
+                        window.dash_clientside.no_update];
             }
         }
         """,
         [Output("bs-connections-store", "data"),
          Output("bs-rules-store", "data"),
          Output("bs-transactions-cache", "data")],
-        [Input("current-user-store", "data"),
-         Input("url", "pathname")],
+        [Input("bs-page-ready", "children"),
+         Input("bs-page-content", "style")],
+        State("current-user-store", "data"),
     )
 
-    # ─── 0c. Persist bank data to localStorage on every change ─────────
+    # ─── 0c. Persist bank data only on explicit user action ────────────
+    # Triggered by server callbacks that mutate connections/transactions.
     app.clientside_callback(
         """
-        function(connections, rules, transactions, user) {
-            if (!user) return "";
+        function(saveSignal, connections, transactions, user) {
+            if (!saveSignal) {
+                console.log("[bank-save] skipped: no explicit save signal");
+                return "";
+            }
+            if (!user) {
+                console.log("[bank-save] skipped: no current user; signal=", saveSignal);
+                return "";
+            }
+
+            var pfx = "apex_bank_" + user + "_";
+            console.groupCollapsed("[bank-save] user=" + user + " signal=" + saveSignal);
+
+            var action = String(saveSignal).split(":")[0] || "unknown";
+            var allowConnsWrite = (action === "connect" || action === "auth-complete");
+            var allowTxWrite = (action === "sync" || action === "ai-categorise" || action === "auth-complete");
+
+            // RULE: never write null or empty arrays over existing data.
+            function backupCurrent(key) {
+                var existing = localStorage.getItem(pfx + key);
+                if (!existing || existing === "[]" || existing === "null") {
+                    return false;
+                }
+                localStorage.setItem(pfx + key + "__bak", existing);
+                localStorage.setItem(pfx + key + "__bak_ts", String(Date.now()));
+                return true;
+            }
+
+            function safeSave(key, data, allowWrite) {
+                if (!allowWrite) {
+                    return "skipped-action";
+                }
+
+                var hasContent = Array.isArray(data) && data.length > 0;
+                if (hasContent) {
+                    backupCurrent(key);
+                    localStorage.setItem(pfx + key, JSON.stringify(data));
+                    return "written";
+                }
+                var existing = localStorage.getItem(pfx + key);
+                if (!existing || existing === "[]" || existing === "null") {
+                    localStorage.setItem(pfx + key, JSON.stringify(data || []));
+                    return "written-empty";
+                }
+                return "kept-existing";
+            }
+
             try {
-                var pfx = "apex_bank_" + user + "_";
-                localStorage.setItem(pfx + "conns", JSON.stringify(connections || []));
-                localStorage.setItem(pfx + "rules", JSON.stringify(rules || []));
-                localStorage.setItem(pfx + "txns",  JSON.stringify(transactions || []));
+                var s1 = safeSave("conns", connections, allowConnsWrite);
+                var s3 = safeSave("txns", transactions, allowTxWrite);
+                var connsCount = Array.isArray(connections) ? connections.length : 0;
+                var txCount = Array.isArray(transactions) ? transactions.length : 0;
+                console.log("prefix:", pfx);
+                console.log("action:", action, "allowConnsWrite:", allowConnsWrite, "allowTxWrite:", allowTxWrite);
+                console.log("connections:", s1, "count:", connsCount);
+                console.log("transactions:", s3, "count:", txCount);
+                console.log("[bank-save] explicit:", saveSignal,
+                            "conns:", s1,
+                            "txs:", s3);
             } catch(e) {
                 console.error("Bank data save error:", e);
+            } finally {
+                console.groupEnd();
             }
             return "";
         }
         """,
-        Output("bs-save-trigger", "children"),
-        [Input("bs-connections-store", "data"),
-         Input("bs-rules-store", "data"),
-         Input("bs-transactions-cache", "data")],
-        State("current-user-store", "data"),
+        Output("bs-save-result", "children"),
+        Input("bs-save-trigger", "children"),
+        [State("bs-connections-store", "data"),
+         State("bs-transactions-cache", "data"),
+         State("current-user-store", "data")],
+        prevent_initial_call=True,
     )
 
-    # ─── 0d. Show/hide setup vs main section ───────────────────────────
-    @app.callback(
-        [Output("gc-setup-section", "style"),
-         Output("gc-main-section", "style")],
-        Input("url", "pathname"),
-    )
-    def toggle_sections(pathname):
-        if pathname != "/banksync":
-            raise PreventUpdate
-        if has_credentials():
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
 
     # ─── 0e. Show/hide OpenAI warning ──────────────────────────────────
     @app.callback(
@@ -861,17 +1025,36 @@ def register_callbacks(app):
                   if c.get("status") == "LN"]
         return str(len(linked))
 
+    # ─── 0g. "Open Settings" link in warnings → trigger settings modal ──
+    app.clientside_callback(
+        """
+        function(n) {
+            if (n) {
+                // Programmatically click the hidden settings-link trigger
+                var btn = document.getElementById("open-settings-link");
+                if (btn) btn.click();
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output("open-settings-link-warning", "n_clicks"),
+        Input("open-settings-link-warning", "n_clicks"),
+        prevent_initial_call=True,
+    )
+
     # ─── 1. Load institutions when country changes ─────────────────────
     @app.callback(
         Output("bank-institution-select", "options"),
         Input("bank-country-select", "value"),
+        State("lang-store", "data"),
     )
-    def load_institutions_for_country(country):
+    def load_institutions_for_country(country, lang_data):
+        lang = get_lang(lang_data)
         if not country or not has_credentials():
-            return [{"label": "Bank sync not configured", "value": ""}]
+            return [{"label": t("bs.bank_not_configured", lang), "value": ""}]
         institutions = list_institutions(country)
         if not institutions:
-            return [{"label": "No banks found for this country", "value": ""}]
+            return [{"label": t("bs.no_banks_found", lang), "value": ""}]
         sorted_insts = _sort_institutions(institutions, country)
         return [{"label": i["name"], "value": i["id"]} for i in sorted_insts]
 
@@ -895,36 +1078,39 @@ def register_callbacks(app):
     @app.callback(
         [Output("bank-connect-feedback", "children"),
          Output("bs-active-requisition", "data"),
-         Output("bs-connections-store", "data", allow_duplicate=True)],
+         Output("bs-connections-store", "data", allow_duplicate=True),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         Input("connect-bank-btn", "n_clicks"),
         [State("bank-country-select", "value"),
          State("bank-institution-select", "value"),
-         State("bs-connections-store", "data")],
+         State("bs-connections-store", "data"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
-    def start_bank_connection(n, country, institution_id, connections):
+    def start_bank_connection(n, country, institution_id, connections, lang_data):
+        lang = get_lang(lang_data)
         if not n:
             raise PreventUpdate
         if not has_credentials():
             return (
-                dbc.Alert("Set up GoCardless credentials first.",
+                dbc.Alert(t("bs.not_configured_creds", lang),
                           color="warning", className="small py-1"),
-                no_update, no_update,
+                no_update, no_update, no_update,
             )
         if not institution_id:
             return (
-                dbc.Alert("Please select a bank first.",
+                dbc.Alert(t("bs.select_bank_first", lang),
                           color="warning", className="small py-1"),
-                no_update, no_update,
+                no_update, no_update, no_update,
             )
 
         conn = create_connection(market=country or "DE",
                                  institution_id=institution_id)
         if not conn:
             return (
-                dbc.Alert("Failed to create bank connection. Check credentials.",
+                dbc.Alert(t("bs.conn_failed", lang),
                           color="danger", className="small py-1"),
-                no_update, no_update,
+                no_update, no_update, no_update,
             )
 
         # Append to connections store (client-side)
@@ -937,43 +1123,43 @@ def register_callbacks(app):
         feedback = html.Div([
             dbc.Alert([
                 html.I(className="bi bi-box-arrow-up-right me-2"),
-                html.Strong("Bank authentication ready"),
+                html.Strong(t("bs.bank_auth_ready", lang)),
                 html.P([
-                    "Click the link below to authenticate with your bank "
-                    "via GoCardless's secure PSD2 interface. "
-                    "After completing authentication, click "
-                    "'I've completed authentication'.",
+                    t("bs.auth_instructions", lang),
                 ], className="mb-2 small"),
                 html.A(
                     [html.I(className="bi bi-bank me-1"),
-                     "Open bank authentication →"],
+                     t("bs.open_bank_auth", lang)],
                     href=link, target="_blank",
                     className="btn btn-primary btn-sm me-2",
                 ),
                 dbc.Button(
                     [html.I(className="bi bi-check-circle me-1"),
-                     "I've completed authentication"],
+                     t("bs.auth_complete", lang)],
                     id="auth-complete-btn",
                     color="success", size="sm",
                     className="mt-2", n_clicks=0,
                 ),
             ], color="info", className="mt-2"),
         ])
-        return feedback, req_id, connections
+        return feedback, req_id, connections, f"connect:{time.time()}"
 
     # ─── 4. After auth complete → update connection, auto-sync ─────────
     @app.callback(
         [Output("connected-accounts-body", "children", allow_duplicate=True),
          Output("bs-connections-store", "data", allow_duplicate=True),
          Output("bs-transactions-cache", "data", allow_duplicate=True),
-         Output("tx-sync-feedback", "children", allow_duplicate=True)],
+         Output("tx-sync-feedback", "children", allow_duplicate=True),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         Input("auth-complete-btn", "n_clicks"),
         [State("bs-active-requisition", "data"),
          State("bs-connections-store", "data"),
-         State("bs-transactions-cache", "data")],
+         State("bs-transactions-cache", "data"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
-    def after_auth_complete(n, requisition_id, connections, cached_txs):
+    def after_auth_complete(n, requisition_id, connections, cached_txs, lang_data):
+        lang = get_lang(lang_data)
         if not n:
             raise PreventUpdate
 
@@ -981,18 +1167,17 @@ def register_callbacks(app):
         cached_txs = list(cached_txs or [])
 
         if not requisition_id:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update
 
         # Poll requisition status
         result = complete_connection(requisition_id)
         if not result or result["status"] != "LN":
             return (
                 dbc.Alert(
-                    "Bank connection not yet linked. The bank may still be "
-                    "processing — try clicking 'Refresh' in a moment.",
+                    t("bs.not_yet_linked", lang),
                     color="warning", className="small py-1",
                 ),
-                no_update, no_update, no_update,
+                no_update, no_update, no_update, no_update,
             )
 
         # Update connection in store
@@ -1010,10 +1195,10 @@ def register_callbacks(app):
         if not accounts:
             return (
                 dbc.Alert(
-                    "No accounts found yet — try refreshing in a moment.",
+                    t("bs.no_accounts_yet", lang),
                     color="warning", className="small py-1",
                 ),
-                connections, no_update, no_update,
+                connections, no_update, no_update, f"auth-complete:{time.time()}",
             )
 
         # Auto-sync transactions for new accounts
@@ -1032,39 +1217,44 @@ def register_callbacks(app):
                 cached_txs.extend(new_txs)
 
             sync_feedback = dbc.Alert(
-                f"Auto-synced {len(new_accounts)} new account(s). "
-                f"Total: {len(cached_txs)} transactions.",
+                t("bs.auto_synced", lang).format(n_acct=len(new_accounts), n_tx=len(cached_txs)),
                 color="success", className="small py-1 mb-0",
             )
 
         accounts_ui = html.Div([_account_item(a) for a in accounts])
-        return accounts_ui, connections, cached_txs, sync_feedback
+        return (
+            accounts_ui,
+            connections,
+            cached_txs,
+            sync_feedback,
+            f"auth-complete:{time.time()}",
+        )
 
     # ─── 5. Refresh connected accounts ─────────────────────────────────
     @app.callback(
         Output("connected-accounts-body", "children"),
         [Input("refresh-accounts-btn", "n_clicks"),
-         Input("url", "pathname"),
          Input("bank-connections-modal", "is_open")],
-        [State("bs-connections-store", "data")],
+        [State("bs-connections-store", "data"),
+         State("lang-store", "data")],
+        prevent_initial_call=True,
     )
-    def refresh_accounts(n, pathname, modal_open, connections):
-        if pathname != "/banksync":
-            raise PreventUpdate
+    def refresh_accounts(n, modal_open, connections, lang_data):
+        lang = get_lang(lang_data)
         if modal_open is False and ctx.triggered_id == "bank-connections-modal":
             raise PreventUpdate
 
         account_ids = _collect_account_ids(connections)
         if not account_ids:
             return html.P(
-                "No accounts connected yet.",
+                t("bs.no_accounts", lang),
                 className="text-muted small text-center py-3",
             )
 
         accounts = fetch_accounts(account_ids)
         if not accounts:
             return html.P(
-                "No accounts connected yet.",
+                t("bs.no_accounts", lang),
                 className="text-muted small text-center py-3",
             )
         return html.Div([_account_item(a) for a in accounts])
@@ -1076,7 +1266,8 @@ def register_callbacks(app):
          Output("bs-transactions-cache", "data", allow_duplicate=True),
          Output("tx-category-filter", "options"),
          Output("tx-account-filter", "options"),
-         Output("tx-category-donut", "figure")],
+         Output("tx-category-donut", "figure"),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         [Input("sync-transactions-btn", "n_clicks"),
          Input("tx-filter-input", "value"),
          Input("tx-category-filter", "value"),
@@ -1087,32 +1278,35 @@ def register_callbacks(app):
          Input("bs-transactions-cache", "data")],
         [State("bs-connections-store", "data"),
          State("bs-rules-store", "data"),
-         State("api_key_store", "data")],
-        prevent_initial_call=True,
+         State("api_key_store", "data"),
+         State("lang-store", "data")],
+        prevent_initial_call='initial_duplicate',
     )
     def sync_and_filter_transactions(
         sync_clicks, filter_text, cat_filter, acct_filter, dir_filter,
         date_from, date_to, cached_txs,
-        connections, rules, api_key_data,
+        connections, rules, api_key_data, lang_data,
     ):
+        lang = get_lang(lang_data)
         triggered = ctx.triggered_id
         all_txs = list(cached_txs or [])
         feedback = no_update
         store_update = no_update
+        save_trigger = no_update
 
         # ── Sync button pressed ──
         if triggered == "sync-transactions-btn" and sync_clicks:
             account_ids = _collect_account_ids(connections)
             if not account_ids:
                 feedback = dbc.Alert(
-                    "No accounts to sync. Connect a bank first.",
+                    t("bs.no_accounts_sync", lang),
                     color="warning", className="small py-1 mb-0",
                 )
             else:
                 new_all = []
                 for aid in account_ids:
-                    existing = [t for t in all_txs
-                                if t.get("_account_id") == aid]
+                    existing = [tx_ for tx_ in all_txs
+                                if tx_.get("_account_id") == aid]
                     merged = sync_transactions(aid, existing)
                     for tx in merged:
                         tx["_account_id"] = aid
@@ -1123,10 +1317,10 @@ def register_callbacks(app):
                 new_all = apply_rules(new_all, rules_list)
                 all_txs = new_all
                 store_update = all_txs
+                save_trigger = f"sync:{time.time()}"
 
                 feedback = dbc.Alert(
-                    f"Synced {len(all_txs)} transactions from "
-                    f"{len(account_ids)} account(s).",
+                    t("bs.synced_n", lang).format(n_tx=len(all_txs), n_acct=len(account_ids)),
                     color="success", className="small py-1 mb-0",
                 )
 
@@ -1135,19 +1329,20 @@ def register_callbacks(app):
             import plotly.graph_objects as go
             empty_fig = go.Figure()
             empty_fig.update_layout(
-                annotations=[dict(text="No data", x=0.5, y=0.5,
+                annotations=[dict(text=t("bs.no_data", lang), x=0.5, y=0.5,
                                   font_size=14, showarrow=False)],
                 margin=dict(l=0, r=0, t=0, b=0),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
             )
             return (
-                html.P("No transactions yet. Sync to load.",
+                html.P(t("bs.no_tx_yet", lang),
                        className="text-muted small text-center py-4"),
                 feedback, store_update,
-                [{"label": "All Categories", "value": ""}],
-                [{"label": "All Accounts", "value": ""}],
+                [{"label": t("bs.all_categories", lang), "value": "all"}],
+                [{"label": t("bs.all_accounts", lang), "value": "all"}],
                 empty_fig,
+                save_trigger,
             )
 
         # ── Normalise ──
@@ -1155,12 +1350,12 @@ def register_callbacks(app):
 
         # ── Build filter dropdowns ──
         cats = sorted(set(n["category"] for n in normalised if n["category"]))
-        cat_options = ([{"label": "All Categories", "value": ""}]
+        cat_options = ([{"label": t("bs.all_categories", lang), "value": "all"}]
                        + [{"label": c, "value": c} for c in cats])
         acct_ids = sorted(set(
             tx.get("_account_id", "") for tx in all_txs if tx.get("_account_id")
         ))
-        acct_options = ([{"label": "All Accounts", "value": ""}]
+        acct_options = ([{"label": t("bs.all_accounts", lang), "value": "all"}]
                         + [{"label": a[:12], "value": a} for a in acct_ids])
 
         # ── Apply filters ──
@@ -1176,10 +1371,10 @@ def register_callbacks(app):
                         if q in n["counterparty"].lower()
                         or q in n["description"].lower()
                         or q in n.get("category", "").lower()]
-        if cat_filter:
+        if cat_filter and cat_filter != "all":
             filtered = [n for n in filtered
                         if n.get("category") == cat_filter]
-        if acct_filter:
+        if acct_filter and acct_filter != "all":
             # Need to match back to raw txs
             matching_ids = set()
             for tx in all_txs:
@@ -1193,11 +1388,11 @@ def register_callbacks(app):
             filtered = [n for n in filtered if n["amount"] < 0]
 
         # ── Donut chart ──
-        donut_fig = _build_donut(filtered)
+        donut_fig = _build_donut(filtered, lang)
 
         # ── Rows ──
         if not filtered:
-            rows = html.P("No transactions match your filters.",
+            rows = html.P(t("bs.no_tx_match", lang),
                           className="text-muted small text-center py-3")
         else:
             rows = html.Div(
@@ -1207,23 +1402,34 @@ def register_callbacks(app):
             if len(filtered) > 200:
                 rows = html.Div([
                     rows,
-                    html.P(f"Showing 200 of {len(filtered)} transactions.",
+                    html.P(t("bs.showing_n", lang).format(n=len(filtered)),
                            className="text-muted small text-center mt-2"),
                 ])
 
-        return rows, feedback, store_update, cat_options, acct_options, donut_fig
+        return (
+            rows,
+            feedback,
+            store_update,
+            cat_options,
+            acct_options,
+            donut_fig,
+            save_trigger,
+        )
 
     # ─── 7. AI categorise ──────────────────────────────────────────────
     @app.callback(
         [Output("transactions-container", "children", allow_duplicate=True),
          Output("tx-sync-feedback", "children", allow_duplicate=True),
-         Output("bs-transactions-cache", "data", allow_duplicate=True)],
+         Output("bs-transactions-cache", "data", allow_duplicate=True),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         Input("ai-categorise-btn", "n_clicks"),
         [State("bs-transactions-cache", "data"),
-         State("api_key_store", "data")],
+         State("api_key_store", "data"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
-    def ai_categorise(n, cached_txs, api_key_data):
+    def ai_categorise(n, cached_txs, api_key_data, lang_data):
+        lang = get_lang(lang_data)
         if not n or not cached_txs:
             raise PreventUpdate
 
@@ -1233,8 +1439,13 @@ def register_callbacks(app):
                 no_update,
                 dbc.Alert([
                     html.I(className="bi bi-exclamation-triangle me-1"),
-                    "Set your OpenAI API key in Settings first.",
+                    t("bs.set_api_key", lang),
+                    html.A(t("bs.settings", lang), href="#", className="alert-link",
+                           style={"cursor": "pointer", "textDecoration": "underline"},
+                           id={"type": "open-settings-inline", "index": "ai-cat"}),
+                    t("bs.first", lang),
                 ], color="warning", className="small py-1 mb-0"),
+                no_update,
                 no_update,
             )
 
@@ -1244,8 +1455,9 @@ def register_callbacks(app):
         if uncategorised_count == 0:
             return (
                 no_update,
-                dbc.Alert("All transactions are already categorised!",
+                dbc.Alert(t("bs.all_categorised", lang),
                           color="info", className="small py-1 mb-0"),
+                no_update,
                 no_update,
             )
 
@@ -1254,12 +1466,13 @@ def register_callbacks(app):
         except Exception as e:
             err_str = str(e)
             if "invalid_api_key" in err_str or "401" in err_str:
-                msg = "Invalid OpenAI API key. Check your key in Settings."
+                msg = t("bs.invalid_api_key", lang)
             else:
-                msg = f"Categorisation error: {err_str[:100]}"
+                msg = t("bs.cat_error", lang).format(msg=err_str[:100])
             return (
                 no_update,
                 dbc.Alert(msg, color="danger", className="small py-1 mb-0"),
+                no_update,
                 no_update,
             )
 
@@ -1273,9 +1486,10 @@ def register_callbacks(app):
         )
         return (
             rows,
-            dbc.Alert(f"Categorised {cat_count} transactions using AI.",
+            dbc.Alert(t("bs.categorised_n", lang).format(n=cat_count),
                       color="success", className="small py-1 mb-0"),
             cached_txs,
+            f"ai-categorise:{time.time()}",
         )
 
     # ─── 8. Open/close add-rule modal ──────────────────────────────────
@@ -1288,10 +1502,10 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def toggle_rule_modal(open_n, cancel_n, confirm_n, is_open):
-        t = ctx.triggered_id
-        if t == "open-add-rule-modal-btn":
+        trig = ctx.triggered_id
+        if trig == "open-add-rule-modal-btn":
             return True
-        if t in ("cancel-rule-btn", "confirm-add-rule-btn"):
+        if trig in ("cancel-rule-btn", "confirm-add-rule-btn"):
             return False
         return is_open
 
@@ -1307,17 +1521,19 @@ def register_callbacks(app):
          State("rule-amount-input", "value"),
          State("rule-tolerance-input", "value"),
          State("rule-frequency-select", "value"),
-         State("bs-rules-store", "data")],
+         State("bs-rules-store", "data"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
     def create_rule_cb(n, name, category, pattern, amount, tolerance,
-                       freq, rules):
+                       freq, rules, lang_data):
+        lang = get_lang(lang_data)
         if not n:
             raise PreventUpdate
         if not name or not pattern:
             return (
                 no_update,
-                dbc.Alert("Name and pattern are required.",
+                dbc.Alert(t("bs.name_pattern_required", lang),
                           color="warning", className="small py-1 mb-0"),
                 no_update,
             )
@@ -1332,9 +1548,9 @@ def register_callbacks(app):
         rules = list(rules or [])
         rules.append(rule)
 
-        items = [_rule_item(r) for r in rules]
+        items = [_rule_item(r, lang) for r in rules]
         ui = (html.Div(items) if items
-              else html.P("No rules.", className="text-muted small "
+              else html.P(t("bs.no_rules", lang), className="text-muted small "
                           "text-center py-3"))
         return ui, "", rules
 
@@ -1343,10 +1559,12 @@ def register_callbacks(app):
         [Output("rules-container", "children"),
          Output("bs-rules-store", "data", allow_duplicate=True)],
         Input({"type": "delete-rule-btn", "index": ALL}, "n_clicks"),
-        State("bs-rules-store", "data"),
+        [State("bs-rules-store", "data"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
-    def remove_rule(n_clicks_list, rules):
+    def remove_rule(n_clicks_list, rules, lang_data):
+        lang = get_lang(lang_data)
         if not any(n_clicks_list):
             raise PreventUpdate
         triggered = ctx.triggered_id
@@ -1358,26 +1576,28 @@ def register_callbacks(app):
 
         if not rules:
             return (
-                html.P("No rules yet — click '+New Rule' to create one.",
+                html.P(t("bs.no_rules", lang),
                        className="text-muted small text-center py-2 mb-0"),
                 rules,
             )
-        return html.Div([_rule_item(r) for r in rules]), rules
+        return html.Div([_rule_item(r, lang) for r in rules]), rules
 
     # ─── 11. Load rules on page visit ─────────────────────────────────
     @app.callback(
         Output("rules-container", "children", allow_duplicate=True),
         Input("bs-rules-store", "data"),
-        prevent_initial_call=True,
+        State("lang-store", "data"),
+        prevent_initial_call='initial_duplicate',
     )
-    def render_rules(rules):
+    def render_rules(rules, lang_data):
+        lang = get_lang(lang_data)
         rules = rules or []
         if not rules:
             return html.P(
-                "No rules yet — click '+New Rule' to create one.",
+                t("bs.no_rules", lang),
                 className="text-muted small text-center py-2 mb-0",
             )
-        return html.Div([_rule_item(r) for r in rules])
+        return html.Div([_rule_item(r, lang) for r in rules])
 
     # ─── 12. Monitoring panel ─────────────────────────────────────────
     @app.callback(
@@ -1385,14 +1605,15 @@ def register_callbacks(app):
         [Input("monitoring-months-select", "value"),
          Input("bs-rules-store", "data"),
          Input("bs-transactions-cache", "data")],
+        State("lang-store", "data"),
     )
-    def update_monitoring(months, rules, cached_txs):
+    def update_monitoring(months, rules, cached_txs, lang_data):
+        lang = get_lang(lang_data)
         rules = rules or []
         txs = cached_txs or []
-
-        if not rules or not txs:
+        if not rules and not txs:
             return html.P(
-                "Add rules and sync transactions to see monitoring.",
+                t("bs.add_rules_first", lang),
                 className="text-muted small text-center py-2 mb-0",
             )
 
@@ -1400,7 +1621,7 @@ def register_callbacks(app):
         summaries = compute_monitoring_summary(txs, rules, months_back)
         if not summaries:
             return html.P(
-                "No recurring rules to monitor.",
+                t("bs.no_rules_monitor", lang),
                 className="text-muted small text-center py-2 mb-0",
             )
 
@@ -1413,30 +1634,30 @@ def register_callbacks(app):
             dbc.Col(html.Div([
                 html.Div(str(ok_count),
                          className="fs-5 fw-bold text-success"),
-                html.Div("On Track", className="text-muted",
+                html.Div(t("bs.on_track", lang), className="text-muted",
                          style={"fontSize": "0.7rem"}),
             ], className="text-center"), width=3),
             dbc.Col(html.Div([
                 html.Div(str(overdue_count),
                          className="fs-5 fw-bold text-warning"),
-                html.Div("Overdue", className="text-muted",
+                html.Div(t("bs.overdue", lang), className="text-muted",
                          style={"fontSize": "0.7rem"}),
             ], className="text-center"), width=3),
             dbc.Col(html.Div([
                 html.Div(str(missing_count),
                          className="fs-5 fw-bold text-danger"),
-                html.Div("Missing", className="text-muted",
+                html.Div(t("bs.missing", lang), className="text-muted",
                          style={"fontSize": "0.7rem"}),
             ], className="text-center"), width=3),
             dbc.Col(html.Div([
                 html.Div(f"€{total_cumulative:,.0f}",
                          className="fs-5 fw-bold"),
-                html.Div("Cumulative", className="text-muted",
+                html.Div(t("bs.cumulative", lang), className="text-muted",
                          style={"fontSize": "0.7rem"}),
             ], className="text-center"), width=3),
         ], className="mb-2 py-2 bg-light rounded")
 
         return html.Div([
             stats,
-            html.Div([_monitoring_row(s) for s in summaries]),
+            html.Div([_monitoring_row(s, lang) for s in summaries]),
         ])

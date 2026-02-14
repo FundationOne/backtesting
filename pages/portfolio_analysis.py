@@ -22,6 +22,7 @@ from collections import OrderedDict
 from components.tr_connector import create_tr_connector_card, register_tr_callbacks
 from components.tr_api import fetch_all_data, is_connected, reconnect, drop_connection
 from components.benchmark_data import get_benchmark_data, initialize_benchmarks, BENCHMARKS
+from components.i18n import t, get_lang
 
 # Initialize benchmark cache on module load
 initialize_benchmarks()
@@ -135,17 +136,18 @@ def create_position_icon(position, size=32):
 
 
 # TR Connect Modal
-tr_connect_modal = dbc.Modal([
-    dbc.ModalHeader([
-        html.Div([
-            html.I(className="bi bi-bank me-2"),
-            "Connect to Trade Republic"
-        ], className="d-flex align-items-center")
-    ], close_button=True),
-    dbc.ModalBody([
-        create_tr_connector_card(),
-    ]),
-], id="tr-connect-modal", size="md", centered=True, className="tr-modal", is_open=False)
+def _create_tr_connect_modal(lang="en"):
+    return dbc.Modal([
+        dbc.ModalHeader([
+            html.Div([
+                html.I(className="bi bi-bank me-2"),
+                t("pa.connect_tr", lang)
+            ], className="d-flex align-items-center")
+        ], close_button=True),
+        dbc.ModalBody([
+            create_tr_connector_card(),
+        ]),
+    ], id="tr-connect-modal", size="md", centered=True, className="tr-modal", is_open=False)
 
 
 def create_metric_card(title, value_id, subtitle_id=None, icon=None, color_class=""):
@@ -232,15 +234,16 @@ def get_position_asset_class(position):
 
 
 # Layout for the analysis page
-layout = dbc.Container([
+def layout(lang="en"):
+  return dbc.Container([
     # Demo Account Banner — only visible in demo mode
     html.Div(
         [
             html.I(className="bi bi-info-circle-fill me-2"),
-            html.Strong("DEMO ACCOUNT"),
-            html.Span(" — You are viewing sample data. ", className="ms-1"),
-            html.A("Log in", href="#", id="demo-login-link", className="text-white fw-bold text-decoration-underline ms-1"),
-            html.Span(" and sync your Trade Republic account to see your real portfolio."),
+            html.Strong(t("pa.demo_account", lang)),
+            html.Span(t("pa.demo_banner", lang), className="ms-1"),
+            html.A(t("pa.demo_login", lang), href="#", id="demo-login-link", className="text-white fw-bold text-decoration-underline ms-1"),
+            html.Span(t("pa.demo_suffix", lang)),
         ],
         id="demo-banner",
         style={
@@ -270,24 +273,24 @@ layout = dbc.Container([
             # Sync button
             dbc.Button([
                 html.I(className="bi bi-arrow-repeat"),
-            ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Sync"),
+            ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.sync", lang)),
 
             # Demo mode toggle
             dbc.Button([
                 html.I(className="bi bi-person-badge", id="demo-toggle-icon"),
-            ], id="demo-toggle-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Switch to Demo Account"),
+            ], id="demo-toggle-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.switch_demo", lang)),
 
             # Privacy toggle
             dbc.Button([
                 html.I(className="bi bi-eye-slash", id="privacy-icon"),
-            ], id="toggle-privacy-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title="Hide"),
+            ], id="toggle-privacy-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.hide", lang)),
             
             html.Div(className="header-divider"),
             
             # Asset Class Dropdown Button
             html.Div([
                 dbc.Button([
-                    html.Span(id="asset-class-label", children="All"),
+                    html.Span(id="asset-class-label", children=t("pa.all", lang)),
                     html.I(className="bi bi-chevron-down ms-1", style={"fontSize": "9px"}),
                 ], id="asset-class-btn", color="link", className="header-dropdown-btn"),
                 dbc.Popover([
@@ -295,11 +298,11 @@ layout = dbc.Container([
                         dbc.Checklist(
                             id="asset-class-filter",
                             options=[
-                                {"label": "ETFs", "value": "etf"},
-                                {"label": "Stocks", "value": "stock"},
-                                {"label": "Crypto", "value": "crypto"},
-                                {"label": "Bonds", "value": "bond"},
-                                {"label": "Cash", "value": "cash"},
+                                {"label": t("pa.etfs", lang), "value": "etf"},
+                                {"label": t("pa.stocks", lang), "value": "stock"},
+                                {"label": t("pa.crypto", lang), "value": "crypto"},
+                                {"label": t("pa.bonds", lang), "value": "bond"},
+                                {"label": t("pa.cash", lang), "value": "cash"},
                             ],
                             value=["etf", "stock", "crypto", "bond"],  # Cash excluded by default
                             className="header-checklist",
@@ -311,7 +314,7 @@ layout = dbc.Container([
             # Benchmark Dropdown Button  
             html.Div([
                 dbc.Button([
-                    html.Span(id="benchmark-label", children="1 Bench."),
+                    html.Span(id="benchmark-label", children=t("pa.bench", lang)),
                     html.I(className="bi bi-chevron-down ms-1", style={"fontSize": "9px"}),
                 ], id="benchmark-btn", color="link", className="header-dropdown-btn"),
                 dbc.Popover([
@@ -340,7 +343,7 @@ layout = dbc.Container([
                     dbc.Button("1Y",  id="tf-1y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill active"),
                     dbc.Button("3Y",  id="tf-3y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
                     dbc.Button("5Y",  id="tf-5y",  n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
-                    dbc.Button("All", id="tf-max", n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
+                    dbc.Button(t("pa.all", lang), id="tf-max", n_clicks=0, size="sm", outline=True, color="light", className="tf-pill"),
                 ], className="timeframe-btn-group", size="sm"),
             ], className="timeframe-pill-bar"),
         ], className="header-right"),
@@ -366,7 +369,7 @@ layout = dbc.Container([
                     dbc.Row([
                         dbc.Col([
                             html.Div([
-                                html.Div("Portfolio Value", className="text-muted small"),
+                                html.Div(t("pa.portfolio_value", lang), className="text-muted small"),
                                 html.Div(id="portfolio-total-value", className="fs-2 fw-bold portfolio-hero-value sensitive sensitive-strong", 
                                          children="€0.00"),
                                 html.Div(id="portfolio-total-change", className="fs-6 sensitive", children=""),
@@ -375,27 +378,27 @@ layout = dbc.Container([
                         dbc.Col([
                             dbc.Row([
                                 dbc.Col([
-                                    create_metric_card("Invested", "metric-invested"),
+                                    create_metric_card(t("pa.invested", lang), "metric-invested"),
                                 ], width=4, className="mb-2"),
                                 dbc.Col([
-                                    create_metric_card("Profit/Loss", "metric-profit", "metric-profit-pct"),
+                                    create_metric_card(t("pa.profit_loss", lang), "metric-profit", "metric-profit-pct"),
                                 ], width=4, className="mb-2"),
                                 dbc.Col([
-                                    create_metric_card("Cash", "metric-cash"),
+                                    create_metric_card(t("pa.cash", lang), "metric-cash"),
                                 ], width=4, className="mb-2"),
                             ]),
                             dbc.Row([
                                 dbc.Col([
-                                    create_metric_card("1M Return", "metric-1m-return", "metric-1m-abs"),
+                                    create_metric_card(t("pa.1m_return", lang), "metric-1m-return", "metric-1m-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("3M Return", "metric-3m-return", "metric-3m-abs"),
+                                    create_metric_card(t("pa.3m_return", lang), "metric-3m-return", "metric-3m-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("YTD Return", "metric-ytd-return", "metric-ytd-abs"),
+                                    create_metric_card(t("pa.ytd_return", lang), "metric-ytd-return", "metric-ytd-abs"),
                                 ], width=3),
                                 dbc.Col([
-                                    create_metric_card("Total Return", "metric-total-return", "metric-total-abs"),
+                                    create_metric_card(t("pa.total_return", lang), "metric-total-return", "metric-total-abs"),
                                 ], width=3),
                             ]),
                         ], md=8, className="mb-2"),
@@ -412,8 +415,8 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     dbc.Tabs([
-                        dbc.Tab(label="Value", tab_id="tab-value"),
-                        dbc.Tab(label="Drawdown", tab_id="tab-drawdown"),
+                        dbc.Tab(label=t("pa.value", lang), tab_id="tab-value"),
+                        dbc.Tab(label=t("pa.drawdown", lang), tab_id="tab-drawdown"),
                     ], id="chart-tabs", active_tab="tab-value", className="mb-2"),
                     
                     dcc.Loading(
@@ -440,7 +443,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-graph-up-arrow me-2"),
-                    "Performance"
+                    t("pa.performance", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     dcc.Loading(
@@ -469,7 +472,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-bar-chart-line me-2"),
-                    "Performance Comparison"
+                    t("pa.perf_comparison", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     html.Div(id="comparison-table-container"),
@@ -484,7 +487,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-bar-chart me-2"),
-                    "Returns Summary"
+                    t("pa.returns_summary", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     html.Div(id="rendite-breakdown")
@@ -495,7 +498,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-clock-history me-2"),
-                    "Recent Activity"
+                    t("pa.recent_activity", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     html.Div(id="recent-activities-list")
@@ -510,7 +513,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-table me-2"),
-                    "Securities",
+                    t("pa.securities", lang),
                     dbc.Badge(id="holdings-count", children="0", className="ms-2", color="primary", pill=True),
                     html.Span(id="winners-losers-badge", className="ms-auto"),
                 ], className="card-header-modern d-flex align-items-center"),
@@ -522,7 +525,7 @@ layout = dbc.Container([
     ]),
     
     # TR Connect Modal
-    tr_connect_modal,
+    _create_tr_connect_modal(lang),
     
     # Hidden stores
     dcc.Store(id="selected-range", data="max"),
@@ -699,9 +702,11 @@ def register_callbacks(app):
          Output("demo-toggle-icon", "className")],
         [Input("demo-mode", "data"),
          Input("current-user-store", "data")],
+        State("lang-store", "data"),
         prevent_initial_call=False,
     )
-    def update_demo_banner(demo_mode, current_user):
+    def update_demo_banner(demo_mode, current_user, lang_data):
+        lang = get_lang(lang_data)
         show_demo = demo_mode or not current_user
         banner_style = {
             "display": "block" if show_demo else "none",
@@ -715,8 +720,8 @@ def register_callbacks(app):
             "marginBottom": "8px",
         }
         if show_demo:
-            return banner_style, "Switch to Real Account", "bi bi-briefcase-fill"
-        return banner_style, "Switch to Demo Account", "bi bi-person-badge"
+            return banner_style, t("pa.switch_real", lang), "bi bi-briefcase-fill"
+        return banner_style, t("pa.switch_demo", lang), "bi bi-person-badge"
     
     # Sync button: if connected → sync; if not logged in → login; if not connected → open TR modal
     @app.callback(
@@ -814,9 +819,11 @@ def register_callbacks(app):
         Output("holdings-donut-chart", "figure"),
         [Input("portfolio-data-store", "data"),
          Input("asset-class-filter", "value")],
+        State("lang-store", "data"),
         prevent_initial_call=False
     )
-    def update_donut_chart(data_json, asset_class):
+    def update_donut_chart(data_json, asset_class, lang_data):
+        lang = get_lang(lang_data)
         # Dark theme colors matching the image
         colors = ['#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', 
                   '#8b5cf6', '#d946ef', '#ec4899', '#ef4444', '#f59e0b', '#84cc16']
@@ -832,13 +839,13 @@ def register_callbacks(app):
 
         if not data_json:
             fig.add_trace(go.Pie(
-                values=[1], labels=["No data"], hole=0.7,
+                values=[1], labels=[t("pa.no_data", lang)], hole=0.7,
                 marker=dict(colors=["#374151"]),
                 textinfo="none", hoverinfo="none"
             ))
             fig.update_layout(
                 **_empty_layout,
-                annotations=[dict(text="No data", x=0.5, y=0.5, showarrow=False,
+                annotations=[dict(text=t("pa.no_data", lang), x=0.5, y=0.5, showarrow=False,
                                   font=dict(size=14, color="#94a3b8"))]
             )
             return fig
@@ -877,7 +884,7 @@ def register_callbacks(app):
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 annotations=[
-                    dict(text="Portfolio", x=0.5, y=0.55, showarrow=False,
+                    dict(text=t("pa.portfolio", lang), x=0.5, y=0.55, showarrow=False,
                          font=dict(size=11, color="#94a3b8")),
                     dict(text=center_value, x=0.5, y=0.45, showarrow=False,
                          font=dict(size=18, color="#f8fafc")),
@@ -912,34 +919,38 @@ def register_callbacks(app):
     @app.callback(
         Output("asset-class-label", "children"),
         Input("asset-class-filter", "value"),
+        State("lang-store", "data"),
         prevent_initial_call=False
     )
-    def update_asset_class_label(selected):
+    def update_asset_class_label(selected, lang_data):
+        lang = get_lang(lang_data)
         if not selected:
-            return "None"
+            return t("pa.none", lang)
         all_types = ["etf", "stock", "crypto", "bond", "cash"]
         default_types = ["etf", "stock", "crypto", "bond"]
         if set(selected) == set(all_types):
-            return "All"
+            return t("pa.all", lang)
         if set(selected) == set(default_types):
-            return "All Assets"
+            return t("pa.all_assets", lang)
         if len(selected) == 1:
-            names = {"etf": "ETFs", "stock": "Stocks", "crypto": "Crypto", "bond": "Bonds", "cash": "Cash"}
+            names = {"etf": t("pa.etfs", lang), "stock": t("pa.stocks", lang), "crypto": t("pa.crypto", lang), "bond": t("pa.bonds", lang), "cash": t("pa.cash", lang)}
             return names.get(selected[0], selected[0])
-        return f"{len(selected)} Types"
+        return t("pa.types", lang).replace("{n}", str(len(selected)))
 
     @app.callback(
         Output("benchmark-label", "children"),
         Input("benchmark-selector", "value"),
+        State("lang-store", "data"),
         prevent_initial_call=False
     )
-    def update_benchmark_label(selected):
+    def update_benchmark_label(selected, lang_data):
+        lang = get_lang(lang_data)
         if not selected:
-            return "No Bench."
+            return t("pa.no_bench", lang)
         if len(selected) == 1:
             names = {"^GSPC": "S&P 500", "^GDAXI": "DAX", "URTH": "MSCI World", "^IXIC": "NASDAQ", "^STOXX": "STOXX 600"}
             return names.get(selected[0], selected[0])
-        return f"{len(selected)} Bench."
+        return t("pa.n_bench", lang).replace("{n}", str(len(selected)))
 
     # (Timeframe label is now shown inline in pill bar — no callback needed)
 
@@ -948,32 +959,34 @@ def register_callbacks(app):
         [Output("header-meta", "children"),
          Output("data-freshness", "children")],
         Input("portfolio-data-store", "data"),
+        State("lang-store", "data"),
         prevent_initial_call=False
     )
-    def update_header_meta(data_json):
+    def update_header_meta(data_json, lang_data):
+        lang = get_lang(lang_data)
         if not data_json:
-            return "Not connected", ""
+            return t("pa.not_connected", lang), ""
         try:
             data = json.loads(data_json) if isinstance(data_json, str) else data_json
             if not data.get("success"):
-                return "Not connected", ""
+                return t("pa.not_connected", lang), ""
             portfolio = data.get("data", {})
             positions = portfolio.get("positions", [])
             asset_classes = len(set(get_position_asset_class(p) for p in positions))
-            meta = f"{len(positions)} Holdings"
+            meta = t("pa.n_holdings", lang).replace("{n}", str(len(positions)))
             
             cached_at = data.get("cached_at", "")
             if cached_at:
                 try:
                     sync_time = datetime.fromisoformat(cached_at)
-                    freshness = f"Synced {sync_time.strftime('%d %b, %H:%M')}"
+                    freshness = t("pa.synced_date", lang).replace("{date}", sync_time.strftime('%d %b, %H:%M'))
                 except Exception:
-                    freshness = "Synced"
+                    freshness = t("pa.synced", lang)
             else:
                 freshness = ""
             return meta, freshness
         except Exception:
-            return "Connected", ""
+            return t("pa.connected", lang), ""
 
     @app.callback(
         [Output("metric-1m-return", "children"),
@@ -1115,13 +1128,15 @@ def register_callbacks(app):
          Output("winners-losers-badge", "children")],
         [Input("portfolio-data-store", "data"),
          Input("asset-class-filter", "value")],
+        State("lang-store", "data"),
         prevent_initial_call=False
     )
-    def update_rendite_and_lists(data_json, asset_class):
+    def update_rendite_and_lists(data_json, asset_class, lang_data):
+        lang = get_lang(lang_data)
         if not data_json:
             return (
-                html.Div("No data synced", className="text-muted text-center py-3"),
-                html.Div("No recent activity", className="text-muted text-center py-3"),
+                html.Div(t("pa.no_data_synced", lang), className="text-muted text-center py-3"),
+                html.Div(t("pa.no_recent_activity", lang), className="text-muted text-center py-3"),
                 [],
                 "0",
                 "",
@@ -1211,45 +1226,45 @@ def register_callbacks(app):
 
             rendite_rows = html.Div([
                 html.Div([
-                    html.Div("Portfolio Value", className="text-muted small"),
+                    html.Div(t("pa.portfolio_value", lang), className="text-muted small"),
                     html.Div(f"€{total_value:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Invested", className="text-muted small"),
+                    html.Div(t("pa.invested", lang), className="text-muted small"),
                     html.Div(f"€{invested:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Cash", className="text-muted small"),
+                    html.Div(t("pa.cash", lang), className="text-muted small"),
                     html.Div(f"€{cash:,.2f}", className="fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Hr(className="my-2"),
                 html.Div([
-                    html.Div("Price Gains", className="text-muted small"),
+                    html.Div(t("pa.price_gains", lang), className="text-muted small"),
                     html.Div(f"{fmt_eur(profit)} ({fmt_pct(profit_pct)})", className="fw-semibold text-success sensitive" if profit >= 0 else "fw-semibold text-danger sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Dividends (gross)", className="text-muted small"),
+                    html.Div(t("pa.dividends", lang), className="text-muted small"),
                     html.Div(fmt_eur(dividends), className="fw-semibold text-success sensitive" if dividends >= 0 else "fw-semibold text-danger sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Interest (gross)", className="text-muted small"),
+                    html.Div(t("pa.interest", lang), className="text-muted small"),
                     html.Div(fmt_eur(interest), className="fw-semibold text-success sensitive" if interest >= 0 else "fw-semibold text-danger sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Realized P/L", className="text-muted small"),
+                    html.Div(t("pa.realized_pl", lang), className="text-muted small"),
                     html.Div(fmt_eur(realized), className="fw-semibold text-success sensitive" if realized >= 0 else "fw-semibold text-danger sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Fees", className="text-muted small"),
+                    html.Div(t("pa.fees", lang), className="text-muted small"),
                     html.Div(f"-€{fees:,.2f}" if fees else "€0.00", className="fw-semibold text-danger sensitive" if fees else "fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Div([
-                    html.Div("Taxes", className="text-muted small"),
+                    html.Div(t("pa.taxes", lang), className="text-muted small"),
                     html.Div(f"-€{taxes:,.2f}" if taxes else "€0.00", className="fw-semibold text-danger sensitive" if taxes else "fw-semibold sensitive"),
                 ], className="d-flex justify-content-between mb-2"),
                 html.Hr(className="my-2"),
                 html.Div([
-                    html.Div("Net Total", className="text-muted small fw-semibold"),
+                    html.Div(t("pa.net_total", lang), className="text-muted small fw-semibold"),
                     html.Div(fmt_eur(net_sum), className="fw-bold text-success sensitive" if net_sum >= 0 else "fw-bold text-danger sensitive"),
                 ], className="d-flex justify-content-between"),
             ])
@@ -1265,27 +1280,27 @@ def register_callbacks(app):
 
             def classify_activity(title_raw, subtitle_raw):
                 """Return (label, icon, badge_color) for a transaction."""
-                t = title_raw.lower()
+                tl = title_raw.lower()
                 s = subtitle_raw.lower()
-                if "sparplan" in s or "sparplan" in t:
-                    return "Savings Plan", "bi-arrow-repeat", "info"
-                if "kauf" in s or "buy" in t or "kauforder" in t:
-                    return "Buy", "bi-cart-plus", "info"
-                if "verkauf" in s or "sell" in t or "verkaufsorder" in t:
-                    return "Sell", "bi-cart-dash", "warning"
-                if "dividende" in s or "dividend" in t or "dividende" in t:
-                    return "Dividend", "bi-cash-coin", "success"
-                if "zinsen" in t or "interest" in t:
-                    return "Interest", "bi-cash-coin", "success"
-                if "einzahlung" in t or "deposit" in t:
-                    return "Deposit", "bi-box-arrow-in-down", "success"
-                if "auszahlung" in t or "withdraw" in t or "gesendet" in s:
-                    return "Withdrawal", "bi-box-arrow-up", "danger"
-                if "steuer" in t or "tax" in t:
-                    return "Tax", "bi-receipt", "secondary"
-                if "gebühr" in t or "fee" in t:
-                    return "Fee", "bi-receipt", "secondary"
-                return "Activity", "bi-clock-history", "primary"
+                if "sparplan" in s or "sparplan" in tl:
+                    return t("pa.savings_plan", lang), "bi-arrow-repeat", "info"
+                if "kauf" in s or "buy" in tl or "kauforder" in tl:
+                    return t("pa.buy", lang), "bi-cart-plus", "info"
+                if "verkauf" in s or "sell" in tl or "verkaufsorder" in tl:
+                    return t("pa.sell", lang), "bi-cart-dash", "warning"
+                if "dividende" in s or "dividend" in tl or "dividende" in tl:
+                    return t("pa.dividend", lang), "bi-cash-coin", "success"
+                if "zinsen" in tl or "interest" in tl:
+                    return t("pa.interest_activity", lang), "bi-cash-coin", "success"
+                if "einzahlung" in tl or "deposit" in tl:
+                    return t("pa.deposit", lang), "bi-box-arrow-in-down", "success"
+                if "auszahlung" in tl or "withdraw" in tl or "gesendet" in s:
+                    return t("pa.withdrawal", lang), "bi-box-arrow-up", "danger"
+                if "steuer" in tl or "tax" in tl:
+                    return t("pa.tax", lang), "bi-receipt", "secondary"
+                if "gebühr" in tl or "fee" in tl:
+                    return t("pa.fee", lang), "bi-receipt", "secondary"
+                return t("pa.activity", lang), "bi-clock-history", "primary"
 
             recent_items = []
             for txn in sorted(transactions, key=lambda x: x.get("timestamp", ""), reverse=True)[:8]:
@@ -1313,7 +1328,7 @@ def register_callbacks(app):
                     ], className="d-flex justify-content-between align-items-center py-2 border-bottom")
                 )
 
-            recent_list = html.Div(recent_items) if recent_items else html.Div("No recent activity", className="text-muted text-center py-3")
+            recent_list = html.Div(recent_items) if recent_items else html.Div(t("pa.no_recent_activity", lang), className="text-muted text-center py-3")
 
             # Build securities data for the HTML table
             sec_rows = []
@@ -1358,25 +1373,30 @@ def register_callbacks(app):
 
         except Exception:
             return (
-                html.Div("No data synced", className="text-muted text-center py-3"),
-                html.Div("No recent activity", className="text-muted text-center py-3"),
+                html.Div(t("pa.no_data_synced", lang), className="text-muted text-center py-3"),
+                html.Div(t("pa.no_recent_activity", lang), className="text-muted text-center py-3"),
                 [],
                 "0",
                 "",
             )
 
     # ── Securities HTML table with real <img> logos ──────────────────────
-    _SEC_COLS = [
-        ("name",       "Name",     "left"),
-        ("type",       "Type",     "left"),
-        ("qty",        "Shares",   "right"),
-        ("avg_buy",    "Avg €",    "right"),
-        ("value",      "Value",    "right"),
-        ("profit",     "P/L",      "right"),
-        ("profit_pct", "P/L %",    "right"),
-        ("dividends",  "Div.",     "right"),
-        ("allocation", "Alloc.",   "right"),
+    _SEC_COL_IDS = [
+        ("name",       "left"),
+        ("type",       "left"),
+        ("qty",        "right"),
+        ("avg_buy",    "right"),
+        ("value",      "right"),
+        ("profit",     "right"),
+        ("profit_pct", "right"),
+        ("dividends",  "right"),
+        ("allocation", "right"),
     ]
+    _SEC_COL_KEYS = {
+        "name": "pa.name", "type": "pa.type", "qty": "pa.shares",
+        "avg_buy": "pa.avg_price", "value": "pa.value", "profit": "pa.pl",
+        "profit_pct": "pa.pl_pct", "dividends": "pa.div", "allocation": "pa.alloc",
+    }
 
     # Preload available logos (file path lookup – done once at import time is fine
     # because the callback re-checks every render anyway).
@@ -1392,7 +1412,7 @@ def register_callbacks(app):
             return "–"
         return f"{v:,.{decimals}f}%"
 
-    def _build_securities_html(rows, sort_col="value", sort_asc=False):
+    def _build_securities_html(rows, sort_col="value", sort_asc=False, lang="en"):
         """Build an html.Table with inline <img> logos and clickable sort headers."""
         # Sort
         rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0,
@@ -1400,7 +1420,8 @@ def register_callbacks(app):
 
         # Header
         header_cells = []
-        for col_id, col_label, align in _SEC_COLS:
+        for col_id, align in _SEC_COL_IDS:
+            col_label = t(_SEC_COL_KEYS.get(col_id, col_id), lang)
             arrow = ""
             if col_id == sort_col:
                 arrow = " ↑" if sort_asc else " ↓"
@@ -1461,13 +1482,15 @@ def register_callbacks(app):
         Output("securities-table-container", "children"),
         Input("securities-data", "data"),
         Input("securities-sort", "data"),
+        State("lang-store", "data"),
     )
-    def render_securities_table(sec_data, sort_state):
+    def render_securities_table(sec_data, sort_state, lang_data):
+        lang = get_lang(lang_data)
         if not sec_data:
-            return html.Div("No securities", className="text-muted text-center py-3")
+            return html.Div(t("pa.no_securities", lang), className="text-muted text-center py-3")
         col = sort_state.get("col", "value") if sort_state else "value"
         asc = sort_state.get("asc", False) if sort_state else False
-        return _build_securities_html(sec_data, col, asc)
+        return _build_securities_html(sec_data, col, asc, lang=lang)
 
     # Sort click handler (pattern-matching callback)
     @app.callback(
@@ -1595,7 +1618,7 @@ def register_callbacks(app):
         
         return history
     
-    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks, asset_class=None, use_deposits=False):
+    def build_portfolio_chart(data_json, chart_type, selected_range, benchmarks, pathname, include_benchmarks, asset_class=None, use_deposits=False, lang="en"):
         # Only render chart on /compare page
         if not pathname or pathname != "/compare":
             return go.Figure()  # Return empty figure instead of raising exception
@@ -1618,7 +1641,7 @@ def register_callbacks(app):
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 annotations=[{
-                    "text": "Connect to Trade Republic to see your portfolio",
+                    "text": t("pa.chart_empty", lang),
                     "xref": "paper", "yref": "paper",
                     "x": 0.5, "y": 0.5, "showarrow": False,
                     "font": {"size": 14, "color": "#9ca3af"}
@@ -1673,7 +1696,7 @@ def register_callbacks(app):
                     plot_bgcolor="white",
                     paper_bgcolor="white",
                     annotations=[{
-                        "text": "Historical chart not available from Trade Republic",
+                        "text": t("pa.chart_no_hist", lang),
                         "xref": "paper", "yref": "paper",
                         "x": 0.5, "y": 0.5, "showarrow": False,
                         "font": {"size": 14, "color": "#9ca3af"}
@@ -1739,7 +1762,7 @@ def register_callbacks(app):
                     plot_bgcolor="white",
                     paper_bgcolor="white",
                     annotations=[{
-                        "text": "No history data for selected range",
+                        "text": t("pa.chart_no_range", lang),
                         "xref": "paper", "yref": "paper",
                         "x": 0.5, "y": 0.5, "showarrow": False,
                         "font": {"size": 14, "color": "#9ca3af"}
@@ -1791,7 +1814,7 @@ def register_callbacks(app):
             if chart_type == "tab-value":
                 # Absolute portfolio value over time
                 y_data = df['value']
-                y_title = "Portfolio Value (€)"
+                y_title = t("pa.yaxis_value", lang)
                 y_prefix = "€"
                 fill_color = "rgba(99, 102, 241, 0.1)"
             elif chart_type == "tab-performance":
@@ -1803,7 +1826,7 @@ def register_callbacks(app):
                     y_data = pd.Series(rebase_twr_series(df['twr']), index=df.index)
                 else:
                     y_data = _calculate_twr_series_df(df)
-                y_title = "Return (%)"
+                y_title = t("pa.yaxis_return", lang)
                 y_prefix = ""
                 fill_color = None  # We'll handle fill separately for positive/negative
             else:  # drawdown
@@ -1816,13 +1839,13 @@ def register_callbacks(app):
                     twr_for_dd = _calculate_twr_series_df(df).tolist()
                     dd_list = calculate_drawdown_series(df['value'].tolist(), twr_series=twr_for_dd)
                     y_data = pd.Series(dd_list, index=df.index)
-                y_title = "Drawdown (%)"
+                y_title = t("pa.yaxis_drawdown", lang)
                 y_prefix = ""
                 fill_color = "rgba(239, 68, 68, 0.2)"
             
             # Portfolio line
             if chart_type == "tab-value":
-                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
+                portfolio_hover = "<b>" + t("pa.portfolio", lang) + "</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
                 
                 # Invisible baseline trace at the min value of all visible series
                 # so fill='tonexty' doesn't go all the way to zero
@@ -1842,7 +1865,7 @@ def register_callbacks(app):
                     x=x_dates,
                     y=_series_to_number_list(y_data),
                     mode='lines',
-                    name='Portfolio',
+                    name=t("pa.portfolio", lang),
                     line=dict(color='#6366f1', width=2),
                     fill='tonexty',
                     fillcolor=fill_color,
@@ -1851,18 +1874,18 @@ def register_callbacks(app):
                 
                 # Add invested/added capital line (shows money added over time)
                 if 'invested' in df.columns:
-                    invested_hover = "<b>Added Capital</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
+                    invested_hover = "<b>" + t("pa.added_capital", lang) + "</b><br>%{x|%d %b %Y}<br>€%{y:,.2f}<extra></extra>"
                     fig.add_trace(go.Scatter(
                         x=x_dates,
                         y=_series_to_number_list(df['invested']),
                         mode='lines',
-                        name='Added Capital',
+                        name=t("pa.added_capital", lang),
                         line=dict(color='#f59e0b', width=2),
                         hovertemplate=invested_hover,
                     ))
             elif chart_type == "tab-performance":
                 # Performance chart with green above 0% and red below 0% (Parqet style)
-                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
+                portfolio_hover = "<b>" + t("pa.portfolio", lang) + "</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
                 y_values = _series_to_number_list(y_data)
                 
                 # Create positive and negative series for fill
@@ -1900,18 +1923,18 @@ def register_callbacks(app):
                     x=x_dates,
                     y=y_values,
                     mode='lines',
-                    name='Portfolio',
+                    name=t("pa.portfolio", lang),
                     line=dict(color='#6366f1', width=2),
                     hovertemplate=portfolio_hover,
                 ))
             else:
                 # Drawdown chart
-                portfolio_hover = "<b>Portfolio</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
+                portfolio_hover = "<b>" + t("pa.portfolio", lang) + "</b><br>%{x|%d %b %Y}<br>%{y:,.2f}%<extra></extra>"
                 fig.add_trace(go.Scatter(
                     x=x_dates,
                     y=_series_to_number_list(y_data),
                     mode='lines',
-                    name='Portfolio',
+                    name=t("pa.portfolio", lang),
                     line=dict(color='#6366f1', width=2),
                     fill='tozeroy' if fill_color else None,
                     fillcolor=fill_color,
@@ -2068,10 +2091,12 @@ def register_callbacks(app):
          Input("selected-range", "data"),
          Input("benchmark-selector", "value"),
          Input("asset-class-filter", "value")],
-        State("url", "pathname"),
+        [State("url", "pathname"),
+         State("lang-store", "data")],
         prevent_initial_call=False
     )
-    def update_chart(data_json, chart_type, selected_range, benchmarks, asset_class, pathname):
+    def update_chart(data_json, chart_type, selected_range, benchmarks, asset_class, pathname, lang_data):
+        lang = get_lang(lang_data)
         # Use deposits for benchmark simulation if "cash" is included in asset filter
         use_deposits = "cash" in (asset_class or [])
         return build_portfolio_chart(
@@ -2083,6 +2108,7 @@ def register_callbacks(app):
             include_benchmarks=True,
             asset_class=asset_class,
             use_deposits=use_deposits,
+            lang=lang,
         )
 
     # Performance chart (benchmarks only here)
@@ -2092,10 +2118,12 @@ def register_callbacks(app):
          Input("selected-range", "data"),
          Input("benchmark-selector", "value"),
          Input("asset-class-filter", "value")],
-        State("url", "pathname"),
+        [State("url", "pathname"),
+         State("lang-store", "data")],
         prevent_initial_call=False
     )
-    def update_performance_chart(data_json, selected_range, benchmarks, asset_class, pathname):
+    def update_performance_chart(data_json, selected_range, benchmarks, asset_class, pathname, lang_data):
+        lang = get_lang(lang_data)
         # Use deposits for benchmark simulation if "cash" is included in asset filter
         use_deposits = "cash" in (asset_class or [])
         return build_portfolio_chart(
@@ -2107,6 +2135,7 @@ def register_callbacks(app):
             include_benchmarks=True,
             asset_class=asset_class,
             use_deposits=use_deposits,
+            lang=lang,
         )
 
     # Privacy mode toggle (clientside so it reacts instantly)

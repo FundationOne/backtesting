@@ -12,6 +12,7 @@ import yfinance as yf
 
 from pathlib import Path
 from core.conf import *
+from components.i18n import t, get_lang
 
 from components.gpt_functionality import context_description
 
@@ -452,14 +453,15 @@ from components.rule_builder import (
     save_rules_modal, load_rules_modal, get_rules_from_ui
 )
 
-layout = dbc.Container([
+def layout(lang="en"):
+  return dbc.Container([
     # Page Header
     html.Div([
         html.H4([
             html.I(className="bi bi-graph-up me-2"),
-            "Backtesting"
+            t("bt.title", lang)
         ], className="page-title"),
-        html.P("Test trading strategies against historical data", className="page-subtitle"),
+        html.P(t("bt.subtitle", lang), className="page-subtitle"),
     ], className="page-header"),
     
     dbc.Row([
@@ -469,14 +471,14 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-coin me-2"),
-                    "Asset"
+                    t("bt.asset", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     dcc.Dropdown(
                         id="asset-search-dropdown",
                         options=_POPULAR_ASSETS,
                         value="BTC-USD",
-                        placeholder="Search asset… e.g. AAPL, BTC-USD, SPY",
+                        placeholder=t("bt.search_placeholder", lang),
                         searchable=True,
                         clearable=False,
                         className="asset-autocomplete",
@@ -493,7 +495,7 @@ layout = dbc.Container([
                 dbc.CardHeader([
                     html.Div([
                         html.I(className="bi bi-sliders me-2"),
-                        html.Span("Parameters"),
+                        html.Span(t("bt.parameters", lang)),
                     ], className="d-flex align-items-center"),
                     dbc.Button(
                         html.I(className="bi bi-chevron-down", id="collapse-icon"),
@@ -507,7 +509,7 @@ layout = dbc.Container([
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Cash ($)", className="input-label"),
+                                dbc.Label(t("bt.cash", lang), className="input-label"),
                                 dbc.Input(
                                     id="input-starting-investment",
                                     type="number",
@@ -516,7 +518,7 @@ layout = dbc.Container([
                                 ),
                             ], width=6),
                             dbc.Col([
-                                dbc.Label("Trade Size ($)", className="input-label"),
+                                dbc.Label(t("bt.trade_size", lang), className="input-label"),
                                 dbc.Input(
                                     id="input-trade-amount",
                                     type="number",
@@ -528,7 +530,7 @@ layout = dbc.Container([
                         
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Fee ($)", className="input-label"),
+                                dbc.Label(t("bt.fee", lang), className="input-label"),
                                 dbc.Input(
                                     id="input-transaction-fee",
                                     type="number",
@@ -538,7 +540,7 @@ layout = dbc.Container([
                                 ),
                             ], width=6),
                             dbc.Col([
-                                dbc.Label("Tax (%)", className="input-label"),
+                                dbc.Label(t("bt.tax", lang), className="input-label"),
                                 dbc.Input(
                                     id="input-tax-amount",
                                     type="number",
@@ -551,7 +553,7 @@ layout = dbc.Container([
                         
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Start Date", className="input-label"),
+                                dbc.Label(t("bt.start_date", lang), className="input-label"),
                                 dcc.DatePickerSingle(
                                     id="input-starting-date",
                                     date='2018-01-01',
@@ -560,7 +562,7 @@ layout = dbc.Container([
                                 ),
                             ], width=6),
                             dbc.Col([
-                                dbc.Label("Tax Method", className="input-label"),
+                                dbc.Label(t("bt.tax_method", lang), className="input-label"),
                                 dcc.Dropdown(
                                     id="taxation-method-dropdown",
                                     options=[{"label": "FIFO", "value": "FIFO"}],
@@ -573,7 +575,7 @@ layout = dbc.Container([
                         
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Hold Period (days)", className="input-label"),
+                                dbc.Label(t("bt.hold_period", lang), className="input-label"),
                                 dbc.Input(
                                     id="input-holding-period",
                                     type="number",
@@ -588,7 +590,7 @@ layout = dbc.Container([
                                         value=True,
                                         className="me-2"
                                     ),
-                                    html.Label("Start fully invested", className="form-check-label", style={"fontSize": "0.75rem", "marginTop": "0"}),
+                                    html.Label(t("bt.start_invested", lang), className="form-check-label", style={"fontSize": "0.75rem", "marginTop": "0"}),
                                 ], className="d-flex align-items-center", style={"paddingTop": "20px"}),
                             ], width=6),
                         ]),
@@ -614,8 +616,8 @@ layout = dbc.Container([
                 dbc.CardBody([
                     # Inline scale toggle
                     html.Div([
-                        html.Button("Lin", id="scale-btn-linear", n_clicks=0, className="scale-btn active"),
-                        html.Button("Log", id="scale-btn-log", n_clicks=0, className="scale-btn"),
+                        html.Button(t("bt.lin", lang), id="scale-btn-linear", n_clicks=0, className="scale-btn active"),
+                        html.Button(t("bt.log", lang), id="scale-btn-log", n_clicks=0, className="scale-btn"),
                     ], className="scale-toggle-bar"),
                     dcc.Store(id="chart-scale-toggle", data="linear", storage_type="local"),
                     dcc.Loading(
@@ -630,7 +632,7 @@ layout = dbc.Container([
             dbc.Card([
                 dbc.CardHeader([
                     html.I(className="bi bi-list-ul me-2"),
-                    "Transaction History"
+                    t("bt.tx_history", lang)
                 ], className="card-header-modern"),
                 dbc.CardBody([
                     dcc.Loading(
@@ -883,8 +885,10 @@ def register_callbacks(app):
          Output('backtesting-graph', 'figure')],
         [Input("asset-search-dropdown", "value"),
          Input('chart-scale-toggle', 'data')],
+        [State("lang-store", "data")],
     )
-    def on_asset_change(value, scale):
+    def on_asset_change(value, scale, lang_data):
+        lang = get_lang(lang_data)
         ticker = value or "BTC-USD"
         
         # Find display name (e.g. "Apple (AAPL)") from our list, if available
@@ -906,7 +910,7 @@ def register_callbacks(app):
         else:
             data = _download_asset(ticker)
         if data is None or data.empty or 'price' not in data.columns:
-            return ticker, _error_fig(f"Could not load data for '{ticker}'.")
+            return ticker, _error_fig(t("bt.no_data_error", lang).format(ticker=ticker))
         return ticker, _price_fig(display_name, data, scale or "linear")
     
     @app.callback(
@@ -925,12 +929,14 @@ def register_callbacks(app):
         State('taxation-method-dropdown', 'value'),
         State('input-tax-amount', 'value'),
         State('input-holding-period', 'value'),
-        State('selected-asset', 'data')],
+        State('selected-asset', 'data'),
+        State('lang-store', 'data')],
         prevent_initial_call=True,
     )
     def update_backtesting(n_clicks, starting_investment, start_invested, start_date,
                            children, store_data, scale, trade_amount, transaction_fee,
-                           taxation_method, tax_amount, holding_period, selected_asset):
+                           taxation_method, tax_amount, holding_period, selected_asset, lang_data):
+        lang = get_lang(lang_data)
         if not n_clicks:
             raise PreventUpdate
 
@@ -949,7 +955,7 @@ def register_callbacks(app):
 
         data = _load_asset_data(asset_ticker)
         if data is None:
-            return [], [], _error_fig(f"Could not load data for '{asset_ticker}'.")
+            return [], [], _error_fig(t("bt.no_data_error", lang).format(ticker=asset_ticker))
 
         # Run strategy
         transactions_df, portfolio_value = execute_strategy(
@@ -966,13 +972,13 @@ def register_callbacks(app):
         # Strategy value traces on RIGHT Y-axis (y2) so they don't
         # squish the price trace into a flat line.
         fig.add_trace(go.Scatter(x=_to_list(lump_sum.index), y=_to_list(lump_sum), mode='lines',
-                                 name='Lump Sum & Hold', line=dict(color='#f97316', width=1.5),
+                                 name=t("bt.lump_sum", lang), line=dict(color='#f97316', width=1.5),
                                  yaxis='y2'))
         fig.add_trace(go.Scatter(x=_to_list(dca.index), y=_to_list(dca), mode='lines',
-                                 name='Monthly DCA', line=dict(color='#06b6d4', width=1.5),
+                                 name=t("bt.monthly_dca", lang), line=dict(color='#06b6d4', width=1.5),
                                  yaxis='y2'))
         fig.add_trace(go.Scatter(x=_to_list(portfolio_value.index), y=_to_list(portfolio_value), mode='lines',
-                                 name='Portfolio Value', line=dict(color='#a855f7', width=2),
+                                 name=t("bt.portfolio_value", lang), line=dict(color='#a855f7', width=2),
                                  yaxis='y2'))
 
         # Transaction markers stay on the price axis (y1)
@@ -981,10 +987,10 @@ def register_callbacks(app):
             sells = transactions_df[transactions_df['Action'] == 'SELL']
             if not buys.empty:
                 fig.add_trace(go.Scatter(x=_to_list(buys['Date']), y=_to_list(buys['price']), mode='markers',
-                                         name='Buy', marker=dict(color='#10b981', size=8, symbol='triangle-up')))
+                                         name=t("bt.buy", lang), marker=dict(color='#10b981', size=8, symbol='triangle-up')))
             if not sells.empty:
                 fig.add_trace(go.Scatter(x=_to_list(sells['Date']), y=_to_list(sells['price']), mode='markers',
-                                         name='Sell', marker=dict(color='#ef4444', size=8, symbol='triangle-down')))
+                                         name=t("bt.sell", lang), marker=dict(color='#ef4444', size=8, symbol='triangle-down')))
 
         # Overlay indicator columns mentioned in rules (also on y2)
         columns_to_plot = extract_columns_from_expression([buying_rule, selling_rule])
@@ -996,8 +1002,8 @@ def register_callbacks(app):
 
         # Configure the secondary Y-axis
         fig.update_layout(
-            title=dict(text=f"{display_name} — Backtest Results", font=dict(size=14)),
-            yaxis_title='Price',
+            title=dict(text=f"{display_name} — {t('bt.backtest_results', lang)}", font=dict(size=14)),
+            yaxis_title=t("bt.price", lang),
             yaxis2=dict(
                 title="Portfolio Value ($)",
                 overlaying='y',

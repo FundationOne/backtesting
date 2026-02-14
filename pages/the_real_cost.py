@@ -7,16 +7,18 @@ from dash import html, dcc, Input, Output, State, ctx, no_update, ALL, callback_
 import dash_bootstrap_components as dbc
 import locale
 
+from components.i18n import t, get_lang
+
 
 # ── Pre-defined purchase options ──────────────────────────────────────────────
 PRESET_OPTIONS = [
-    {"label": "Starbucks Coffee", "icon": "bi-cup-straw",      "cost": 5,      "color": "#00704A"},
-    {"label": "Flatscreen TV",   "icon": "bi-tv-fill",        "cost": 800,    "color": "#10b981"},
-    {"label": "New iPhone",      "icon": "bi-phone-fill",      "cost": 1_200,  "color": "#8b5cf6"},
-    {"label": "Designer Bag",    "icon": "bi-bag-fill",        "cost": 2_500,  "color": "#ec4899"},
-    {"label": "Vacation Trip",   "icon": "bi-geo-alt-fill",    "cost": 3_500,  "color": "#3b82f6"},
-    {"label": "Used Car",        "icon": "bi-speedometer2",    "cost": 5_000,  "color": "#6366f1"},
-    {"label": "Solar Panels",    "icon": "bi-sun-fill",        "cost": 12_000, "color": "#f59e0b"},
+    {"i18n": "rc.starbucks",   "icon": "bi-cup-straw",      "cost": 5,      "color": "#00704A"},
+    {"i18n": "rc.flatscreen",  "icon": "bi-tv-fill",        "cost": 800,    "color": "#10b981"},
+    {"i18n": "rc.iphone",      "icon": "bi-phone-fill",      "cost": 1_200,  "color": "#8b5cf6"},
+    {"i18n": "rc.designer_bag","icon": "bi-bag-fill",        "cost": 2_500,  "color": "#ec4899"},
+    {"i18n": "rc.vacation",    "icon": "bi-geo-alt-fill",    "cost": 3_500,  "color": "#3b82f6"},
+    {"i18n": "rc.used_car",    "icon": "bi-speedometer2",    "cost": 5_000,  "color": "#6366f1"},
+    {"i18n": "rc.solar",       "icon": "bi-sun-fill",        "cost": 12_000, "color": "#f59e0b"},
 ]
 
 
@@ -27,7 +29,7 @@ def _fmt(val: float) -> str:
     return f"${val:,.0f}"
 
 
-def _make_preset_card(opt: dict, idx: int) -> dbc.Col:
+def _make_preset_card(opt: dict, idx: int, lang: str = "en") -> dbc.Col:
     return dbc.Col(
         html.Div(
             [
@@ -36,7 +38,7 @@ def _make_preset_card(opt: dict, idx: int) -> dbc.Col:
                     className="preset-icon-circle",
                     style={"background": opt["color"] + "18", "color": opt["color"]},
                 ),
-                html.Div(opt["label"], className="preset-label"),
+                html.Div(t(opt["i18n"], lang), className="preset-label"),
                 html.Div(_fmt(opt["cost"]), className="preset-price"),
             ],
             className="preset-card",
@@ -48,7 +50,8 @@ def _make_preset_card(opt: dict, idx: int) -> dbc.Col:
 
 
 # ── Layout ────────────────────────────────────────────────────────────────────
-layout = html.Div([
+def layout(lang="en"):
+  return html.Div([
     # Hero section
     html.Div([
         html.Div([
@@ -56,30 +59,26 @@ layout = html.Div([
                 html.I(className="bi bi-currency-dollar", 
                        style={"fontSize": "2.4rem", "color": "#6366f1"}),
             ], className="hero-icon-wrapper"),
-            html.H2("The Real Cost", className="real-cost-title"),
-            html.P(
-                "Every dollar you spend today is a dollar that can't grow for tomorrow. "
-                "See what your purchases truly cost in lost future wealth.",
-                className="real-cost-subtitle",
-            ),
+            html.H2(t("rc.title", lang), className="real-cost-title"),
+            html.P(t("rc.subtitle", lang), className="real-cost-subtitle"),
         ], className="text-center"),
     ], className="real-cost-hero"),
 
     # Question
     html.Div([
-        html.H4("What would you like to buy?", className="real-cost-question"),
+        html.H4(t("rc.question", lang), className="real-cost-question"),
     ], className="text-center mb-4"),
 
     # Preset cards
     dbc.Row(
-        [_make_preset_card(opt, i) for i, opt in enumerate(PRESET_OPTIONS)],
+        [_make_preset_card(opt, i, lang) for i, opt in enumerate(PRESET_OPTIONS)],
         className="justify-content-center preset-row gx-3",
     ),
 
     # "Or enter your own" divider
     html.Div([
         html.Div(className="divider-line"),
-        html.Span("or enter your own", className="divider-text"),
+        html.Span(t("rc.or_enter_own", lang), className="divider-text"),
         html.Div(className="divider-line"),
     ], className="custom-divider my-4"),
 
@@ -90,20 +89,20 @@ layout = html.Div([
                                className="custom-ig-text"),
             dbc.Input(
                 id="custom-item-name",
-                placeholder="Item name (e.g. Mountain Bike)",
+                placeholder=t("rc.item_placeholder", lang),
                 type="text",
                 className="custom-input",
             ),
             dbc.InputGroupText("$", className="custom-ig-text"),
             dbc.Input(
                 id="custom-item-cost",
-                placeholder="Cost",
+                placeholder=t("rc.cost", lang),
                 type="number",
                 min=1,
                 className="custom-input custom-input-cost",
             ),
             dbc.Button(
-                [html.I(className="bi bi-arrow-right-circle-fill me-1"), "Calculate"],
+                [html.I(className="bi bi-arrow-right-circle-fill me-1"), t("rc.calculate", lang)],
                 id="custom-submit-btn",
                 color="primary",
                 className="custom-submit-btn",
@@ -147,7 +146,7 @@ def register_callbacks(app):
         if idx is None or all(n == 0 for n in n_clicks_list):
             return no_update, no_update
         opt = PRESET_OPTIONS[idx]
-        return opt["label"], opt["cost"]
+        return t(opt["i18n"], "en"), opt["cost"]
 
     # Main calculation (submit button or recalc only)
     @app.callback(
@@ -157,28 +156,30 @@ def register_callbacks(app):
         [State("custom-item-name", "value"),
          State("custom-item-cost", "value"),
          State("input-age", "value"),
-         State("input-growth", "value")],
+         State("input-growth", "value"),
+         State("lang-store", "data")],
         prevent_initial_call=True,
     )
     def calculate_real_cost(submit_clicks, recalc_clicks,
-                            item_name, item_cost, age, growth):
+                            item_name, item_cost, age, growth, lang_data):
         # Determine what triggered
         trigger = ctx.triggered_id
+        lang = get_lang(lang_data)
 
         # Defaults
         age = age or 25
         growth = growth or 7
-        item_name = item_name or "Purchase"
+        item_name = item_name or t("rc.purchase", lang)
 
         if item_cost is None or item_cost <= 0:
-            return _empty_results_placeholder()
+            return _empty_results_placeholder(lang)
 
         try:
             age = int(age)
             growth = float(growth)
             item_cost = float(item_cost)
         except (ValueError, TypeError):
-            return _empty_results_placeholder()
+            return _empty_results_placeholder(lang)
 
         years_left = max(80 - age, 1)
         rate = growth / 100.0
@@ -187,7 +188,7 @@ def register_callbacks(app):
         multiplier = future_value / item_cost
 
         return _build_results(item_name, item_cost, age, growth,
-                              years_left, future_value, lost_wealth, multiplier)
+                              years_left, future_value, lost_wealth, multiplier, lang)
 
     # Client-side callback: scroll to results when they appear
     app.clientside_callback(
@@ -210,33 +211,33 @@ def register_callbacks(app):
     )
 
 
-def _empty_results_placeholder():
+def _empty_results_placeholder(lang="en"):
     return html.Div([
         html.Div([
             html.I(className="bi bi-info-circle", 
                    style={"fontSize": "2rem", "color": "#94a3b8"}),
-            html.P("Enter an item and cost above to see the real cost.",
+            html.P(t("rc.empty_state", lang),
                    className="text-muted mt-2"),
         ], className="text-center py-5"),
     ])
 
 
-def _build_results(name, cost, age, growth, years_left, future_value, lost, multiplier):
+def _build_results(name, cost, age, growth, years_left, future_value, lost, multiplier, lang="en"):
     return html.Div([
         # Editable parameters row
         html.Div([
-            html.H5("Adjust Your Assumptions", className="params-title"),
+            html.H5(t("rc.adjust", lang), className="params-title"),
             dbc.Row([
                 dbc.Col([
-                    html.Label("Your Age", className="param-label"),
+                    html.Label(t("rc.your_age", lang), className="param-label"),
                     dbc.InputGroup([
                         dbc.Input(id="input-age", type="number", value=age,
                                   min=1, max=100, className="param-input"),
-                        dbc.InputGroupText("years", className="param-addon"),
+                        dbc.InputGroupText(t("rc.years", lang), className="param-addon"),
                     ], size="sm"),
                 ], md=3, sm=6, className="mb-2"),
                 dbc.Col([
-                    html.Label("Annual Growth Rate", className="param-label"),
+                    html.Label(t("rc.annual_growth", lang), className="param-label"),
                     dbc.InputGroup([
                         dbc.Input(id="input-growth", type="number", value=growth,
                                   min=0, max=50, step=0.5, className="param-input"),
@@ -244,7 +245,7 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                     ], size="sm"),
                 ], md=3, sm=6, className="mb-2"),
                 dbc.Col([
-                    html.Label("Cash Cost Now", className="param-label"),
+                    html.Label(t("rc.cash_cost", lang), className="param-label"),
                     dbc.InputGroup([
                         dbc.InputGroupText("$", className="param-addon"),
                         dbc.Input(id="param-cost-display", type="number",
@@ -255,7 +256,7 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                     html.Label("\u00A0", className="param-label"),  # spacer
                     html.Div(
                         dbc.Button(
-                            [html.I(className="bi bi-arrow-repeat me-1"), "Recalculate"],
+                            [html.I(className="bi bi-arrow-repeat me-1"), t("rc.recalculate", lang)],
                             id="recalc-btn",
                             color="primary",
                             size="sm",
@@ -271,9 +272,9 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
         # Results cards
         html.Div([
             html.H5([
-                html.Span("Your ", style={"color": "#64748b"}),
+                html.Span(t("rc.really_costs", lang).split("{name}")[0], style={"color": "#64748b"}),
                 html.Span(name, style={"color": "#6366f1", "fontWeight": "700"}),
-                html.Span(" really costs…", style={"color": "#64748b"}),
+                html.Span(t("rc.really_costs", lang).split("{name}")[-1], style={"color": "#64748b"}),
             ], className="results-heading text-center mb-4"),
 
             dbc.Row([
@@ -284,9 +285,9 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                             html.I(className="bi bi-graph-up-arrow",
                                    style={"fontSize": "1.5rem", "color": "#6366f1"}),
                         ], className="result-icon"),
-                        html.Div("True Cost at Age 80", className="result-card-label"),
+                        html.Div(t("rc.true_cost", lang), className="result-card-label"),
                         html.Div(_fmt(future_value), className="result-card-value text-primary-custom"),
-                        html.Div(f"in {years_left} years at {growth}% growth",
+                        html.Div(t("rc.true_cost_sub", lang).format(years_left=years_left, growth=growth),
                                  className="result-card-sub"),
                     ], className="result-card"),
                     md=4, sm=12, className="mb-3",
@@ -298,9 +299,9 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                             html.I(className="bi bi-cash-stack",
                                    style={"fontSize": "1.5rem", "color": "#ef4444"}),
                         ], className="result-icon"),
-                        html.Div("Lost Future Wealth", className="result-card-label"),
+                        html.Div(t("rc.lost_wealth", lang), className="result-card-label"),
                         html.Div(_fmt(lost), className="result-card-value text-danger-custom"),
-                        html.Div(f"money you'll never have",
+                        html.Div(t("rc.lost_wealth_sub", lang),
                                  className="result-card-sub"),
                     ], className="result-card"),
                     md=4, sm=12, className="mb-3",
@@ -312,9 +313,9 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                             html.I(className="bi bi-x-diamond-fill",
                                    style={"fontSize": "1.5rem", "color": "#f59e0b"}),
                         ], className="result-icon"),
-                        html.Div("Cost Multiplier", className="result-card-label"),
+                        html.Div(t("rc.multiplier", lang), className="result-card-label"),
                         html.Div(f"{multiplier:.1f}×", className="result-card-value text-warning-custom"),
-                        html.Div(f"every $1 spent = ${multiplier:.2f} lost",
+                        html.Div(t("rc.multiplier_sub", lang).format(multiplier=multiplier),
                                  className="result-card-sub"),
                     ], className="result-card"),
                     md=4, sm=12, className="mb-3",
@@ -328,22 +329,22 @@ def _build_results(name, cost, age, growth, years_left, future_value, lost, mult
                 html.I(className="bi bi-lightbulb-fill me-2",
                        style={"color": "#f59e0b", "fontSize": "1.2rem"}),
                 html.Span(
-                    f"Instead of buying that {name} for {_fmt(cost)}, "
-                    f"investing the money at {growth}% annual return would grow to "
-                    f"{_fmt(future_value)} by the time you turn 80 — "
-                    f"that's {_fmt(lost)} in lost wealth.",
+                    t("rc.insight", lang).format(
+                        name=name, cost=_fmt(cost), growth=growth,
+                        future_value=_fmt(future_value), lost=_fmt(lost),
+                    ),
                     className="insight-text",
                 ),
             ], className="d-flex align-items-start"),
         ], className="insight-callout"),
 
         # Year-by-year mini timeline
-        _build_timeline(cost, growth / 100, years_left, age),
+        _build_timeline(cost, growth / 100, years_left, age, lang),
 
     ], className="results-container animate-in")
 
 
-def _build_timeline(cost, rate, years_left, start_age):
+def _build_timeline(cost, rate, years_left, start_age, lang="en"):
     """Build a compact growth timeline showing key milestones."""
     milestones = []
     checkpoints = [1, 5, 10, 15, 20, 25, 30, 40, 50]
@@ -366,8 +367,8 @@ def _build_timeline(cost, rate, years_left, start_age):
             html.Div([
                 html.Div(className="timeline-dot"),
                 html.Div([
-                    html.Div(f"Year {yr}", className="timeline-year"),
-                    html.Div(f"Age {age_at}", className="timeline-age"),
+                    html.Div(t("rc.year_n", lang).format(yr=yr), className="timeline-year"),
+                    html.Div(t("rc.age_n", lang).format(age=age_at), className="timeline-age"),
                     html.Div(_fmt(val), className="timeline-val"),
                 ], className="timeline-info"),
             ], className="timeline-item",
@@ -375,7 +376,7 @@ def _build_timeline(cost, rate, years_left, start_age):
         )
 
     return html.Div([
-        html.H6("Growth Timeline", className="timeline-title"),
+        html.H6(t("rc.timeline", lang), className="timeline-title"),
         html.Div([
             html.Div(className="timeline-track"),
             html.Div(items, className="timeline-items"),
