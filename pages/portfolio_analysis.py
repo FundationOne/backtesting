@@ -243,7 +243,7 @@ def layout(lang="en"):
             html.Strong(t("pa.demo_account", lang)),
             html.Span(t("pa.demo_banner", lang), className="ms-1"),
             html.A(t("pa.demo_login", lang), href="#", id="demo-login-link", className="text-white fw-bold text-decoration-underline ms-1"),
-            html.Span(t("pa.demo_suffix", lang)),
+            html.Span(t("pa.demo_suffix", lang), id="demo-banner-suffix"),
         ],
         id="demo-banner",
         style={
@@ -270,15 +270,15 @@ def layout(lang="en"):
         
         # Right side - Controls
         html.Div([
-            # Sync button
+            # Sync button (hidden — sync via banner CTA)
             dbc.Button([
                 html.I(className="bi bi-arrow-repeat"),
-            ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.sync", lang)),
+            ], id="sync-tr-data-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.sync", lang), style={"display": "none"}),
 
-            # Demo mode toggle
+            # Demo mode toggle (hidden — auto-managed)
             dbc.Button([
                 html.I(className="bi bi-person-badge", id="demo-toggle-icon"),
-            ], id="demo-toggle-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.switch_demo", lang)),
+            ], id="demo-toggle-btn", color="link", size="sm", className="header-icon-btn", n_clicks=0, title=t("pa.switch_demo", lang), style={"display": "none"}),
 
             # Privacy toggle
             dbc.Button([
@@ -661,7 +661,7 @@ def register_callbacks(app):
         if not current_user:
             # Logged out → demo
             return True, _load_demo_json()
-        # Logged in → exit demo, load real cached data if available
+        # Logged in → load real cached data if available, else stay in demo
         try:
             from components.tr_api import get_cached_portfolio
             cached = get_cached_portfolio(user_id=current_user)
@@ -669,8 +669,8 @@ def register_callbacks(app):
                 return False, json.dumps(cached)
         except Exception:
             pass
-        # No cached data yet — stay in demo until they sync
-        return False, no_update
+        # No cached data yet — keep demo mode so the banner stays visible
+        return True, _load_demo_json()
 
     # ── Demo mode toggle (manual button) ──
     @app.callback(
@@ -699,7 +699,11 @@ def register_callbacks(app):
     @app.callback(
         [Output("demo-banner", "style"),
          Output("demo-toggle-btn", "title"),
-         Output("demo-toggle-icon", "className")],
+         Output("demo-toggle-icon", "className"),
+         Output("demo-login-link", "children"),
+         Output("demo-banner-suffix", "children"),
+         Output("sync-tr-data-btn", "style"),
+         Output("demo-toggle-btn", "style")],
         [Input("demo-mode", "data"),
          Input("current-user-store", "data")],
         State("lang-store", "data"),
@@ -708,6 +712,17 @@ def register_callbacks(app):
     def update_demo_banner(demo_mode, current_user, lang_data):
         lang = get_lang(lang_data)
         show_demo = demo_mode or not current_user
+
+        # Check if this logged-in user has ever synced real data
+        has_real_data = False
+        if current_user:
+            try:
+                from components.tr_api import get_cached_portfolio
+                cached = get_cached_portfolio(user_id=current_user)
+                has_real_data = bool(cached and cached.get("success"))
+            except Exception:
+                pass
+
         banner_style = {
             "display": "block" if show_demo else "none",
             "backgroundColor": "#f59e0b",
@@ -719,9 +734,22 @@ def register_callbacks(app):
             "borderRadius": "6px",
             "marginBottom": "8px",
         }
+        # Choose link label + suffix based on whether user is logged in
+        if current_user:
+            link_text = t("pa.demo_login_connected", lang)
+            suffix_text = t("pa.demo_suffix_connected", lang)
+        else:
+            link_text = t("pa.demo_login", lang)
+            suffix_text = t("pa.demo_suffix", lang)
+
+        # Show sync + demo-toggle buttons when logged-in user has real data
+        btn_visible = {} if has_real_data else {"display": "none"}
+
         if show_demo:
-            return banner_style, t("pa.switch_real", lang), "bi bi-briefcase-fill"
-        return banner_style, t("pa.switch_demo", lang), "bi bi-person-badge"
+            return (banner_style, t("pa.switch_real", lang), "bi bi-briefcase-fill",
+                    link_text, suffix_text, btn_visible, btn_visible)
+        return (banner_style, t("pa.switch_demo", lang), "bi bi-person-badge",
+                link_text, suffix_text, btn_visible, btn_visible)
     
     # Sync button: if connected → sync; if not logged in → login; if not connected → open TR modal
     @app.callback(
