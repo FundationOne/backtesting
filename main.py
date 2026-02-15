@@ -71,7 +71,7 @@ sidebar = html.Div([
         dbc.NavLink([
             html.I(className="bi bi-bank me-2"), 
             html.Span("Bank Account Sync", id="nav-text-banksync"),
-        ], href="/banksync", id="banksync-link", className="nav-link-modern", style={"display": "none"}),
+        ], href="/banksync", id="banksync-link", className="nav-link-modern"),
 
         dbc.NavLink([
             html.I(className="bi bi-shield-check me-2"), 

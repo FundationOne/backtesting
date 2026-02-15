@@ -601,7 +601,9 @@ def _rule_item(rule, lang="en"):
     )
     match_categories = [c for c in (rule.get("match_categories") or []) if c]
     category_badge = rule.get("category", "")
-    if len(match_categories) > 1:
+    if len(match_categories) > 3:
+        category_badge = f"{len(match_categories)} categories"
+    elif len(match_categories) > 1:
         category_badge = f"{match_categories[0]} +{len(match_categories) - 1}"
 
     return html.Div([
@@ -625,6 +627,16 @@ def _rule_item(rule, lang="en"):
         ),
     ], className="d-flex align-items-center justify-content-between "
                  "py-2 px-3 border-bottom")
+
+
+def _monitoring_category_badge(summary):
+    """Build a compact category label for a monitoring row."""
+    match_cats = [c for c in (summary.get("match_categories") or []) if c]
+    if len(match_cats) > 3:
+        return f"{len(match_cats)} categories"
+    if len(match_cats) > 1:
+        return f"{match_cats[0]} +{len(match_cats) - 1}"
+    return summary.get("category", "")
 
 
 def _monitoring_row(summary, lang="en"):
@@ -651,7 +663,7 @@ def _monitoring_row(summary, lang="en"):
             html.Div([
                 html.Div(summary["name"], className="fw-semibold small"),
                 html.Div([
-                    dbc.Badge(summary["category"], color="light",
+                    dbc.Badge(_monitoring_category_badge(summary), color="light",
                               text_color="dark", className="me-1"),
                     html.Span(
                         t("bs.last_date", lang).format(date=summary['last_date'] or t("bs.never", lang)),
@@ -705,6 +717,9 @@ def _build_donut(normalised, lang="en"):
     sorted_items = sorted(cat_totals.items(), key=lambda kv: kv[1], reverse=True)
     total_value = sum(v for _, v in sorted_items) or 1
 
+    # Check if all transactions are uncategorised
+    all_uncategorised = (len(cat_totals) == 1 and "Uncategorised" in cat_totals)
+
     max_visible = 7
     min_share = 0.02  # 2%
     compact_items = []
@@ -757,6 +772,16 @@ def _build_donut(normalised, lang="en"):
         title=dict(text=t("bs.by_category", lang), font=dict(size=12),
                    x=0.5, y=0.98),
     )
+
+    if all_uncategorised:
+        fig.update_layout(
+            annotations=[dict(
+                text=t("bs.hint_ai_categorise", lang),
+                x=0.5, y=0.5, font_size=11, showarrow=False,
+                xanchor="center", yanchor="middle",
+            )],
+        )
+
     return fig
 
 
@@ -980,9 +1005,16 @@ def register_callbacks(app):
                     console.log("migrated key:", pfx + txsRes.key, "->", pfx + "txns");
                 }
 
-                console.log("[bank-load] Loaded", conns.length, "conns,", txs.length, "txs for user", user);
+                // Load rules from localStorage
+                var rulesRaw = localStorage.getItem(pfx + "rules");
+                var rules = [];
+                if (rulesRaw) {
+                    try { rules = JSON.parse(rulesRaw) || []; } catch(e) { rules = []; }
+                }
+
+                console.log("[bank-load] Loaded", conns.length, "conns,", rules.length, "rules,", txs.length, "txs for user", user);
                 console.groupEnd();
-                return [conns, [], txs];
+                return [conns, rules, txs];
             } catch(e) {
                 console.error("Bank data load error:", e);
                 try { console.groupEnd(); } catch(_) {}
@@ -1005,7 +1037,7 @@ def register_callbacks(app):
     # Triggered by server callbacks that mutate connections/transactions.
     app.clientside_callback(
         """
-        function(saveSignal, connections, transactions, user) {
+        function(saveSignal, connections, rules, transactions, user) {
             if (!saveSignal) {
                 console.log("[bank-save] skipped: no explicit save signal");
                 return "";
@@ -1021,6 +1053,7 @@ def register_callbacks(app):
             var action = String(saveSignal).split(":")[0] || "unknown";
             var allowConnsWrite = (action === "connect" || action === "auth-complete");
             var allowTxWrite = (action === "sync" || action === "ai-categorise" || action === "auth-complete");
+            var allowRulesWrite = (action === "rule-add" || action === "rule-delete");
 
             // RULE: never write null or empty arrays over existing data.
             function backupCurrent(key) {
@@ -1033,7 +1066,7 @@ def register_callbacks(app):
                 return true;
             }
 
-            function safeSave(key, data, allowWrite) {
+            function safeSave(key, data, allowWrite, forceEmpty) {
                 if (!allowWrite) {
                     return "skipped-action";
                 }
@@ -1044,6 +1077,11 @@ def register_callbacks(app):
                     localStorage.setItem(pfx + key, JSON.stringify(data));
                     return "written";
                 }
+                // For rules, allow saving empty arrays (user deleted all rules)
+                if (forceEmpty) {
+                    localStorage.setItem(pfx + key, JSON.stringify([]));
+                    return "written-empty-forced";
+                }
                 var existing = localStorage.getItem(pfx + key);
                 if (!existing || existing === "[]" || existing === "null") {
                     localStorage.setItem(pfx + key, JSON.stringify(data || []));
@@ -1053,21 +1091,25 @@ def register_callbacks(app):
             }
 
             try {
-                var s1 = safeSave("conns", connections, allowConnsWrite);
-                var s3 = safeSave("txns", transactions, allowTxWrite);
+                var s1 = safeSave("conns", connections, allowConnsWrite, false);
+                var s2 = safeSave("rules", rules, allowRulesWrite, true);
+                var s3 = safeSave("txns", transactions, allowTxWrite, false);
                 var connsCount = Array.isArray(connections) ? connections.length : 0;
+                var rulesCount = Array.isArray(rules) ? rules.length : 0;
                 var txCount = Array.isArray(transactions) ? transactions.length : 0;
                 var parts = String(saveSignal).split(":");
                 var deltaAppended = (parts.length >= 3) ? parseInt(parts[2], 10) : null;
                 console.log("prefix:", pfx);
                 console.log("action:", action, "allowConnsWrite:", allowConnsWrite, "allowTxWrite:", allowTxWrite);
                 console.log("connections:", s1, "count:", connsCount);
+                console.log("rules:", s2, "count:", rulesCount);
                 console.log("transactions:", s3, "count:", txCount);
                 if (action === "sync") {
                     console.log("[bank-sync] delta appended:", Number.isFinite(deltaAppended) ? deltaAppended : "n/a");
                 }
                 console.log("[bank-save] explicit:", saveSignal,
                             "conns:", s1,
+                            "rules:", s2,
                             "txs:", s3);
             } catch(e) {
                 console.error("Bank data save error:", e);
@@ -1080,6 +1122,7 @@ def register_callbacks(app):
         Output("bs-save-result", "children"),
         Input("bs-save-trigger", "children"),
         [State("bs-connections-store", "data"),
+         State("bs-rules-store", "data"),
          State("bs-transactions-cache", "data"),
          State("current-user-store", "data")],
         prevent_initial_call=True,
@@ -1494,28 +1537,38 @@ def register_callbacks(app):
                         if q in n["counterparty"].lower()
                         or q in n["description"].lower()
                         or q in n.get("category", "").lower()]
-        selected_categories = set(cat_filter or [])
-        if selected_categories:
-            filtered = [n for n in filtered
-                        if n.get("category") in selected_categories]
 
-        selected_accounts = set(acct_filter or [])
-        if selected_accounts:
-            # Need to match back to raw txs
-            matching_ids = set()
-            for tx in all_txs:
-                if tx.get("_account_id") in selected_accounts:
-                    norm = normalize_transaction(tx)
-                    matching_ids.add(norm["id"])
-            filtered = [n for n in filtered if n["id"] in matching_ids]
+        # ── Determine if this is a user-driven filter action ──
+        _filter_ids = {"tx-category-filter", "tx-account-filter",
+                       "tx-direction-filter", "tx-filter-input",
+                       "tx-date-range"}
+        is_filter_action = triggered in _filter_ids
 
-        selected_dirs = set(dir_filter or [])
-        if selected_dirs:
-            filtered = [
-                n for n in filtered
-                if (("in" in selected_dirs and n["amount"] > 0)
-                    or ("out" in selected_dirs and n["amount"] < 0))
-            ]
+        # On non-filter triggers (load / sync), we show everything and
+        # reset filter values to "all" below.  On filter triggers, apply
+        # the current selection (empty selection = show nothing).
+        if is_filter_action:
+            selected_categories = set(cat_filter) if cat_filter is not None else None
+            if selected_categories is not None:
+                filtered = [n for n in filtered
+                            if n.get("category") in selected_categories]
+
+            selected_accounts = set(acct_filter) if acct_filter is not None else None
+            if selected_accounts is not None:
+                matching_ids = set()
+                for tx in all_txs:
+                    if tx.get("_account_id") in selected_accounts:
+                        norm = normalize_transaction(tx)
+                        matching_ids.add(norm["id"])
+                filtered = [n for n in filtered if n["id"] in matching_ids]
+
+            selected_dirs = set(dir_filter or [])
+            if selected_dirs:
+                filtered = [
+                    n for n in filtered
+                    if (("in" in selected_dirs and n["amount"] > 0)
+                        or ("out" in selected_dirs and n["amount"] < 0))
+                ]
 
         # ── Donut chart ──
         donut_fig = _build_donut(filtered, lang)
@@ -1537,10 +1590,7 @@ def register_callbacks(app):
                 ])
 
         # ── Auto-select all when triggered by non-filter action ──
-        _filter_ids = {"tx-category-filter", "tx-account-filter",
-                       "tx-direction-filter", "tx-filter-input",
-                       "tx-date-range"}
-        if triggered not in _filter_ids:
+        if not is_filter_action:
             cat_val = [o["value"] for o in cat_options]
             acct_val = [o["value"] for o in acct_options]
             dir_val = ["in", "out"]
@@ -1673,7 +1723,8 @@ def register_callbacks(app):
     @app.callback(
         [Output("rules-container", "children", allow_duplicate=True),
          Output("add-rule-feedback", "children"),
-         Output("bs-rules-store", "data", allow_duplicate=True)],
+         Output("bs-rules-store", "data", allow_duplicate=True),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         Input("confirm-add-rule-btn", "n_clicks"),
         [State("rule-name-input", "value"),
          State("rule-category-select", "value"),
@@ -1696,6 +1747,7 @@ def register_callbacks(app):
                 dbc.Alert(t("bs.name_pattern_required", lang),
                           color="warning", className="small py-1 mb-0"),
                 no_update,
+                no_update,
             )
 
         expected_amount = float(amount) if amount else None
@@ -1716,12 +1768,13 @@ def register_callbacks(app):
         ui = (html.Div(items) if items
               else html.P(t("bs.no_rules", lang), className="text-muted small "
                           "text-center py-3"))
-        return ui, "", rules
+        return ui, "", rules, f"rule-add:{time.time()}"
 
     # ─── 10. Delete a rule (from browser store) ───────────────────────
     @app.callback(
         [Output("rules-container", "children"),
-         Output("bs-rules-store", "data", allow_duplicate=True)],
+         Output("bs-rules-store", "data", allow_duplicate=True),
+         Output("bs-save-trigger", "children", allow_duplicate=True)],
         Input({"type": "delete-rule-btn", "index": ALL}, "n_clicks"),
         [State("bs-rules-store", "data"),
          State("lang-store", "data")],
@@ -1738,13 +1791,15 @@ def register_callbacks(app):
         rule_id = triggered["index"]
         rules = [r for r in (rules or []) if r["id"] != rule_id]
 
+        save_trigger = f"rule-delete:{time.time()}"
         if not rules:
             return (
                 html.P(t("bs.no_rules", lang),
                        className="text-muted small text-center py-2 mb-0"),
                 rules,
+                save_trigger,
             )
-        return html.Div([_rule_item(r, lang) for r in rules]), rules
+        return html.Div([_rule_item(r, lang) for r in rules]), rules, save_trigger
 
     # ─── 11. Load rules on page visit ─────────────────────────────────
     @app.callback(

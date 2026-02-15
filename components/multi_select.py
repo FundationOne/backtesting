@@ -79,26 +79,50 @@ def register_multi_select_callbacks(app, filters, *, outside_click_output=None):
         Defaults to the first filter's summary ``title`` property.
     """
     for _fid, _all_label in filters:
-        # Select All
+        # Select All / Clear All — pure UI, no Dash Output on .value
+        # We call React's setProps directly on the Checklist component
+        # to avoid conflicts with server callbacks that also target .value.
         app.clientside_callback(
-            """function(nAll, opts) {
-                if (!nAll) return dash_clientside.no_update;
-                return (opts || []).map(function(o){ return o.value; });
-            }""",
-            Output(_fid, "value", allow_duplicate=True),
-            Input(f"{_fid}-selall", "n_clicks"),
-            State(_fid, "options"),
-            prevent_initial_call=True,
-        )
+            """function(nSel, nClr, opts) {
+                var ctx = dash_clientside.callback_context;
+                if (!ctx || !ctx.triggered || !ctx.triggered.length)
+                    return dash_clientside.no_update;
 
-        # Clear All
-        app.clientside_callback(
-            """function(nClr) {
-                if (!nClr) return dash_clientside.no_update;
-                return [];
-            }""",
-            Output(_fid, "value", allow_duplicate=True),
-            Input(f"{_fid}-clrall", "n_clicks"),
+                var trig = ctx.triggered[0].prop_id;
+                var newVal;
+                if (trig.indexOf("-selall") !== -1) {
+                    newVal = (opts || []).map(function(o){ return o.value; });
+                } else if (trig.indexOf("-clrall") !== -1) {
+                    newVal = [];
+                } else {
+                    return dash_clientside.no_update;
+                }
+
+                // Directly set props on the Dash/React component via fiber tree.
+                var el = document.getElementById("%s");
+                if (el) {
+                    var fk = Object.keys(el).find(function(k) {
+                        return k.startsWith("__reactFiber$") ||
+                               k.startsWith("__reactInternalInstance$");
+                    });
+                    if (fk) {
+                        var fiber = el[fk];
+                        while (fiber) {
+                            var p = fiber.memoizedProps || fiber.pendingProps || {};
+                            if (typeof p.setProps === "function") {
+                                p.setProps({value: newVal});
+                                break;
+                            }
+                            fiber = fiber.return;
+                        }
+                    }
+                }
+                return dash_clientside.no_update;
+            }""" % _fid,
+            Output(f"{_fid}-selall", "className"),
+            [Input(f"{_fid}-selall", "n_clicks"),
+             Input(f"{_fid}-clrall", "n_clicks")],
+            State(_fid, "options"),
             prevent_initial_call=True,
         )
 

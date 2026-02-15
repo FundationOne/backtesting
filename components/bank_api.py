@@ -858,6 +858,7 @@ def compute_monitoring_summary(
             "rule_id": rule["id"],
             "name": rule["name"],
             "category": rule["category"],
+            "match_categories": rule.get("match_categories", []),
             "frequency_days": freq,
             "expected_amount": expected_amount,
             "expected_count": expected_count,

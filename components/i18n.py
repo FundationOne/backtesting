@@ -429,6 +429,8 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "bs.cat_error":             {"en": "Categorisation error: {msg}",
                                  "de": "Kategorisierungsfehler: {msg}"},
     "bs.no_data":               {"en": "No data",                   "de": "Keine Daten"},
+    "bs.hint_ai_categorise":    {"en": "No categories yet —\nclick AI Categorise",
+                                 "de": "Noch keine Kategorien —\nklicke auf KI-Kategorisierung"},
     "bs.bank_not_configured":   {"en": "Bank sync not configured",  "de": "Bank-Sync nicht konfiguriert"},
     "bs.no_banks_found":        {"en": "No banks found for this country",
                                  "de": "Keine Banken für dieses Land gefunden"},
